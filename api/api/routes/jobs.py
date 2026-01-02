@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Query
@@ -28,6 +29,35 @@ from ..utils import abs_storage_path, get_logger
 
 router = APIRouter()
 logger = get_logger()
+
+
+def _parse_timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _should_recycle_job(job) -> bool:
+    if job.status != "downloading":
+        return False
+    log_path = STORAGE_ROOT / "logs" / f"{job.id}.log"
+    if log_path.exists():
+        return True
+    updated_at = _parse_timestamp(job.updated_at)
+    if updated_at is None:
+        return False
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    age_s = (datetime.now(timezone.utc) - updated_at).total_seconds()
+    return job.progress >= 25 and age_s > 30
+
+
+def _recycle_job(job) -> None:
+    delete_job(DB_PATH, job.id)
+    logger.info("Recycling stale job %s (%s)", job.id, job.status)
 
 
 def _job_response(job) -> JSONResponse:
@@ -180,10 +210,16 @@ def create_analysis_youtube(
 
     if track_title and track_artist:
         existing_by_track = get_job_by_track(DB_PATH, track_title, track_artist)
+        if existing_by_track and _should_recycle_job(existing_by_track):
+            _recycle_job(existing_by_track)
+            existing_by_track = None
         if existing_by_track and existing_by_track.status != "failed":
             return _job_response(existing_by_track)
 
     existing = get_job_by_youtube_id(DB_PATH, youtube_id)
+    if existing and _should_recycle_job(existing):
+        _recycle_job(existing)
+        existing = None
     if existing and existing.status != "failed":
         return _job_response(existing)
 
@@ -227,6 +263,9 @@ def get_job_by_youtube(youtube_id: str) -> JSONResponse:
     job = get_job_by_youtube_id(DB_PATH, youtube_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if _should_recycle_job(job):
+        _recycle_job(job)
+        raise HTTPException(status_code=404, detail="Job not found")
     return _job_response(job)
 
 
@@ -236,5 +275,8 @@ def get_job_by_track_match(
 ) -> JSONResponse:
     job = get_job_by_track(DB_PATH, title, artist)
     if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if _should_recycle_job(job):
+        _recycle_job(job)
         raise HTTPException(status_code=404, detail="Job not found")
     return _job_response(job)
