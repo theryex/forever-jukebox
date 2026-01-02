@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 
 from api.db import claim_next_job, delete_job, init_db, set_job_progress, set_job_status
+from api.utils import abs_storage_path, get_logger
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 STORAGE_ROOT = (APP_ROOT / "storage").resolve()
@@ -21,26 +22,20 @@ GENERATOR_CONFIG = Path(os.environ.get("GENERATOR_CONFIG", ""))
 
 POLL_INTERVAL_S = float(os.environ.get("POLL_INTERVAL_S", "1.0"))
 
+ENGINE_PROGRESS_START = 50
+ENGINE_PROGRESS_WAIT = 75
+ENGINE_PROGRESS_END = 100
+API_PROGRESS_START = 26
+API_PROGRESS_WAIT = int(round(API_PROGRESS_START + (ENGINE_PROGRESS_WAIT - ENGINE_PROGRESS_START) * 74 / 50))
+API_PROGRESS_END = 100
+BUMP_IDLE_S = 3.0
+logger = get_logger("foreverjukebox.worker")
+
 
 class JobFailure(Exception):
     def __init__(self, message: str, output_lines: list[str] | None = None) -> None:
         super().__init__(message)
         self.output_lines = output_lines or []
-
-
-def _abs_storage_path(path_str: str) -> Path:
-    path = Path(path_str)
-    if path.is_absolute():
-        if path.exists():
-            return path
-        audio_candidate = STORAGE_ROOT / "audio" / path.name
-        if audio_candidate.exists():
-            return audio_candidate
-        analysis_candidate = STORAGE_ROOT / "analysis" / path.name
-        if analysis_candidate.exists():
-            return analysis_candidate
-        return path
-    return (STORAGE_ROOT / path).resolve()
 
 
 def run_job(job_id: str, input_path: str, output_path: str) -> None:
@@ -51,27 +46,39 @@ def run_job(job_id: str, input_path: str, output_path: str) -> None:
     env["PYTHONPATH"] = str(GENERATOR_REPO)
     env["FJ_PROGRESS"] = "1"
 
-    input_abs = _abs_storage_path(input_path)
+    input_abs = abs_storage_path(STORAGE_ROOT, input_path)
     if not input_abs.exists():
         candidates = sorted((STORAGE_ROOT / "audio").glob(f"{job_id}.*"))
         if candidates:
             input_abs = candidates[0]
-    output_abs = _abs_storage_path(output_path)
+    output_abs = abs_storage_path(STORAGE_ROOT, output_path)
     output_abs.parent.mkdir(parents=True, exist_ok=True)
 
     progress_lock = threading.Lock()
-    progress_state = {"value": 0, "last_update": time.time()}
+    progress_state = {"value": API_PROGRESS_START, "last_update": time.time()}
     stop_event = threading.Event()
+
+    set_job_progress(DB_PATH, job_id, API_PROGRESS_START)
+
+    def map_engine_progress(value: int) -> int:
+        if value <= ENGINE_PROGRESS_START:
+            return API_PROGRESS_START
+        if value >= ENGINE_PROGRESS_END:
+            return API_PROGRESS_END
+        scaled = API_PROGRESS_START + (value - ENGINE_PROGRESS_START) * (API_PROGRESS_END - API_PROGRESS_START) / (
+            ENGINE_PROGRESS_END - ENGINE_PROGRESS_START
+        )
+        return int(round(scaled))
 
     def bump_progress() -> None:
         while not stop_event.is_set():
             with progress_lock:
                 current = progress_state["value"]
                 last_update = progress_state["last_update"]
-            if current >= 75:
+            if current >= API_PROGRESS_WAIT:
                 break
-            if current >= 50 and time.time() - last_update > 1.0:
-                next_value = min(75, current + 1)
+            if current >= API_PROGRESS_START and time.time() - last_update > BUMP_IDLE_S:
+                next_value = min(API_PROGRESS_WAIT, current + 1)
                 set_job_progress(DB_PATH, job_id, next_value)
                 with progress_lock:
                     progress_state["value"] = next_value
@@ -103,24 +110,26 @@ def run_job(job_id: str, input_path: str, output_path: str) -> None:
     )
     assert proc.stdout is not None
     output_lines: list[str] = []
-    for line in proc.stdout:
-        if line.startswith("PROGRESS:"):
-            parts = line.strip().split(":", 2)
-            if len(parts) >= 2:
-                try:
-                    progress = int(parts[1])
-                    set_job_progress(DB_PATH, job_id, progress)
-                    with progress_lock:
-                        progress_state["value"] = progress
-                        progress_state["last_update"] = time.time()
-                except ValueError:
-                    pass
-            continue
-        output_lines.append(line)
-        print(line, end="")
-    returncode = proc.wait()
-    stop_event.set()
-    progress_thread.join(0.5)
+    try:
+        for line in proc.stdout:
+            if line.startswith("PROGRESS:"):
+                parts = line.strip().split(":", 2)
+                if len(parts) >= 2:
+                    try:
+                        progress = map_engine_progress(int(parts[1]))
+                        set_job_progress(DB_PATH, job_id, progress)
+                        with progress_lock:
+                            progress_state["value"] = progress
+                            progress_state["last_update"] = time.time()
+                    except ValueError:
+                        pass
+                continue
+            output_lines.append(line)
+            logger.info("%s", line.rstrip())
+        returncode = proc.wait()
+    finally:
+        stop_event.set()
+        progress_thread.join(1.0)
     if returncode != 0:
         raise JobFailure(f"Engine exited with status {returncode}", output_lines)
 
@@ -128,7 +137,7 @@ def run_job(job_id: str, input_path: str, output_path: str) -> None:
 def apply_track_metadata(output_path: str, title: str | None, artist: str | None) -> None:
     if not title and not artist:
         return
-    result_path = _abs_storage_path(output_path)
+    result_path = abs_storage_path(STORAGE_ROOT, output_path)
     if not result_path.exists():
         return
     try:
@@ -160,15 +169,15 @@ def cleanup_failed_job(job, error: Exception) -> None:
             for line in output_lines:
                 log_file.write(line)
     if job.input_path:
-        input_path = _abs_storage_path(job.input_path)
+        input_path = abs_storage_path(STORAGE_ROOT, job.input_path)
         if input_path.is_file():
             input_path.unlink()
     if job.output_path:
-        output_path = _abs_storage_path(job.output_path)
+        output_path = abs_storage_path(STORAGE_ROOT, job.output_path)
         if output_path.is_file():
             output_path.unlink()
     delete_job(DB_PATH, job.id)
-    print(f"Job {job.id} failed: {error} (log: {log_path})")
+    logger.info("Job %s failed: %s (log: %s)", job.id, error, log_path)
 
 
 def main() -> None:

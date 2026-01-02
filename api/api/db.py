@@ -151,7 +151,7 @@ def claim_next_job(db_path: Path) -> Optional[Job]:
         job = Job(*row)
         conn.execute(
             "UPDATE jobs SET status = 'processing', progress = ?, updated_at = ? WHERE id = ?",
-            (max(job.progress, 50), _utc_now(), job.id),
+            (26, _utc_now(), job.id),
         )
         conn.execute("COMMIT")
     return job
