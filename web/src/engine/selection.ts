@@ -14,6 +14,7 @@ export function shouldRandomBranch(
   if (q.which === graph.lastBranchPoint) {
     return true;
   }
+  // Gradually increase branch chance until a jump happens, then reset.
   state.curRandomBranchChance += config.randomBranchChanceDelta;
   if (state.curRandomBranchChance > config.maxRandomBranchChance) {
     state.curRandomBranchChance = config.maxRandomBranchChance;

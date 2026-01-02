@@ -1,4 +1,12 @@
 import { Edge, QuantumBase } from "../engine/types";
+import {
+  BEAT_AVOID_RADIUS_PX,
+  BEAT_SELECT_RADIUS_PX,
+  EDGE_SELECT_RADIUS_PX,
+  MAX_EDGE_SAMPLES,
+  MAX_EDGES_BASE,
+} from "../app/constants";
+import { distanceToQuadratic, distanceToSegment } from "./geometry";
 
 interface VisualizationData {
   beats: QuantumBase[];
@@ -23,16 +31,32 @@ export class CanvasViz {
   private overlayCanvas: HTMLCanvasElement;
   private baseCtx: CanvasRenderingContext2D;
   private overlayCtx: CanvasRenderingContext2D;
-  private positions: Array<{ x: number; y: number }> = [];
+
   private data: VisualizationData | null = null;
+  private positions: Array<{ x: number; y: number }> = [];
+  private center = { x: 0, y: 0 };
+
   private currentIndex = -1;
   private jumpLine: JumpLine | null = null;
+  private selectedEdge: Edge | null = null;
+
   private onSelect: ((index: number) => void) | null = null;
   private onEdgeSelect: ((edge: Edge | null) => void) | null = null;
-  private selectedEdge: Edge | null = null;
-  private center = { x: 0, y: 0 };
+
   private positioner: Positioner;
   private visible = true;
+
+  private edgeGeometry = new WeakMap<
+    Edge,
+    { bend: boolean; control: [number, number] | null }
+  >();
+  private theme = {
+    edgeStroke: "rgba(74, 199, 255, 0.12)",
+    beatFill: "rgba(255, 215, 130, 0.55)",
+    edgeSelected: "#ff5b5b",
+    beatHighlight: "#ffd46a",
+    beatJumpRgb: "255, 212, 106",
+  };
 
   constructor(container: HTMLElement, positioner: Positioner) {
     this.container = container;
@@ -48,11 +72,9 @@ export class CanvasViz {
     this.overlayCtx = overlayCtx;
     this.container.append(this.baseCanvas, this.overlayCanvas);
     this.applyCanvasStyles();
+    this.updateTheme();
     this.resize();
-    window.addEventListener("resize", () => this.resize());
-    this.overlayCanvas.addEventListener("click", (event) =>
-      this.handleClick(event)
-    );
+    this.overlayCanvas.addEventListener("click", this.handleCanvasClick);
   }
 
   setVisible(visible: boolean) {
@@ -69,6 +91,7 @@ export class CanvasViz {
   setData(data: VisualizationData) {
     this.data = data;
     this.computePositions();
+    this.computeEdgeGeometry();
     this.drawBase();
     this.drawOverlay();
   }
@@ -77,6 +100,7 @@ export class CanvasViz {
     if (!this.data) {
       return;
     }
+    this.updateTheme();
     this.drawBase();
     this.drawOverlay();
   }
@@ -142,6 +166,7 @@ export class CanvasViz {
     this.overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (this.data) {
       this.computePositions();
+      this.computeEdgeGeometry();
       this.drawBase();
       this.drawOverlay();
     }
@@ -156,6 +181,43 @@ export class CanvasViz {
     this.center = { x: width / 2, y: height / 2 };
   }
 
+  private computeEdgeGeometry() {
+    if (!this.data) {
+      return;
+    }
+    this.edgeGeometry = new WeakMap();
+    for (const edge of this.data.edges) {
+      if (edge.deleted) {
+        continue;
+      }
+      const from = this.positions[edge.src.which];
+      const to = this.positions[edge.dest.which];
+      if (!from || !to) {
+        continue;
+      }
+      const bend = this.shouldBendEdge(from, to);
+      const control = bend ? this.getBendControlPoint(from, to) : null;
+      this.edgeGeometry.set(edge, { bend, control });
+    }
+  }
+
+  private updateTheme() {
+    const styles = getComputedStyle(document.body);
+    this.theme.edgeStroke =
+      styles.getPropertyValue("--edge-stroke").trim() || this.theme.edgeStroke;
+    this.theme.beatFill =
+      styles.getPropertyValue("--beat-fill").trim() || this.theme.beatFill;
+    this.theme.edgeSelected =
+      styles.getPropertyValue("--edge-selected").trim() ||
+      this.theme.edgeSelected;
+    this.theme.beatHighlight =
+      styles.getPropertyValue("--beat-highlight").trim() ||
+      this.theme.beatHighlight;
+    this.theme.beatJumpRgb =
+      styles.getPropertyValue("--beat-jump-rgb").trim() ||
+      this.theme.beatJumpRgb;
+  }
+
   private drawBase() {
     if (!this.data || !this.visible) {
       return;
@@ -166,24 +228,20 @@ export class CanvasViz {
     this.baseCtx.lineWidth = 1;
 
     const edges = this.data.edges;
-    const maxEdges = 2500;
-    const step = edges.length > maxEdges ? Math.ceil(edges.length / maxEdges) : 1;
+    const step =
+      edges.length > MAX_EDGES_BASE
+        ? Math.ceil(edges.length / MAX_EDGES_BASE)
+        : 1;
 
-    const edgeStroke =
-      getComputedStyle(document.body).getPropertyValue("--edge-stroke").trim() ||
-      "rgba(74, 199, 255, 0.12)";
     for (let i = 0; i < edges.length; i += step) {
       const edge = edges[i];
       if (edge.deleted) {
         continue;
       }
-      this.drawEdge(this.baseCtx, edge, edgeStroke, 1);
+      this.drawEdge(this.baseCtx, edge, this.theme.edgeStroke, 1);
     }
 
-    const beatFill =
-      getComputedStyle(document.body).getPropertyValue("--beat-fill").trim() ||
-      "rgba(255, 215, 130, 0.55)";
-    this.baseCtx.fillStyle = beatFill;
+    this.baseCtx.fillStyle = this.theme.beatFill;
     for (let i = 0; i < this.positions.length; i += 1) {
       const p = this.positions[i];
       this.baseCtx.beginPath();
@@ -200,20 +258,14 @@ export class CanvasViz {
       return;
     }
     if (this.selectedEdge && !this.selectedEdge.deleted) {
-      const edgeSelected =
-        getComputedStyle(document.body).getPropertyValue("--edge-selected").trim() ||
-        "#ff5b5b";
-      this.drawEdge(this.overlayCtx, this.selectedEdge, edgeSelected, 2.5);
+      this.drawEdge(this.overlayCtx, this.selectedEdge, this.theme.edgeSelected, 2.5);
     }
     if (this.currentIndex < 0) {
       return;
     }
     const current = this.positions[this.currentIndex];
     if (current) {
-      const beatHighlight =
-        getComputedStyle(document.body).getPropertyValue("--beat-highlight").trim() ||
-        "#ffd46a";
-      this.overlayCtx.fillStyle = beatHighlight;
+      this.overlayCtx.fillStyle = this.theme.beatHighlight;
       this.overlayCtx.beginPath();
       this.overlayCtx.arc(current.x, current.y, 6, 0, Math.PI * 2);
       this.overlayCtx.fill();
@@ -225,10 +277,7 @@ export class CanvasViz {
         const to = this.positions[this.jumpLine.to];
         if (from && to) {
           const alpha = 1 - age / 1000;
-          const jumpRgb =
-            getComputedStyle(document.body).getPropertyValue("--beat-jump-rgb").trim() ||
-            "255, 212, 106";
-          const jumpColor = `rgba(${jumpRgb}, ${alpha})`;
+          const jumpColor = `rgba(${this.theme.beatJumpRgb}, ${alpha})`;
           if (this.shouldBendEdge(from, to)) {
             this.drawBentLine(this.overlayCtx, from, to, jumpColor, 2);
           } else {
@@ -246,7 +295,7 @@ export class CanvasViz {
     }
   }
 
-  private handleClick(event: MouseEvent) {
+  private handleCanvasClick = (event: MouseEvent) => {
     if (!this.data || !this.visible) {
       return;
     }
@@ -254,7 +303,7 @@ export class CanvasViz {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     if (this.onSelect) {
-      const maxDistance = 8;
+      const maxDistance = BEAT_SELECT_RADIUS_PX;
       let bestIndex = -1;
       let bestDist = Infinity;
       for (let i = 0; i < this.positions.length; i += 1) {
@@ -273,7 +322,7 @@ export class CanvasViz {
       }
     }
     if (this.onEdgeSelect) {
-      const edgeThreshold = 8;
+      const edgeThreshold = EDGE_SELECT_RADIUS_PX;
       let bestEdge: Edge | null = null;
       let bestEdgeDist = Infinity;
       for (const edge of this.data.edges) {
@@ -285,17 +334,22 @@ export class CanvasViz {
         if (!from || !to) {
           continue;
         }
-        const dist = this.shouldBendEdge(from, to)
-          ? distanceToQuadratic(
-              x,
-              y,
-              from.x,
-              from.y,
-              ...this.getBendControlPoint(from, to),
-              to.x,
-              to.y
-            )
-          : distanceToSegment(x, y, from.x, from.y, to.x, to.y);
+        const geometry = this.getEdgeGeometry(edge);
+        if (!geometry) {
+          continue;
+        }
+        const dist =
+          geometry.bend && geometry.control
+            ? distanceToQuadratic(
+                x,
+                y,
+                from.x,
+                from.y,
+                ...geometry.control,
+                to.x,
+                to.y
+              )
+            : distanceToSegment(x, y, from.x, from.y, to.x, to.y);
         if (dist < bestEdgeDist) {
           bestEdgeDist = dist;
           bestEdge = edge;
@@ -306,7 +360,7 @@ export class CanvasViz {
         this.onEdgeSelect(nextEdge);
       }
     }
-  }
+  };
 
   private drawEdge(
     ctx: CanvasRenderingContext2D,
@@ -319,8 +373,9 @@ export class CanvasViz {
     if (!from || !to) {
       return;
     }
-    if (this.shouldBendEdge(from, to)) {
-      this.drawBentLine(ctx, from, to, color, lineWidth);
+    const geometry = this.getEdgeGeometry(edge);
+    if (geometry?.bend && geometry.control) {
+      this.drawBentLineWithControl(ctx, from, to, geometry.control, color, lineWidth);
       return;
     }
     ctx.strokeStyle = color;
@@ -331,10 +386,27 @@ export class CanvasViz {
     ctx.stroke();
   }
 
+  private getEdgeGeometry(
+    edge: Edge
+  ): { bend: boolean; control: [number, number] | null } | null {
+    const cached = this.edgeGeometry.get(edge);
+    if (cached) {
+      return cached;
+    }
+    const from = this.positions[edge.src.which];
+    const to = this.positions[edge.dest.which];
+    if (!from || !to) {
+      return null;
+    }
+    const bend = this.shouldBendEdge(from, to);
+    const control = bend ? this.getBendControlPoint(from, to) : null;
+    const next = { bend, control };
+    this.edgeGeometry.set(edge, next);
+    return next;
+  }
+
   private shouldBendEdge(from: { x: number; y: number }, to: { x: number; y: number }) {
-    const beatAvoid = 6;
-    const maxSamples = 300;
-    const step = Math.max(1, Math.ceil(this.positions.length / maxSamples));
+    const step = Math.max(1, Math.ceil(this.positions.length / MAX_EDGE_SAMPLES));
     for (let i = 0; i < this.positions.length; i += step) {
       const p = this.positions[i];
       if (!p) {
@@ -344,7 +416,7 @@ export class CanvasViz {
         continue;
       }
       const dist = distanceToSegment(p.x, p.y, from.x, from.y, to.x, to.y);
-      if (dist <= beatAvoid) {
+      if (dist <= BEAT_AVOID_RADIUS_PX) {
         return true;
       }
     }
@@ -359,6 +431,18 @@ export class CanvasViz {
     lineWidth: number
   ) {
     const [cx, cy] = this.getBendControlPoint(from, to);
+    this.drawBentLineWithControl(ctx, from, to, [cx, cy], color, lineWidth);
+  }
+
+  private drawBentLineWithControl(
+    ctx: CanvasRenderingContext2D,
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    control: [number, number],
+    color: string,
+    lineWidth: number
+  ) {
+    const [cx, cy] = control;
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
     ctx.beginPath();
@@ -386,57 +470,4 @@ export class CanvasViz {
       mid.y + normY * (centerDist * 0.5),
     ];
   }
-}
-
-function distanceToSegment(
-  px: number,
-  py: number,
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number
-): number {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  if (dx === 0 && dy === 0) {
-    const sx = px - x1;
-    const sy = py - y1;
-    return Math.sqrt(sx * sx + sy * sy);
-  }
-  const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
-  const clamped = Math.max(0, Math.min(1, t));
-  const cx = x1 + clamped * dx;
-  const cy = y1 + clamped * dy;
-  const ex = px - cx;
-  const ey = py - cy;
-  return Math.sqrt(ex * ex + ey * ey);
-}
-
-function distanceToQuadratic(
-  px: number,
-  py: number,
-  x1: number,
-  y1: number,
-  cx: number,
-  cy: number,
-  x2: number,
-  y2: number
-): number {
-  const samples = 24;
-  let best = Infinity;
-  let prevX = x1;
-  let prevY = y1;
-  for (let i = 1; i <= samples; i += 1) {
-    const t = i / samples;
-    const mt = 1 - t;
-    const qx = mt * mt * x1 + 2 * mt * t * cx + t * t * x2;
-    const qy = mt * mt * y1 + 2 * mt * t * cy + t * t * y2;
-    const dist = distanceToSegment(px, py, prevX, prevY, qx, qy);
-    if (dist < best) {
-      best = dist;
-    }
-    prevX = qx;
-    prevY = qy;
-  }
-  return best;
 }

@@ -218,6 +218,7 @@ function calculateReachability(quanta: QuantumBase[]) {
   for (const q of quanta) {
     q.reach = quanta.length - q.which;
   }
+  // Propagate the furthest reachable beat through backward links and neighbors.
   for (let iter = 0; iter < maxIter; iter += 1) {
     let changeCount = 0;
     for (let qi = 0; qi < quanta.length; qi += 1) {
@@ -257,6 +258,7 @@ function findBestLastBeat(quanta: QuantumBase[]): { index: number; longestReach:
   const reachThreshold = 50;
   let longest = 0;
   let longestReach = 0;
+  // Prefer a late beat with strong reachability to avoid early dead-ends.
   for (let i = quanta.length - 1; i >= 0; i -= 1) {
     const q = quanta[i];
     const distanceToEnd = quanta.length - i;
@@ -306,6 +308,51 @@ function filterOutSequentialBranches(quanta: QuantumBase[], lastBranchPoint: num
   }
 }
 
+function resolveThreshold(
+  quanta: QuantumBase[],
+  config: JukeboxConfig
+): number {
+  if (config.currentThreshold !== 0) {
+    return config.currentThreshold;
+  }
+  const targetBranchCount = quanta.length / 6;
+  for (let t = 10; t < config.maxBranchThreshold; t += 5) {
+    const count = collectNearestNeighbors(quanta, t, config);
+    if (count >= targetBranchCount) {
+      return t;
+    }
+  }
+  return config.maxBranchThreshold;
+}
+
+function addAnchorBranch(
+  quanta: QuantumBase[],
+  threshold: number,
+  config: JukeboxConfig
+) {
+  if (!config.addLastEdge) {
+    return;
+  }
+  if (longestBackwardBranch(quanta) < 50) {
+    insertBestBackwardBranch(quanta, threshold, 65);
+  } else {
+    insertBestBackwardBranch(quanta, threshold, 55);
+  }
+}
+
+function applyBranchFilters(
+  quanta: QuantumBase[],
+  config: JukeboxConfig
+): { lastBranchPoint: number; longestReach: number } {
+  calculateReachability(quanta);
+  const { index: lastBranchPoint, longestReach } = findBestLastBeat(quanta);
+  filterOutBadBranches(quanta, lastBranchPoint);
+  if (config.removeSequentialBranches) {
+    filterOutSequentialBranches(quanta, lastBranchPoint);
+  }
+  return { lastBranchPoint, longestReach };
+}
+
 export function buildJumpGraph(
   analysis: TrackAnalysis,
   config: JukeboxConfig
@@ -319,38 +366,10 @@ export function buildJumpGraph(
     allEdges
   );
 
-  let threshold = config.currentThreshold;
-  if (threshold === 0) {
-    const targetBranchCount = quanta.length / 6;
-    for (let t = 10; t < config.maxBranchThreshold; t += 5) {
-      const count = collectNearestNeighbors(quanta, t, config);
-      if (count >= targetBranchCount) {
-        threshold = t;
-        break;
-      }
-    }
-  }
-
-  if (threshold === 0) {
-    threshold = config.maxBranchThreshold;
-  }
-
+  const threshold = resolveThreshold(quanta, config);
   collectNearestNeighbors(quanta, threshold, config);
-
-  if (config.addLastEdge) {
-    if (longestBackwardBranch(quanta) < 50) {
-      insertBestBackwardBranch(quanta, threshold, 65);
-    } else {
-      insertBestBackwardBranch(quanta, threshold, 55);
-    }
-  }
-
-  calculateReachability(quanta);
-  const { index: lastBranchPoint, longestReach } = findBestLastBeat(quanta);
-  filterOutBadBranches(quanta, lastBranchPoint);
-  if (config.removeSequentialBranches) {
-    filterOutSequentialBranches(quanta, lastBranchPoint);
-  }
+  addAnchorBranch(quanta, threshold, config);
+  const { lastBranchPoint, longestReach } = applyBranchFilters(quanta, config);
 
   return {
     computedThreshold: threshold,

@@ -1,4 +1,5 @@
 export class BufferedAudioPlayer {
+  private static readonly SEEK_EARLY_S = 0.005;
   private context: AudioContext;
   private buffer: AudioBuffer | null = null;
   private source: AudioBufferSourceNode | null = null;
@@ -7,6 +8,7 @@ export class BufferedAudioPlayer {
   private startAt = 0;
   private offset = 0;
   private playing = false;
+  private onEnded: (() => void) | null = null;
 
   constructor(context?: AudioContext) {
     this.context = context ?? new AudioContext();
@@ -63,7 +65,7 @@ export class BufferedAudioPlayer {
     if (this.playing) {
       const now = this.context.currentTime;
       // Start slightly in the past to counter scheduling jitter at beat jumps.
-      const startAt = now - 0.005;
+      const startAt = now - BufferedAudioPlayer.SEEK_EARLY_S;
       const currentSource = this.source;
       if (currentSource) {
         currentSource.onended = null;
@@ -96,6 +98,10 @@ export class BufferedAudioPlayer {
 
   isPlaying(): boolean {
     return this.playing;
+  }
+
+  setOnEnded(handler: (() => void) | null) {
+    this.onEnded = handler;
   }
 
   getDuration(): number | null {
@@ -132,6 +138,7 @@ export class BufferedAudioPlayer {
       if (this.playing) {
         this.playing = false;
         this.offset = this.buffer ? this.buffer.duration : 0;
+        this.onEnded?.();
       }
     };
     const duration = this.buffer.duration - offset;

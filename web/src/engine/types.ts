@@ -1,4 +1,6 @@
 export interface TrackMeta {
+  title?: string;
+  artist?: string;
   duration?: number;
   tempo?: number;
   time_signature?: number;
