@@ -55,6 +55,7 @@ docker run -p 8000:8000 \
   -e SPOTIFY_CLIENT_ID=... \
   -e SPOTIFY_CLIENT_SECRET=... \
   -e YOUTUBE_API_KEY=... \
+  -e WORKER_COUNT=2 \
   forever-jukebox
 ```
 

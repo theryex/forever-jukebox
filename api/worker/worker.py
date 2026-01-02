@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import threading
+import multiprocessing
 from pathlib import Path
 
 from api.db import claim_next_job, delete_job, init_db, set_job_progress, set_job_status
@@ -21,6 +22,7 @@ GENERATOR_REPO = Path(os.environ.get("GENERATOR_REPO", ""))
 GENERATOR_CONFIG = Path(os.environ.get("GENERATOR_CONFIG", ""))
 
 POLL_INTERVAL_S = float(os.environ.get("POLL_INTERVAL_S", "1.0"))
+WORKER_COUNT = int(os.environ.get("WORKER_COUNT", "1"))
 
 ENGINE_PROGRESS_START = 50
 ENGINE_PROGRESS_WAIT = 75
@@ -183,7 +185,7 @@ def cleanup_failed_job(job, error: Exception) -> None:
     logger.info("Job %s failed: %s (log: %s)", job.id, error, log_path)
 
 
-def main() -> None:
+def run_worker_loop() -> None:
     init_db(DB_PATH)
     STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
     (STORAGE_ROOT / "audio").mkdir(parents=True, exist_ok=True)
@@ -203,6 +205,28 @@ def main() -> None:
             cleanup_failed_job(job, exc)
             continue
         set_job_status(DB_PATH, job.id, "complete", None)
+
+def main() -> None:
+    if WORKER_COUNT <= 1:
+        run_worker_loop()
+        return
+
+    logger.info("Starting %s worker processes", WORKER_COUNT)
+    procs: list[multiprocessing.Process] = []
+    for idx in range(WORKER_COUNT):
+        proc = multiprocessing.Process(target=run_worker_loop, name=f"worker-{idx + 1}")
+        proc.start()
+        procs.append(proc)
+
+    try:
+        for proc in procs:
+            proc.join()
+    except KeyboardInterrupt:
+        logger.info("Stopping worker processes...")
+        for proc in procs:
+            proc.terminate()
+        for proc in procs:
+            proc.join()
 
 
 if __name__ == "__main__":
