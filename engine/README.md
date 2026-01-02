@@ -4,6 +4,8 @@ Generate audio analysis JSON from audio files using a local Python pipeline.
 
 ## Setup
 
+This engine stack expects Python 3.11 or 3.12. Python 3.13 does not have compatible wheels for SciPy/Numba yet and will attempt a source build.
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate

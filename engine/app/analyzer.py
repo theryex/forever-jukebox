@@ -3,208 +3,39 @@
 from __future__ import annotations
 
 import math
-import os
 import threading
 import time
-from pathlib import Path
 from typing import Any, Callable
-
-# Ensure numba caching is disabled before importing librosa.
-os.environ.setdefault("NUMBA_DISABLE_JIT", "1")
-os.environ.setdefault("NUMBA_DISABLE_CACHING", "1")
-os.environ.setdefault("NUMBA_DISABLE_CACHE", "1")
 
 import numpy as np
 import scipy
 from scipy.cluster.vq import kmeans2
 
-from datetime import datetime, timezone
-
+from . import env
 from . import features
 from .config import AnalysisConfig
+from .analyzer_utils import (
+    _round_floats,
+    _read_track_metadata,
+    _sanitize_small_values,
+    _segment_times,
+    _frame_slice,
+    _events_from_times,
+    _fix_event_end,
+    _normalize_event_durations,
+    _apply_segment_calibration,
+    _madmom_downbeats,
+)
 
 DEFAULT_SR = 22050
 DEFAULT_HOP = 512
 DEFAULT_TIME_SIGNATURE = 4
 DEFAULT_TATUM_DIVISIONS = 2
 DEFAULT_SECTION_SECONDS = 30.0
-
-
-def _round_floats(obj: Any, ndigits: int = 5) -> Any:
-    if isinstance(obj, float):
-        return round(obj, ndigits)
-    if isinstance(obj, list):
-        return [_round_floats(item, ndigits) for item in obj]
-    if isinstance(obj, dict):
-        return {key: _round_floats(value, ndigits) for key, value in obj.items()}
-    return obj
-
-
-def _read_track_metadata(path: str) -> dict[str, str]:
-    try:
-        from mutagen import File as MutagenFile
-    except Exception:
-        return {}
-
-    try:
-        audio = MutagenFile(path, easy=True)
-    except Exception:
-        return {}
-
-    if not audio or not getattr(audio, "tags", None):
-        return {}
-
-    def first_tag_value(key: str) -> str | None:
-        value = audio.tags.get(key)
-        if not value:
-            return None
-        if isinstance(value, list):
-            return str(value[0]) if value else None
-        return str(value)
-
-    metadata: dict[str, str] = {}
-    title = first_tag_value("title")
-    artist = first_tag_value("artist")
-    if title:
-        metadata["title"] = title
-    if artist:
-        metadata["artist"] = artist
-    return metadata
-
-
-def _sanitize_small_values(obj: Any, parent_key: str | None = None, threshold: float = 1e-4) -> Any:
-    if isinstance(obj, float):
-        if parent_key not in {"pitches", "timbre"} and abs(obj) < threshold:
-            return 0.0
-        return obj
-    if isinstance(obj, list):
-        return [_sanitize_small_values(item, parent_key, threshold) for item in obj]
-    if isinstance(obj, dict):
-        return {key: _sanitize_small_values(value, key, threshold) for key, value in obj.items()}
-    return obj
-
-
-def _segment_times(
-    onset_times: np.ndarray, duration: float, include_start: bool = True, include_end: bool = True
-) -> np.ndarray:
-    parts = [onset_times]
-    if include_start:
-        parts.insert(0, np.array([0.0], dtype=float))
-    if include_end:
-        parts.append(np.array([duration], dtype=float))
-    times = np.unique(np.concatenate(parts))
-    times = times[(times >= 0) & (times <= duration)]
-    if len(times) < 2:
-        return np.array([0.0, duration])
-    return times
-
-
-def _frame_slice(time_start: float, time_end: float, sr: int, hop_length: int) -> tuple[int, int]:
-    start = int(math.floor(time_start * sr / hop_length))
-    end = int(math.ceil(time_end * sr / hop_length))
-    return max(0, start), max(start + 1, end)
-
-
-def _events_from_times(times: np.ndarray, confidences: list[float], duration: float) -> list[dict[str, float]]:
-    events = []
-    for idx, start in enumerate(times):
-        end = times[idx + 1] if idx + 1 < len(times) else duration
-        if end <= start:
-            continue
-        events.append(
-            {
-                "start": float(start),
-                "duration": float(end - start),
-                "confidence": float(confidences[idx]) if idx < len(confidences) else 0.0,
-            }
-        )
-    return events
-
-
-def _fix_event_end(events: list[dict[str, Any]], duration: float) -> None:
-    if not events:
-        return
-    last = events[-1]
-    start = float(last.get("start", 0.0))
-    if start < 0:
-        start = 0.0
-        last["start"] = 0.0
-    new_duration = max(0.0, duration - start)
-    last["duration"] = new_duration
-
-
-def _normalize_event_durations(events: list[dict[str, Any]], duration: float) -> None:
-    if not events:
-        return
-    events.sort(key=lambda item: float(item.get("start", 0.0)))
-    for idx in range(len(events) - 1):
-        start = float(events[idx].get("start", 0.0))
-        next_start = float(events[idx + 1].get("start", start))
-        events[idx]["duration"] = max(0.0, next_start - start)
-    _fix_event_end(events, duration)
-
-
-def _apply_segment_calibration(segment: dict[str, Any], cfg: AnalysisConfig) -> None:
-    if cfg.segment_quantile_maps:
-        for field, mapping in cfg.segment_quantile_maps.items():
-            if field not in segment:
-                continue
-            src = mapping.get("src", [])
-            dst = mapping.get("dst", [])
-            if len(src) >= 2 and len(src) == len(dst):
-                value = float(segment[field])
-                segment[field] = float(np.interp(value, src, dst))
-
-    if cfg.segment_scalar_scale and cfg.segment_scalar_bias:
-        for field, scale in cfg.segment_scalar_scale.items():
-            if field not in segment:
-                continue
-            bias = float(cfg.segment_scalar_bias.get(field, 0.0))
-            value = float(segment[field])
-            segment[field] = value * float(scale) + bias
-
-    if "confidence" in segment:
-        segment["confidence"] = min(1.0, max(0.0, float(segment["confidence"])))
-    if "loudness_max_time" in segment:
-        max_time = float(segment.get("duration", 0.0))
-        segment["loudness_max_time"] = min(max_time, max(0.0, float(segment["loudness_max_time"])))
-
-
-def _madmom_downbeats(proc: Any, activations: np.ndarray) -> np.ndarray:
-    first = 0
-    if proc.threshold:
-        idx = np.nonzero(activations >= proc.threshold)[0]
-        if idx.any():
-            first = max(first, int(np.min(idx)))
-            last = min(len(activations), int(np.max(idx)) + 1)
-        else:
-            last = first
-        activations = activations[first:last]
-    if not activations.any():
-        return np.empty((0, 2))
-
-    results = [hmm.viterbi(activations) for hmm in proc.hmms]
-    best = int(np.argmax([float(r[1]) for r in results]))
-    path, _ = results[best]
-    st = proc.hmms[best].transition_model.state_space
-    om = proc.hmms[best].observation_model
-    positions = st.state_positions[path]
-    beat_numbers = positions.astype(int) + 1
-    if proc.correct:
-        beats = np.empty(0, dtype=int)
-        beat_range = om.pointers[path] >= 1
-        idx = np.nonzero(np.diff(beat_range.astype(int)))[0] + 1
-        if beat_range[0]:
-            idx = np.r_[0, idx]
-        if beat_range[-1]:
-            idx = np.r_[idx, beat_range.size]
-        if idx.any():
-            for left, right in idx.reshape((-1, 2)):
-                peak = np.argmax(activations[left:right]) // 2 + left
-                beats = np.hstack((beats, peak))
-    else:
-        beats = np.nonzero(np.diff(beat_numbers))[0] + 1
-    return np.vstack(((beats + first) / float(proc.fps), beat_numbers[beats])).T
+EPS = 1e-9
+MIN_DURATION_S = 0.01
+MIN_TEMPO_WINDOW_S = 1e-6
+PROGRESS_JOIN_TIMEOUT_S = 0.2
 
 
 def analyze_audio(
@@ -265,12 +96,10 @@ def analyze_audio(
             message="pkg_resources is deprecated as an API.*",
             category=UserWarning,
         )
-        if not hasattr(np, "float"):
-            np.float = float  # type: ignore[attr-defined]
-        if not hasattr(np, "int"):
-            np.int = int  # type: ignore[attr-defined]
-        if not hasattr(np, "complex"):
-            np.complex = complex  # type: ignore[attr-defined]
+        if np.lib.NumpyVersion(np.__version__) >= "1.24.0":
+            for name, alias in (("float", float), ("int", int), ("complex", complex)):
+                if not hasattr(np, name):
+                    setattr(np, name, alias)
         import collections
         from collections import abc as collections_abc
 
@@ -293,7 +122,7 @@ def analyze_audio(
         beat_times = downbeats[:, 0].astype(float)
         beat_times = beat_times[beat_times <= duration]
         onset_env = features.onset_envelope(y_beats, sr, hop_length=cfg.hop_length)
-        tempo = 60.0 * (len(beat_times) / max(duration, 1e-6)) if beat_times.size else float(tempo)
+        tempo = 60.0 * (len(beat_times) / max(duration, MIN_TEMPO_WINDOW_S)) if beat_times.size else float(tempo)
     elif cfg.use_librosa_beats:
         import librosa
 
@@ -317,7 +146,7 @@ def analyze_audio(
         report_progress(60, "beats_track")
     if beat_times.size == 0:
         tempo = 120.0
-        beat_times = np.arange(0.0, max(duration, 0.01), 60.0 / tempo)
+        beat_times = np.arange(0.0, max(duration, MIN_DURATION_S), 60.0 / tempo)
         onset_env = np.ones(int(math.ceil(duration * sr / cfg.hop_length)))
 
     onset_peaks = features.detect_peaks(
@@ -336,7 +165,7 @@ def analyze_audio(
     if ramp:
         stop_event, thread = ramp
         stop_event.set()
-        thread.join(0.2)
+        thread.join(PROGRESS_JOIN_TIMEOUT_S)
     if progress_cb:
         report_progress(75, "beats")
 
@@ -412,7 +241,7 @@ def analyze_audio(
     for i in range(1, full_mfcc_seg.shape[1]):
         prev = full_mfcc_seg[:, i - 1]
         curr = full_mfcc_seg[:, i]
-        denom = (np.linalg.norm(prev) * np.linalg.norm(curr)) + 1e-9
+        denom = (np.linalg.norm(prev) * np.linalg.norm(curr)) + EPS
         novelty[i] = 1.0 - float(np.dot(prev, curr) / denom)
 
     # Normalize and smooth combined novelty + onset envelope.
@@ -420,9 +249,9 @@ def analyze_audio(
     novelty_norm = novelty[:min_len]
     onset_norm = onset_env[:min_len]
     if novelty_norm.size:
-        novelty_norm = novelty_norm / (np.max(novelty_norm) + 1e-9)
+        novelty_norm = novelty_norm / (np.max(novelty_norm) + EPS)
     if onset_norm.size:
-        onset_norm = onset_norm / (np.max(onset_norm) + 1e-9)
+        onset_norm = onset_norm / (np.max(onset_norm) + EPS)
     combined = novelty_norm + onset_norm
     if cfg.novelty_smooth_frames > 1:
         kernel = np.ones(cfg.novelty_smooth_frames) / float(cfg.novelty_smooth_frames)
@@ -561,7 +390,7 @@ def analyze_audio(
                 full_timbre = (centered @ components.T).T
     elif cfg.timbre_standardize and full_timbre.size:
         mean = np.mean(full_timbre, axis=1, keepdims=True)
-        std = np.std(full_timbre, axis=1, keepdims=True) + 1e-9
+        std = np.std(full_timbre, axis=1, keepdims=True) + EPS
         full_timbre = (full_timbre - mean) / std
         full_timbre *= float(cfg.timbre_scale)
 
@@ -704,7 +533,7 @@ def analyze_audio(
         mfcc_sync = beat_mfcc if beat_mfcc.size else np.zeros((cfg.mfcc_n_mfcc, 0))
         path_distance = np.sum(np.diff(mfcc_sync, axis=1) ** 2, axis=0)
         sigma = float(np.median(path_distance)) if path_distance.size else 1.0
-        sigma = max(sigma, 1e-9)
+        sigma = max(sigma, EPS)
         path_sim = np.exp(-path_distance / sigma)
         R_path = np.diag(path_sim, k=1) + np.diag(path_sim, k=-1)
 
@@ -726,7 +555,7 @@ def analyze_audio(
         k = min(k, cfg.laplacian_max_clusters, evecs.shape[1], max(2, len(beat_times) - 1))
 
         if k >= 2:
-            X = evecs[:, :k] / (Cnorm[:, k - 1 : k] + 1e-9)
+            X = evecs[:, :k] / (Cnorm[:, k - 1 : k] + EPS)
             np.random.seed(0)
             _, seg_ids = kmeans2(X, k, minit="points", iter=20)
             laplacian_seg_ids = np.array(seg_ids, dtype=int)
@@ -800,7 +629,7 @@ def analyze_audio(
                 min_bpm=cfg.tempo_min_bpm,
                 max_bpm=cfg.tempo_max_bpm,
             )
-            tempo_conf = float(np.mean(section_env / (np.max(section_env) + 1e-9)))
+            tempo_conf = float(np.mean(section_env / (np.max(section_env) + EPS)))
         else:
             section_tempo = float(tempo)
             tempo_conf = 0.0

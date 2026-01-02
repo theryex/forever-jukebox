@@ -6,6 +6,8 @@ API_VENV="$ROOT/api/.venv"
 ENGINE_VENV="$ROOT/engine/.venv"
 WEB_DIR="$ROOT/web"
 VITE_HOST_FLAG=""
+PYTHON_BIN=""
+PYTHON_VERSION=""
 
 for arg in "$@"; do
   if [[ "$arg" == "--host" ]]; then
@@ -73,16 +75,68 @@ ensure_command() {
   fi
 }
 
+resolve_python() {
+  if [[ -n "${FJ_PYTHON:-}" ]]; then
+    if [[ -x "$FJ_PYTHON" ]]; then
+      PYTHON_BIN="$FJ_PYTHON"
+      return
+    fi
+    echo "FJ_PYTHON is set but not executable: $FJ_PYTHON"
+    exit 1
+  fi
+  for candidate in python3.12 python3.11 python3.10 python3; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      PYTHON_BIN="$(command -v "$candidate")"
+      return
+    fi
+  done
+  echo "Missing required command: python3"
+  exit 1
+}
+
+resolve_python_version() {
+  PYTHON_VERSION="$("$PYTHON_BIN" - <<'PY'
+import sys
+print(f"{sys.version_info[0]}.{sys.version_info[1]}")
+PY
+)"
+}
+
+ensure_python() {
+  resolve_python
+  resolve_python_version
+  if [[ -z "$PYTHON_BIN" ]]; then
+    echo "Missing required command: python3"
+    exit 1
+  fi
+}
+
+venv_version() {
+  local venv_python="$1"
+  "$venv_python" - <<'PY'
+import sys
+print(f"{sys.version_info[0]}.{sys.version_info[1]}")
+PY
+}
+
 ensure_venv() {
   local venv_path="$1"
   if [[ ! -d "$venv_path" ]]; then
-    python3 -m venv "$venv_path"
+    "$PYTHON_BIN" -m venv "$venv_path"
     return
   fi
   if [[ ! -x "$venv_path/bin/python" ]] || ! "$venv_path/bin/python" -c "import sys" >/dev/null 2>&1; then
     echo "Recreating venv at $venv_path (stale or moved)."
     rm -rf "$venv_path"
-    python3 -m venv "$venv_path"
+    "$PYTHON_BIN" -m venv "$venv_path"
+    return
+  fi
+  local current_version
+  current_version="$(venv_version "$venv_path/bin/python")"
+  if [[ "$current_version" != "$PYTHON_VERSION" ]]; then
+    echo "Recreating venv at $venv_path (Python $current_version != $PYTHON_VERSION)."
+    rm -rf "$venv_path"
+    "$PYTHON_BIN" -m venv "$venv_path"
   fi
 }
 
@@ -168,7 +222,7 @@ cleanup() {
 
 trap cleanup INT TERM EXIT
 
-ensure_command python3
+ensure_python
 ensure_command npm
 ensure_api_env
 ensure_engine_env

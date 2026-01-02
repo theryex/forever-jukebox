@@ -4,23 +4,21 @@ from __future__ import annotations
 
 import hashlib
 import math
-import os
-from pathlib import Path
 from typing import Iterable
-
-# Avoid numba cache errors in locked-down environments before importing librosa.
-os.environ.setdefault("NUMBA_DISABLE_JIT", "1")
-os.environ.setdefault("NUMBA_DISABLE_CACHING", "1")
-os.environ.setdefault("NUMBA_DISABLE_CACHE", "1")
 
 import numpy as np
 from scipy import fftpack, signal
+
+from . import env
 
 
 DEFAULT_FRAME_LENGTH = 2048
 DEFAULT_HOP_LENGTH = 512
 DEFAULT_N_MELS = 24
 DEFAULT_N_MFCC = 12
+EPS = 1e-9
+MIN_RMS = 1e-12
+MIN_LOG_MEL = 1e-10
 
 
 def load_audio(path: str, sr: int = 22050) -> tuple[np.ndarray, int]:
@@ -73,7 +71,7 @@ def percussive_component(
         k += 1
     harm = signal.medfilt2d(magnitude, kernel_size=(1, k))
     perc = signal.medfilt2d(magnitude, kernel_size=(k, 1))
-    denom = harm + perc + 1e-9
+    denom = harm + perc + EPS
     perc_mask = perc / denom
     stft_perc = stft * perc_mask
     _, y_perc = signal.istft(stft_perc, fs=sr, nperseg=n_perseg, noverlap=noverlap)
@@ -90,7 +88,7 @@ def resample_audio(data: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray
     g = math.gcd(orig_sr, target_sr)
     up = target_sr // g
     down = orig_sr // g
-    return signal.resample_poly(data, up, down)
+    return signal.resample_poly(data, up, down).astype(np.float32)
 
 
 def file_hash(path: str, size: int = 22) -> str:
@@ -113,13 +111,13 @@ def frame_signal(y: np.ndarray, frame_length: int, hop_length: int) -> np.ndarra
 
 def rms(y: np.ndarray, frame_length: int = DEFAULT_FRAME_LENGTH, hop_length: int = DEFAULT_HOP_LENGTH) -> np.ndarray:
     frames = frame_signal(y, frame_length, hop_length)
-    return np.sqrt(np.mean(frames ** 2, axis=0) + 1e-12)
+    return np.sqrt(np.mean(frames ** 2, axis=0) + MIN_RMS)
 
 
 def rms_db(y: np.ndarray, frame_length: int = DEFAULT_FRAME_LENGTH, hop_length: int = DEFAULT_HOP_LENGTH) -> np.ndarray:
     rms_vals = rms(y, frame_length, hop_length)
     ref = np.max(rms_vals) if rms_vals.size else 1.0
-    return 20.0 * np.log10(np.maximum(rms_vals, 1e-12) / max(ref, 1e-12))
+    return 20.0 * np.log10(np.maximum(rms_vals, MIN_RMS) / max(ref, MIN_RMS))
 
 
 def onset_envelope(y: np.ndarray, sr: int, hop_length: int = DEFAULT_HOP_LENGTH) -> np.ndarray:
@@ -135,12 +133,7 @@ def detect_onsets(
     percentile: float = 75.0,
     min_spacing_s: float = 0.05,
 ) -> np.ndarray:
-    if onset_env.size == 0:
-        return np.array([], dtype=float)
-    threshold = np.percentile(onset_env, percentile)
-    min_distance = max(1, int(min_spacing_s * sr / hop_length))
-    peaks, _ = signal.find_peaks(onset_env, height=threshold, distance=min_distance)
-    return frames_to_time(peaks, sr, hop_length)
+    return _find_peak_times(onset_env, sr, hop_length, percentile, min_spacing_s)
 
 
 def beat_track(
@@ -283,7 +276,7 @@ def cqt_like(
     target_freqs = np.clip(target_freqs, freqs[0], freqs[-1])
     indices = np.array([int(np.argmin(np.abs(freqs - f))) for f in target_freqs], dtype=int)
     cqt_mag = mag[indices, :]
-    cqt_db = 20.0 * np.log10(np.maximum(cqt_mag, 1e-9))
+    cqt_db = 20.0 * np.log10(np.maximum(cqt_mag, EPS))
     return cqt_db
 
 
@@ -323,7 +316,7 @@ def mfcc_frames(
     n_fft = (mag.shape[0] - 1) * 2 if mag.shape[0] > 1 else frame_length
     filters = mel_filter_bank(sr, n_fft, n_mels=n_mels)
     mel_energy = np.dot(filters, power)
-    log_mel = np.log10(np.maximum(mel_energy, 1e-10))
+    log_mel = np.log10(np.maximum(mel_energy, MIN_LOG_MEL))
     mfcc = fftpack.dct(log_mel, axis=0, type=2, norm="ortho")
     if include_0th:
         mfcc = mfcc[:n_mfcc, :]
@@ -437,6 +430,16 @@ def detect_peaks(
     percentile: float = 75.0,
     min_spacing_s: float = 0.05,
 ) -> np.ndarray:
+    return _find_peak_times(values, sr, hop_length, percentile, min_spacing_s)
+
+
+def _find_peak_times(
+    values: np.ndarray,
+    sr: int,
+    hop_length: int,
+    percentile: float,
+    min_spacing_s: float,
+) -> np.ndarray:
     if values.size == 0:
         return np.array([], dtype=float)
     threshold = np.percentile(values, percentile)
@@ -477,7 +480,7 @@ def beat_sync_mean(feature: np.ndarray, beat_frames: np.ndarray) -> np.ndarray:
 def cosine_similarity_matrix(feature: np.ndarray) -> np.ndarray:
     if feature.size == 0:
         return np.zeros((0, 0), dtype=float)
-    norms = np.linalg.norm(feature, axis=0, keepdims=True) + 1e-9
+    norms = np.linalg.norm(feature, axis=0, keepdims=True) + EPS
     normalized = feature / norms
     return normalized.T @ normalized
 
@@ -485,7 +488,7 @@ def cosine_similarity_matrix(feature: np.ndarray) -> np.ndarray:
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     if a.size == 0 or b.size == 0:
         return 0.0
-    denom = float(np.linalg.norm(a) * np.linalg.norm(b)) + 1e-9
+    denom = float(np.linalg.norm(a) * np.linalg.norm(b)) + EPS
     return float(np.dot(a, b) / denom)
 
 
@@ -505,6 +508,6 @@ def novelty_from_ssm(ssm: np.ndarray, kernel_size: int) -> np.ndarray:
         novelty[idx] = float(np.sum(a) + np.sum(d) - np.sum(b) - np.sum(c))
     if novelty.size:
         novelty = novelty - np.min(novelty)
-        denom = np.max(novelty) + 1e-9
+        denom = np.max(novelty) + EPS
         novelty = novelty / denom
     return novelty

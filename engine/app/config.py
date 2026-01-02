@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Any, Optional
 
 
@@ -78,106 +78,95 @@ class AnalysisConfig:
 
 
 def config_from_dict(data: dict[str, Any]) -> AnalysisConfig:
-    return AnalysisConfig(
-        sample_rate=int(data.get("sample_rate", AnalysisConfig.sample_rate)),
-        hop_length=int(data.get("hop_length", AnalysisConfig.hop_length)),
-        percussive_beats_only=bool(
-            data.get("percussive_beats_only", AnalysisConfig.percussive_beats_only)
-        ),
-        use_librosa_beats=bool(data.get("use_librosa_beats", AnalysisConfig.use_librosa_beats)),
-        use_laplacian_sections=bool(
-            data.get("use_laplacian_sections", AnalysisConfig.use_laplacian_sections)
-        ),
-        use_laplacian_segments=bool(
-            data.get("use_laplacian_segments", AnalysisConfig.use_laplacian_segments)
-        ),
-        use_madmom_downbeats=bool(
-            data.get("use_madmom_downbeats", AnalysisConfig.use_madmom_downbeats)
-        ),
-        laplacian_cqt_bins_per_octave=int(
-            data.get("laplacian_cqt_bins_per_octave", AnalysisConfig.laplacian_cqt_bins_per_octave)
-        ),
-        laplacian_cqt_octaves=int(
-            data.get("laplacian_cqt_octaves", AnalysisConfig.laplacian_cqt_octaves)
-        ),
-        laplacian_max_clusters=int(
-            data.get("laplacian_max_clusters", AnalysisConfig.laplacian_max_clusters)
-        ),
-        time_signature=int(data.get("time_signature", AnalysisConfig.time_signature)),
-        tatum_divisions=int(data.get("tatum_divisions", AnalysisConfig.tatum_divisions)),
-        section_seconds=float(data.get("section_seconds", AnalysisConfig.section_seconds)),
-        section_use_novelty=bool(data.get("section_use_novelty", AnalysisConfig.section_use_novelty)),
-        section_novelty_percentile=float(
-            data.get("section_novelty_percentile", AnalysisConfig.section_novelty_percentile)
-        ),
-        section_min_spacing_s=float(data.get("section_min_spacing_s", AnalysisConfig.section_min_spacing_s)),
-        section_snap_bar_window_s=float(data.get("section_snap_bar_window_s", AnalysisConfig.section_snap_bar_window_s)),
-        onset_percentile=float(data.get("onset_percentile", AnalysisConfig.onset_percentile)),
-        onset_min_spacing_s=float(data.get("onset_min_spacing_s", AnalysisConfig.onset_min_spacing_s)),
-        tempo_min_bpm=float(data.get("tempo_min_bpm", AnalysisConfig.tempo_min_bpm)),
-        tempo_max_bpm=float(data.get("tempo_max_bpm", AnalysisConfig.tempo_max_bpm)),
-        beat_snap_window_s=float(data.get("beat_snap_window_s", AnalysisConfig.beat_snap_window_s)),
-        segment_min_duration_s=float(data.get("segment_min_duration_s", AnalysisConfig.segment_min_duration_s)),
-        timbre_standardize=bool(data.get("timbre_standardize", AnalysisConfig.timbre_standardize)),
-        timbre_scale=float(data.get("timbre_scale", AnalysisConfig.timbre_scale)),
-        segment_snap_bar_window_s=float(data.get("segment_snap_bar_window_s", AnalysisConfig.segment_snap_bar_window_s)),
-        segment_snap_beat_window_s=float(data.get("segment_snap_beat_window_s", AnalysisConfig.segment_snap_beat_window_s)),
-        novelty_smooth_frames=int(data.get("novelty_smooth_frames", AnalysisConfig.novelty_smooth_frames)),
-        mfcc_window_ms=float(data.get("mfcc_window_ms", AnalysisConfig.mfcc_window_ms)),
-        mfcc_hop_ms=float(data.get("mfcc_hop_ms", AnalysisConfig.mfcc_hop_ms)),
-        mfcc_n_mels=int(data.get("mfcc_n_mels", AnalysisConfig.mfcc_n_mels)),
-        mfcc_n_mfcc=int(data.get("mfcc_n_mfcc", AnalysisConfig.mfcc_n_mfcc)),
-        mfcc_use_0th=bool(data.get("mfcc_use_0th", AnalysisConfig.mfcc_use_0th)),
-        timbre_calibration_matrix=data.get("timbre_calibration_matrix", AnalysisConfig.timbre_calibration_matrix),
-        timbre_calibration_bias=data.get("timbre_calibration_bias", AnalysisConfig.timbre_calibration_bias),
-        timbre_mode=str(data.get("timbre_mode", AnalysisConfig.timbre_mode)),
-        timbre_pca_components=data.get("timbre_pca_components", AnalysisConfig.timbre_pca_components),
-        timbre_pca_mean=data.get("timbre_pca_mean", AnalysisConfig.timbre_pca_mean),
-        beat_novelty_percentile=float(data.get("beat_novelty_percentile", AnalysisConfig.beat_novelty_percentile)),
-        beat_novelty_min_spacing=int(data.get("beat_novelty_min_spacing", AnalysisConfig.beat_novelty_min_spacing)),
-        timbre_unit_norm=bool(data.get("timbre_unit_norm", AnalysisConfig.timbre_unit_norm)),
-        segment_selfsim_kernel_beats=int(
-            data.get("segment_selfsim_kernel_beats", AnalysisConfig.segment_selfsim_kernel_beats)
-        ),
-        segment_selfsim_percentile=float(
-            data.get("segment_selfsim_percentile", AnalysisConfig.segment_selfsim_percentile)
-        ),
-        segment_selfsim_min_spacing_beats=int(
-            data.get("segment_selfsim_min_spacing_beats", AnalysisConfig.segment_selfsim_min_spacing_beats)
-        ),
-        section_selfsim_kernel_beats=int(
-            data.get("section_selfsim_kernel_beats", AnalysisConfig.section_selfsim_kernel_beats)
-        ),
-        section_selfsim_percentile=float(
-            data.get("section_selfsim_percentile", AnalysisConfig.section_selfsim_percentile)
-        ),
-        section_selfsim_min_spacing_beats=int(
-            data.get("section_selfsim_min_spacing_beats", AnalysisConfig.section_selfsim_min_spacing_beats)
-        ),
-        section_merge_similarity=float(
-            data.get("section_merge_similarity", AnalysisConfig.section_merge_similarity)
-        ),
-        segment_scalar_scale=data.get("segment_scalar_scale", AnalysisConfig.segment_scalar_scale),
-        segment_scalar_bias=data.get("segment_scalar_bias", AnalysisConfig.segment_scalar_bias),
-        pitch_scale=data.get("pitch_scale", AnalysisConfig.pitch_scale),
-        pitch_bias=data.get("pitch_bias", AnalysisConfig.pitch_bias),
-        pitch_calibration_matrix=data.get("pitch_calibration_matrix", AnalysisConfig.pitch_calibration_matrix),
-        pitch_calibration_bias=data.get("pitch_calibration_bias", AnalysisConfig.pitch_calibration_bias),
-        segment_quantile_maps=data.get("segment_quantile_maps", AnalysisConfig.segment_quantile_maps),
-        segment_include_bounds=bool(data.get("segment_include_bounds", AnalysisConfig.segment_include_bounds)),
-        boundary_model_weights=data.get("boundary_model_weights", AnalysisConfig.boundary_model_weights),
-        boundary_model_bias=data.get("boundary_model_bias", AnalysisConfig.boundary_model_bias),
-        boundary_percentile=float(data.get("boundary_percentile", AnalysisConfig.boundary_percentile)),
-        boundary_min_spacing_s=float(data.get("boundary_min_spacing_s", AnalysisConfig.boundary_min_spacing_s)),
-        start_offset_map_src=data.get("start_offset_map_src", AnalysisConfig.start_offset_map_src),
-        start_offset_map_dst=data.get("start_offset_map_dst", AnalysisConfig.start_offset_map_dst),
-        target_segment_rate=data.get("target_segment_rate", AnalysisConfig.target_segment_rate),
-        target_segment_rate_tolerance=float(
-            data.get("target_segment_rate_tolerance", AnalysisConfig.target_segment_rate_tolerance)
-        ),
-        target_section_rate=data.get("target_section_rate", AnalysisConfig.target_section_rate),
-        target_section_rate_tolerance=float(
-            data.get("target_section_rate_tolerance", AnalysisConfig.target_section_rate_tolerance)
-        ),
-        section_include_bounds=bool(data.get("section_include_bounds", AnalysisConfig.section_include_bounds)),
-    )
+    defaults = AnalysisConfig()
+    kwargs = {field.name: getattr(defaults, field.name) for field in fields(AnalysisConfig)}
+
+    bool_fields = {
+        "percussive_beats_only",
+        "use_librosa_beats",
+        "use_laplacian_sections",
+        "use_laplacian_segments",
+        "use_madmom_downbeats",
+        "section_use_novelty",
+        "timbre_standardize",
+        "mfcc_use_0th",
+        "timbre_unit_norm",
+        "segment_include_bounds",
+        "section_include_bounds",
+    }
+    int_fields = {
+        "sample_rate",
+        "hop_length",
+        "laplacian_cqt_bins_per_octave",
+        "laplacian_cqt_octaves",
+        "laplacian_max_clusters",
+        "time_signature",
+        "tatum_divisions",
+        "novelty_smooth_frames",
+        "mfcc_n_mels",
+        "mfcc_n_mfcc",
+        "beat_novelty_min_spacing",
+        "segment_selfsim_kernel_beats",
+        "segment_selfsim_min_spacing_beats",
+        "section_selfsim_kernel_beats",
+        "section_selfsim_min_spacing_beats",
+    }
+    float_fields = {
+        "section_seconds",
+        "section_novelty_percentile",
+        "section_min_spacing_s",
+        "section_snap_bar_window_s",
+        "onset_percentile",
+        "onset_min_spacing_s",
+        "tempo_min_bpm",
+        "tempo_max_bpm",
+        "beat_snap_window_s",
+        "segment_min_duration_s",
+        "timbre_scale",
+        "segment_snap_bar_window_s",
+        "segment_snap_beat_window_s",
+        "mfcc_window_ms",
+        "mfcc_hop_ms",
+        "beat_novelty_percentile",
+        "segment_selfsim_percentile",
+        "section_selfsim_percentile",
+        "section_merge_similarity",
+        "boundary_percentile",
+        "boundary_min_spacing_s",
+        "target_segment_rate_tolerance",
+        "target_section_rate_tolerance",
+    }
+    str_fields = {"timbre_mode"}
+    passthrough_fields = {
+        "timbre_calibration_matrix",
+        "timbre_calibration_bias",
+        "timbre_pca_components",
+        "timbre_pca_mean",
+        "segment_scalar_scale",
+        "segment_scalar_bias",
+        "pitch_scale",
+        "pitch_bias",
+        "pitch_calibration_matrix",
+        "pitch_calibration_bias",
+        "segment_quantile_maps",
+        "boundary_model_weights",
+        "boundary_model_bias",
+        "start_offset_map_src",
+        "start_offset_map_dst",
+        "target_segment_rate",
+        "target_section_rate",
+    }
+
+    for name in bool_fields:
+        kwargs[name] = bool(data.get(name, kwargs[name]))
+    for name in int_fields:
+        kwargs[name] = int(data.get(name, kwargs[name]))
+    for name in float_fields:
+        kwargs[name] = float(data.get(name, kwargs[name]))
+    for name in str_fields:
+        kwargs[name] = str(data.get(name, kwargs[name]))
+    for name in passthrough_fields:
+        if name in data:
+            kwargs[name] = data[name]
+
+    return AnalysisConfig(**kwargs)
