@@ -25,9 +25,12 @@ POLL_INTERVAL_S = float(os.environ.get("POLL_INTERVAL_S", "1.0"))
 ENGINE_PROGRESS_START = 50
 ENGINE_PROGRESS_WAIT = 75
 ENGINE_PROGRESS_END = 100
-API_PROGRESS_START = 26
-API_PROGRESS_WAIT = int(round(API_PROGRESS_START + (ENGINE_PROGRESS_WAIT - ENGINE_PROGRESS_START) * 74 / 50))
+API_DOWNLOAD_END = 25
+API_ENGINE_START = 26
 API_PROGRESS_END = 100
+API_PROGRESS_WAIT = int(
+    round(API_ENGINE_START + (ENGINE_PROGRESS_WAIT - ENGINE_PROGRESS_START) * (API_PROGRESS_END - API_ENGINE_START) / 50)
+)
 BUMP_IDLE_S = 3.0
 logger = get_logger("foreverjukebox.worker")
 
@@ -55,17 +58,17 @@ def run_job(job_id: str, input_path: str, output_path: str) -> None:
     output_abs.parent.mkdir(parents=True, exist_ok=True)
 
     progress_lock = threading.Lock()
-    progress_state = {"value": API_PROGRESS_START, "last_update": time.time()}
+    progress_state = {"value": API_DOWNLOAD_END, "last_update": time.time()}
     stop_event = threading.Event()
 
-    set_job_progress(DB_PATH, job_id, API_PROGRESS_START)
+    set_job_progress(DB_PATH, job_id, API_DOWNLOAD_END)
 
     def map_engine_progress(value: int) -> int:
         if value <= ENGINE_PROGRESS_START:
-            return API_PROGRESS_START
+            return API_ENGINE_START
         if value >= ENGINE_PROGRESS_END:
             return API_PROGRESS_END
-        scaled = API_PROGRESS_START + (value - ENGINE_PROGRESS_START) * (API_PROGRESS_END - API_PROGRESS_START) / (
+        scaled = API_ENGINE_START + (value - ENGINE_PROGRESS_START) * (API_PROGRESS_END - API_ENGINE_START) / (
             ENGINE_PROGRESS_END - ENGINE_PROGRESS_START
         )
         return int(round(scaled))
@@ -77,7 +80,7 @@ def run_job(job_id: str, input_path: str, output_path: str) -> None:
                 last_update = progress_state["last_update"]
             if current >= API_PROGRESS_WAIT:
                 break
-            if current >= API_PROGRESS_START and time.time() - last_update > BUMP_IDLE_S:
+            if current >= API_ENGINE_START and time.time() - last_update > BUMP_IDLE_S:
                 next_value = min(API_PROGRESS_WAIT, current + 1)
                 set_job_progress(DB_PATH, job_id, next_value)
                 with progress_lock:
