@@ -2,56 +2,6 @@
   box-sizing: border-box;
 }
 
-:root {
-  --bg: #0f1115;
-  --text: #e7e4dd;
-  --panel-bg: #141922;
-  --panel-border: #283142;
-  --hero-bg: #1a1f27;
-  --hero-border: #2b3442;
-  --button-bg: #1f2633;
-  --button-bg-hover: #283244;
-  --button-border: #3b465b;
-  --button-text: #e7e4dd;
-  --accent: #4ac7ff;
-  --title-accent: #f1c47a;
-  --title-glow: rgba(241, 196, 122, 0.6);
-  --muted: #b9c0cc;
-  --edge-stroke: rgba(74, 199, 255, 0.12);
-  --edge-selected: #ff5b5b;
-  --viz-bg: radial-gradient(circle at 50% 50%, #232b3d 0%, #0f1115 70%);
-  --viz-shadow: rgba(74, 199, 255, 0.12);
-  --beat-fill: rgba(255, 215, 130, 0.55);
-  --beat-highlight: #ffd46a;
-  --beat-jump-rgb: 255, 212, 106;
-  --viz-overlay: rgba(10, 12, 16, 0.6);
-}
-
-body.theme-light {
-  --bg: #eef5fb;
-  --text: #0f1b28;
-  --panel-bg: #f5f9ff;
-  --panel-border: #b9d1ea;
-  --hero-bg: #d6e8ff;
-  --hero-border: #88b2da;
-  --button-bg: #d6e8ff;
-  --button-bg-hover: #c4dcff;
-  --button-border: #88b2da;
-  --button-text: #0f1b28;
-  --accent: #0a4c7d;
-  --title-accent: #d68a3c;
-  --title-glow: rgba(214, 138, 60, 0.45);
-  --muted: #35526c;
-  --edge-stroke: rgba(10, 76, 125, 0.3);
-  --edge-selected: #c43838;
-  --viz-bg: radial-gradient(circle at 50% 50%, #e3f0ff 0%, #eef5fb 70%);
-  --viz-shadow: rgba(10, 76, 125, 0.18);
-  --beat-fill: rgba(10, 76, 125, 0.45);
-  --beat-highlight: #0a4c7d;
-  --beat-jump-rgb: 10, 76, 125;
-  --viz-overlay: rgba(255, 255, 255, 0.78);
-}
-
 body {
   margin: 0;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -77,8 +27,8 @@ body {
 }
 
 .hero {
-  background: var(--hero-bg);
-  border: 1px solid var(--hero-border);
+  background: var(--surface-hero);
+  border: 1px solid var(--border-hero);
   padding: 16px;
   border-radius: 12px;
   margin-bottom: 16px;
@@ -208,8 +158,8 @@ body {
 }
 
 .panel {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-panel);
   padding: 16px;
   border-radius: 10px;
   margin-bottom: 16px;
@@ -293,8 +243,8 @@ body {
   align-items: center;
   padding: 10px 12px;
   margin-bottom: 16px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-panel);
   border-radius: 12px;
 }
 
@@ -319,17 +269,17 @@ body {
 .tab-btn {
   padding: 8px 14px;
   border-radius: 999px;
-  border: 1px solid var(--button-border);
-  background: var(--panel-bg);
+  border: 1px solid var(--border-control);
+  background: var(--surface-panel);
   color: var(--text);
   font-size: 13px;
   letter-spacing: 0.02em;
 }
 
 .tab-btn.active {
-  background: var(--button-bg);
-  border-color: var(--button-border);
-  color: var(--button-text);
+  background: var(--surface-control);
+  border-color: var(--border-control);
+  color: var(--text);
 }
 
 .controls .row {
@@ -350,14 +300,14 @@ label {
 button {
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid var(--button-border);
-  background: var(--button-bg);
-  color: var(--button-text);
+  border: 1px solid var(--border-control);
+  background: var(--surface-control);
+  color: var(--text);
   cursor: pointer;
 }
 
 button:hover {
-  background: var(--button-bg-hover);
+  background: var(--surface-control-hover);
 }
 
 .modal {
@@ -376,8 +326,8 @@ button:hover {
 
 .modal-panel {
   width: min(520px, 90vw);
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-panel);
   border-radius: 12px;
   padding: 16px;
   display: flex;
@@ -476,8 +426,8 @@ button:hover {
 }
 
 .search-input {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-panel);
   border-radius: 8px;
   padding: 10px 12px;
   color: var(--text);
@@ -486,7 +436,7 @@ button:hover {
 
 .search-results {
   min-height: 140px;
-  border: 1px dashed var(--panel-border);
+  border: 1px dashed var(--border-panel);
   border-radius: 10px;
   padding: 12px;
   color: var(--muted);
@@ -526,7 +476,7 @@ button:hover {
 .play-matches {
   margin-top: 12px;
   min-height: 80px;
-  border: 1px dashed var(--panel-border);
+  border: 1px dashed var(--border-panel);
   border-radius: 10px;
   padding: 12px;
   color: var(--muted);
@@ -537,7 +487,7 @@ button:hover {
   width: 100%;
   height: 520px;
   background: var(--viz-bg);
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--border-panel);
   border-radius: 12px;
   position: relative;
   overflow: hidden;
@@ -627,16 +577,16 @@ button:hover {
 .viz-btn {
   padding: 4px 8px;
   border-radius: 6px;
-  border: 1px solid var(--button-border);
-  background: var(--button-bg);
+  border: 1px solid var(--border-control);
+  background: var(--surface-control);
   color: var(--text);
   font-size: 12px;
 }
 
 .viz-btn.active {
-  background: var(--button-bg-hover);
-  border-color: var(--button-border);
-  color: var(--button-text);
+  background: var(--surface-control-hover);
+  border-color: var(--border-control);
+  color: var(--text);
 }
 
 .hint {
@@ -651,15 +601,15 @@ button:hover {
 @keyframes pulse-highlight {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 0 rgba(255, 212, 106, 0);
+    box-shadow: 0 0 0 rgba(var(--beat-jump-rgb), 0);
   }
   50% {
     transform: scale(1.02);
-    box-shadow: 0 0 18px rgba(255, 212, 106, 0.35);
+    box-shadow: 0 0 18px rgba(var(--beat-jump-rgb), 0.35);
   }
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 rgba(255, 212, 106, 0);
+    box-shadow: 0 0 0 rgba(var(--beat-jump-rgb), 0);
   }
 }
 
@@ -681,8 +631,8 @@ button:hover {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid rgba(231, 228, 221, 0.2);
-  border-top-color: #e7e4dd;
+  border: 2px solid rgba(var(--text-rgb), 0.2);
+  border-top-color: var(--text);
   animation: spin 0.9s linear infinite;
 }
 
