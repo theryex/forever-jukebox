@@ -6,7 +6,8 @@ npm install
 npm run dev
 ```
 
-Audio is decoded into a single in-memory buffer before playback to avoid stalls on jumps.
+Audio is decoded into a single in-memory buffer before playback to avoid stalls on jumps,
+and jumps are scheduled at beat boundaries.
 Use the Tuning panel to adjust branching behavior (mirrors the legacy controls).
 The visualization stays hidden until both audio and analysis files are loaded.
 Use the Visualization buttons (1–6) to switch layouts while audio continues.
