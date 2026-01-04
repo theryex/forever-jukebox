@@ -24,7 +24,7 @@ export type SearchDeps = {
   setLoadingProgress: (progress: number | null) => void;
   pollAnalysis: (jobId: string) => Promise<void>;
   applyAnalysisResult: (response: AnalysisComplete) => boolean;
-  loadAudioFromJob: (jobId: string) => Promise<void>;
+  loadAudioFromJob: (jobId: string) => Promise<boolean>;
   resetForNewTrack: () => void;
   updateVizVisibility: () => void;
 };
@@ -166,7 +166,11 @@ export async function tryLoadExistingTrackByName(
     }
     if (isAnalysisComplete(response)) {
       if (!state.audioLoaded) {
-        await deps.loadAudioFromJob(jobId);
+        const audioLoaded = await deps.loadAudioFromJob(jobId);
+        if (!audioLoaded) {
+          await deps.pollAnalysis(jobId);
+          return true;
+        }
       }
       deps.applyAnalysisResult(response);
       return true;
