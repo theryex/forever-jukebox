@@ -46,23 +46,21 @@ Android (native app):
 
 ## Docker (production)
 
-Build and run a single container that serves the UI and API:
+Build and run the container with Docker Compose (serves UI + API):
 
 ```bash
-docker build -t forever-jukebox .
-docker run -p 8000:8000 \
-  -v $(pwd)/api/storage:/app/api/storage \
-  -e SPOTIFY_CLIENT_ID=... \
-  -e SPOTIFY_CLIENT_SECRET=... \
-  -e YOUTUBE_API_KEY=... \
-  -e WORKER_COUNT=2 \
-  forever-jukebox
+export SPOTIFY_CLIENT_ID=...
+export SPOTIFY_CLIENT_SECRET=...
+export YOUTUBE_API_KEY=...
+docker compose up --build
 ```
 
-Open the UI at `http://localhost/` when publishing port 80, or use `-p 8000:8000`
-and visit `http://localhost:8000/`. The UI is served at `/` and API routes are
-under `/api/*`. Persist `api/storage/`
-with a volume (EBS/EFS on AWS) since container storage is ephemeral.
+You can also put these values in a `.env` file (same directory as
+`docker-compose.yml`) and Compose will load them automatically.
+
+Open the UI at `http://localhost:8000/`. The UI is served at `/` and API routes
+are under `/api/*`. The Compose file uses a named Docker volume (`storage`) to
+persist `/app/api/storage`.
 
 For standalone setup, see:
 
