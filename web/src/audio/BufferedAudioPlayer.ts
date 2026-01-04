@@ -1,9 +1,10 @@
 export class BufferedAudioPlayer {
-  private static readonly FADE_S = 0.01;
   private context: AudioContext;
   private buffer: AudioBuffer | null = null;
   private source: AudioBufferSourceNode | null = null;
-  private sourceGain: GainNode | null = null;
+  private pendingSource: AudioBufferSourceNode | null = null;
+  private pendingSwapTimer: number | null = null;
+  private pendingStartAt = 0;
   private masterGain: GainNode;
   private baseGain = 0.9;
   private startAt = 0;
@@ -37,7 +38,7 @@ export class BufferedAudioPlayer {
       void this.context.resume();
     }
     const now = this.context.currentTime;
-    this.startSourceAt(this.offset, now, true);
+    this.startSourceAt(this.offset, now);
   }
 
   pause() {
@@ -63,8 +64,8 @@ export class BufferedAudioPlayer {
     this.offset = clamped;
     if (this.playing) {
       const now = this.context.currentTime;
-      this.fadeOutCurrentSource(now);
-      this.startSourceAt(this.offset, now, true);
+      this.stopSource();
+      this.startSourceAt(this.offset, now);
     }
   }
 
@@ -91,7 +92,56 @@ export class BufferedAudioPlayer {
     return this.buffer ? this.buffer.duration : null;
   }
 
+  scheduleJump(targetTime: number, transitionTime: number) {
+    if (!this.buffer || !this.playing) {
+      return;
+    }
+    const currentTrackTime = this.getCurrentTime();
+    const delta = Math.max(0, transitionTime - currentTrackTime);
+    const audioStart = this.context.currentTime + delta;
+    const source = this.context.createBufferSource();
+    source.buffer = this.buffer;
+    source.connect(this.masterGain);
+    source.onended = () => {
+      if (this.source !== source) {
+        return;
+      }
+      if (this.playing) {
+        this.playing = false;
+        this.offset = this.buffer ? this.buffer.duration : 0;
+        this.onEnded?.();
+      }
+    };
+    const duration = this.buffer.duration - targetTime;
+    source.start(audioStart, targetTime, Math.max(0, duration));
+    if (this.source) {
+      this.source.onended = null;
+      try {
+        this.source.stop(audioStart);
+      } catch {
+        // no-op
+      }
+    }
+    this.clearPendingSwap();
+    this.pendingSource = source;
+    this.pendingStartAt = audioStart - targetTime;
+    const delayMs = Math.max(0, (audioStart - this.context.currentTime) * 1000);
+    this.pendingSwapTimer = window.setTimeout(() => {
+      if (this.pendingSource !== source) {
+        return;
+      }
+      if (this.source) {
+        this.source.disconnect();
+      }
+      this.source = source;
+      this.startAt = this.pendingStartAt;
+      this.pendingSource = null;
+      this.pendingSwapTimer = null;
+    }, delayMs);
+  }
+
   private stopSource() {
+    this.clearPendingSwap();
     if (this.source) {
       this.source.onended = null;
       try {
@@ -102,55 +152,33 @@ export class BufferedAudioPlayer {
       this.source.disconnect();
       this.source = null;
     }
-    if (this.sourceGain) {
-      this.sourceGain.disconnect();
-      this.sourceGain = null;
+    if (this.pendingSource) {
+      this.pendingSource.onended = null;
+      try {
+        this.pendingSource.stop(0);
+      } catch {
+        // no-op
+      }
+      this.pendingSource.disconnect();
+      this.pendingSource = null;
     }
   }
 
-  private fadeOutCurrentSource(startTime: number) {
-    if (!this.source || !this.sourceGain) {
-      return;
+  private clearPendingSwap() {
+    if (this.pendingSwapTimer !== null) {
+      window.clearTimeout(this.pendingSwapTimer);
+      this.pendingSwapTimer = null;
     }
-    const source = this.source;
-    const gain = this.sourceGain;
-    const fadeEnd = startTime + BufferedAudioPlayer.FADE_S;
-    gain.gain.cancelScheduledValues(startTime);
-    gain.gain.setValueAtTime(gain.gain.value, startTime);
-    gain.gain.linearRampToValueAtTime(0, fadeEnd);
-    source.onended = null;
-    try {
-      source.stop(fadeEnd);
-    } catch {
-      // no-op
-    }
-    window.setTimeout(() => {
-      if (this.source === source) {
-        source.disconnect();
-        this.source = null;
-      }
-      if (this.sourceGain === gain) {
-        gain.disconnect();
-        this.sourceGain = null;
-      }
-    }, BufferedAudioPlayer.FADE_S * 1000 + 10);
   }
 
-  private startSourceAt(offset: number, startTime: number, fadeIn: boolean) {
+  private startSourceAt(offset: number, startTime: number) {
     if (!this.buffer) {
       return;
     }
     const source = this.context.createBufferSource();
     source.buffer = this.buffer;
-    const gain = this.context.createGain();
-    gain.gain.setValueAtTime(fadeIn ? 0 : 1, startTime);
-    if (fadeIn) {
-      gain.gain.linearRampToValueAtTime(1, startTime + BufferedAudioPlayer.FADE_S);
-    }
-    source.connect(gain);
-    gain.connect(this.masterGain);
+    source.connect(this.masterGain);
     this.source = source;
-    this.sourceGain = gain;
     this.startAt = startTime - offset;
     this.playing = true;
     source.onended = () => {

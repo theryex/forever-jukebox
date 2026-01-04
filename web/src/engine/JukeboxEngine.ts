@@ -37,6 +37,7 @@ export interface JukeboxPlayer {
   pause: () => void;
   stop: () => void;
   seek: (time: number) => void;
+  scheduleJump: (targetTime: number, transitionTime: number) => void;
   getCurrentTime: () => number;
   isPlaying: () => boolean;
 }
@@ -278,7 +279,7 @@ export class JukeboxEngine {
     const chosenIndex = selection.index;
     if (chosenIndex !== wrappedIndex) {
       const targetTime = this.beats[chosenIndex].start;
-      this.player.seek(targetTime);
+      this.player.scheduleJump(targetTime, this.nextTransitionTime);
       this.lastJumped = true;
       this.lastJumpTime = targetTime;
       this.lastJumpFromIndex = wrappedIndex;
