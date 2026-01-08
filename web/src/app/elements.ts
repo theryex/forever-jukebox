@@ -346,6 +346,10 @@ export function getElements() {
     "#toast"
   );
   const vizStats = document.querySelector<HTMLDivElement>("#viz-stats");
+  const retroToggleButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#retro-toggle"),
+    "#retro-toggle"
+  );
 
   return {
     listenTimeEl,
@@ -433,5 +437,6 @@ export function getElements() {
     favoritesSyncItems,
     toast,
     vizStats,
+    retroToggleButton,
   };
 }

@@ -50,7 +50,14 @@ Android (native app):
 
 ## Docker (production)
 
-Build and run the container with Docker Compose (serves UI + API):
+Copy the example environment file and add your API keys:
+
+```bash
+cp .env.example .env
+# Edit .env with your Spotify credentials
+```
+
+Build and run:
 
 ```bash
 export SPOTIFY_CLIENT_ID=...
@@ -69,13 +76,42 @@ docker compose up --build
 You can also put these values in a `.env` file (same directory as
 `docker-compose.yml`) and Compose will load them automatically.
 
-Open the UI at `http://localhost:8000/`. The UI is served at `/` and API routes
-are under `/api/*`. The Compose file uses a named Docker volume (`storage`) to
-persist `/app/api/storage`.
+docker compose up --build
+```
+
+Open `http://localhost:8000/`.
+
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SPOTIFY_CLIENT_ID` | Yes | Spotify API client ID |
+| `SPOTIFY_CLIENT_SECRET` | Yes | Spotify API client secret |
+| `YOUTUBE_API_KEY` | No | Speeds up YouTube search. If omitted, yt-dlp is used (slower but works) |
+| `GPU_MODE` | No | `cpu` (default), `cuda` (NVIDIA), or `rocm` (AMD) |
+
+### GPU Acceleration
+
+GPU acceleration speeds up audio analysis (~5-15s vs ~30-60s per track).
+
+**NVIDIA GPU:**
+
+1. Install [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+2. Set `GPU_MODE=cuda` in `.env`
+3. Uncomment the NVIDIA section in `docker-compose.yml`
+
+**AMD GPU:**
+
+1. Install [ROCm drivers](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html)
+2. Add your user to video/render groups: `sudo usermod -a -G video,render $USER`
+3. Set `GPU_MODE=rocm` in `.env`
+4. Uncomment the AMD section in `docker-compose.yml`
 
 For standalone setup, see:
 
-- [`engine/README.md`](https://github.com/creightonlinza/forever-jukebox/blob/master/engine/README.md)
-- [`api/README.md`](https://github.com/creightonlinza/forever-jukebox/blob/master/api/README.md)
-- [`web/README.md`](https://github.com/creightonlinza/forever-jukebox/blob/master/web/README.md)
-- [`android/README.md`](https://github.com/creightonlinza/forever-jukebox/blob/master/android/README.md)
+- [`engine/README.md`](engine/README.md)
+- [`api/README.md`](api/README.md)
+- [`web/README.md`](web/README.md)
+- [`android/README.md`](android/README.md)
+

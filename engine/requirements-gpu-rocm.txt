@@ -1,0 +1,17 @@
+# GPU acceleration requirements for AMD ROCm
+# Install with: pip install -r requirements-gpu-rocm.txt
+
+# Base requirements
+-r requirements.txt
+
+# PyTorch with ROCm support
+# Install from the official PyTorch ROCm wheels:
+# pip install torch torchaudio --index-url https://download.pytorch.org/whl/rocm5.6
+#
+# Or for ROCm 5.7:
+# pip install torch torchaudio --index-url https://download.pytorch.org/whl/rocm5.7
+#
+# See https://pytorch.org/get-started/locally/ for the latest ROCm support
+
+# Note: CuPy does not support ROCm directly.
+# AMD users can use the torch-based GPU functions which work via HIP.

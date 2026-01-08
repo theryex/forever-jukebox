@@ -1,3 +1,5 @@
+@import './retro.css';
+
 * {
   box-sizing: border-box;
 }
@@ -80,6 +82,7 @@ body {
 }
 
 @keyframes neon-flicker {
+
   0%,
   100% {
     opacity: 1;
@@ -87,66 +90,83 @@ body {
       0 0 12px var(--title-glow),
       0 0 28px var(--title-glow);
   }
+
   2% {
     opacity: 0.95;
     text-shadow:
       0 0 8px var(--title-glow),
       0 0 22px var(--title-glow);
   }
+
   3% {
     opacity: 0.75;
     text-shadow:
       0 0 6px var(--title-glow),
       0 0 14px var(--title-glow);
   }
+
   4% {
     opacity: 1;
   }
+
   6% {
     opacity: 0.85;
   }
+
   7% {
     opacity: 1;
   }
+
   12% {
     opacity: 0.92;
   }
+
   13% {
     opacity: 1;
   }
+
   28% {
     opacity: 0.88;
   }
+
   29% {
     opacity: 1;
   }
+
   44% {
     opacity: 0.7;
     text-shadow:
       0 0 5px var(--title-glow),
       0 0 12px var(--title-glow);
   }
+
   46% {
     opacity: 1;
   }
+
   58% {
     opacity: 0.9;
   }
+
   59% {
     opacity: 1;
   }
+
   76% {
     opacity: 0.8;
     text-shadow:
       0 0 7px var(--title-glow),
       0 0 18px var(--title-glow);
   }
+
   77% {
     opacity: 1;
   }
+
   89% {
     opacity: 0.86;
   }
+
   90% {
     opacity: 1;
   }
@@ -1132,10 +1152,12 @@ button:hover {
     transform: scale(1);
     box-shadow: 0 0 0 rgb(from var(--beat-highlight) r g b / 0);
   }
+
   50% {
     transform: scale(1.02);
     box-shadow: 0 0 18px rgb(from var(--beat-highlight) r g b / 0.35);
   }
+
   100% {
     transform: scale(1);
     box-shadow: 0 0 0 rgb(from var(--beat-highlight) r g b / 0);

@@ -68,6 +68,7 @@ import {
   sortFavorites,
   type FavoriteTrack,
 } from "./favorites";
+import { installGlobalBackgroundTimer } from "./backgroundTimer";
 
 const vizStorageKey = "fj-viz";
 
@@ -81,7 +82,8 @@ type FavoritesDelta = {
 };
 
 export function bootstrap() {
-  initBackgroundTimer();
+  // Initialize background timer for audio playback when tab is hidden
+  installGlobalBackgroundTimer();
   const elements = getElements();
   const initialTheme = resolveStoredTheme();
   applyThemeVariables(initialTheme);
@@ -354,6 +356,7 @@ export function bootstrap() {
     document.addEventListener("click", handleFavoritesSyncDocumentClick);
     window.addEventListener("keydown", handleKeydown);
     window.addEventListener("keyup", handleKeyup);
+    elements.retroToggleButton.addEventListener("click", handleRetroToggle);
 
     visualizations.forEach((viz) => {
       viz.setOnSelect(handleBeatSelect);
@@ -989,6 +992,15 @@ export function bootstrap() {
     showToast(context, message);
   }
 
+  function handleRetroToggle() {
+    const isRetro = document.body.classList.toggle("retro-mode");
+    elements.retroToggleButton.textContent = isRetro
+      ? "Switch to Modern Mode"
+      : "Switch to Retro Mode";
+    // Refresh visualizations to update theme colors
+    visualizations.forEach((viz) => viz.refresh());
+  }
+
   function handleTabClick(event: Event) {
     const button = event.currentTarget as HTMLButtonElement | null;
     const tabId = button?.dataset.tabButton as TabId | undefined;
@@ -1386,7 +1398,7 @@ export function bootstrap() {
   }
 
   function setActiveTabWithRefresh(tabId: TabId) {
-    setActiveTab(context, tabId, () => {});
+    setActiveTab(context, tabId, () => { });
   }
 
   async function fetchTopSongsList() {

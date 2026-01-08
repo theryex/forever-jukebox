@@ -1,0 +1,262 @@
+/**
+ * Retro Mode Styles
+ * 
+ * This file contains styles that transform the Forever Jukebox into
+ * the classic Infinite Jukebox aesthetic with teal/black colors.
+ * 
+ * Activated by adding 'retro-mode' class to body element.
+ */
+
+/* Retro mode base styles */
+body.retro-mode {
+  background: #000000;
+  color: #45ada8;
+  font-family: 'Questrial', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body.retro-mode a {
+  color: #9de0ad;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+body.retro-mode a:hover {
+  text-decoration: underline;
+}
+
+/* Hero section */
+body.retro-mode .hero {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+body.retro-mode .hero-title-neon {
+  font-family: inherit;
+  text-transform: none;
+  text-shadow: none;
+  animation: none;
+  color: #45ada8;
+  letter-spacing: normal;
+}
+
+/* Panels */
+body.retro-mode .panel {
+  background: transparent;
+  border: 2px ridge #45ada8;
+  border-radius: 0;
+}
+
+body.retro-mode .panel-title {
+  color: #9de0ad;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* Buttons - classic gradient style */
+body.retro-mode button,
+body.retro-mode .tab-btn,
+body.retro-mode .viz-btn {
+  background: linear-gradient(to bottom, #ededed 5%, #dfdfdf 100%);
+  background-color: #ededed;
+  border-radius: 6px;
+  border: 1px solid #dcdcdc;
+  font-weight: bold;
+  color: #333;
+  text-shadow: 0 1px 0 #ffffff;
+  padding: 6px 12px;
+}
+
+body.retro-mode button:hover,
+body.retro-mode .tab-btn:hover,
+body.retro-mode .viz-btn:hover {
+  background: linear-gradient(to bottom, #dfdfdf 5%, #ededed 100%);
+  background-color: #dfdfdf;
+}
+
+body.retro-mode button:active,
+body.retro-mode .tab-btn.active,
+body.retro-mode .viz-btn.active {
+  background: linear-gradient(to bottom, #c9c9c9 5%, #f3f3f3 100%);
+  background-color: #c9c9c9;
+  border-color: #45ada8;
+}
+
+/* Search input */
+body.retro-mode .search-input {
+  background: #111;
+  border: 1px solid #45ada8;
+  color: #45ada8;
+  border-radius: 0;
+}
+
+body.retro-mode .search-input::placeholder {
+  color: #45ada888;
+}
+
+/* Visualization panel */
+body.retro-mode .viz {
+  background: #111;
+  border: 2px ridge #45ada8;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+body.retro-mode .viz-bottom {
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 0;
+}
+
+/* Modal */
+body.retro-mode .modal {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+body.retro-mode .modal-panel {
+  background: #111;
+  border: 2px ridge #45ada8;
+  border-radius: 0;
+  color: #45ada8;
+}
+
+/* Theme toggle - hide in retro mode since it conflicts */
+body.retro-mode .theme-toggle {
+  display: none;
+}
+
+/* Top songs list */
+body.retro-mode .top-list a {
+  color: #9de0ad;
+}
+
+/* Search results */
+body.retro-mode .search-results {
+  border: 1px dashed #45ada8;
+  border-radius: 0;
+}
+
+body.retro-mode .search-item {
+  color: #45ada8;
+}
+
+body.retro-mode .search-item span {
+  color: #9de0ad88;
+}
+
+/* Footer */
+body.retro-mode .site-footer {
+  color: #45ada888;
+}
+
+body.retro-mode .site-footer a {
+  color: #9de0ad;
+}
+
+/* Hints and muted text */
+body.retro-mode .hint,
+body.retro-mode .status-row {
+  color: #45ada8aa;
+}
+
+/* Menu bar */
+body.retro-mode .menu-bar {
+  background: transparent;
+  border: 2px ridge #45ada8;
+  border-radius: 0;
+}
+
+/* FAQ section */
+body.retro-mode .faq h3 {
+  color: #9de0ad;
+}
+
+body.retro-mode .faq h4 {
+  color: #45ada8;
+}
+
+body.retro-mode .faq p,
+body.retro-mode .faq li {
+  color: #45ada8cc;
+}
+
+/* Tabs */
+body.retro-mode .tabs {
+  gap: 4px;
+}
+
+/* Decorative jukebox images */
+.retro-img {
+  display: none;
+  position: fixed;
+  width: 180px;
+  height: auto;
+  z-index: 0;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.retro-img-left {
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.retro-img-right {
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  animation: retro-spin 4s linear infinite;
+}
+
+body.retro-mode .retro-img {
+  display: block;
+}
+
+@keyframes retro-spin {
+  from {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
+/* Retro toggle button */
+.retro-toggle-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+body.retro-mode .retro-toggle-btn {
+  background: linear-gradient(to bottom, #45ada8 5%, #2d8a86 100%);
+  color: #000;
+  border-color: #45ada8;
+}
+
+/* Hide decorative images on small screens */
+@media (max-width: 1200px) {
+  .retro-img {
+    display: none !important;
+  }
+}
+
+/* Visualization controls in retro mode */
+body.retro-mode .viz-controls {
+  color: #45ada8aa;
+}
+
+/* Slider inputs in retro mode */
+body.retro-mode input[type="range"] {
+  accent-color: #45ada8;
+}
+
+/* Play button emphasis */
+body.retro-mode #play-button {
+  background: linear-gradient(to bottom, #9de0ad 5%, #45ada8 100%);
+  color: #000;
+  font-weight: bold;
+}
+
+body.retro-mode #play-button:hover {
+  background: linear-gradient(to bottom, #45ada8 5%, #9de0ad 100%);
+}
