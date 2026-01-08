@@ -188,6 +188,10 @@ export function getElements() {
     "#top-songs"
   );
   const vizStats = document.querySelector<HTMLDivElement>("#viz-stats");
+  const retroToggleButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#retro-toggle"),
+    "#retro-toggle"
+  );
 
   return {
     listenTimeEl,
@@ -237,5 +241,6 @@ export function getElements() {
     searchHint,
     topSongsList,
     vizStats,
+    retroToggleButton,
   };
 }

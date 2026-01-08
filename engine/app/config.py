@@ -76,6 +76,10 @@ class AnalysisConfig:
     target_section_rate_tolerance: float = 0.2
     section_include_bounds: bool = True
 
+    # GPU acceleration options
+    use_gpu: bool = True  # Enable GPU acceleration if available
+    gpu_device: int = 0   # GPU device index to use
+
 
 def config_from_dict(data: dict[str, Any]) -> AnalysisConfig:
     defaults = AnalysisConfig()
@@ -93,6 +97,7 @@ def config_from_dict(data: dict[str, Any]) -> AnalysisConfig:
         "timbre_unit_norm",
         "segment_include_bounds",
         "section_include_bounds",
+        "use_gpu",
     }
     int_fields = {
         "sample_rate",
@@ -110,6 +115,7 @@ def config_from_dict(data: dict[str, Any]) -> AnalysisConfig:
         "segment_selfsim_min_spacing_beats",
         "section_selfsim_kernel_beats",
         "section_selfsim_min_spacing_beats",
+        "gpu_device",
     }
     float_fields = {
         "section_seconds",

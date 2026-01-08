@@ -1,316 +1,266 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>The Forever Jukebox</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Tilt+Neon&display=swap"
-      rel="stylesheet"
-    />
-  </head>
-  <body>
-    <div id="app">
-      <header class="hero">
-        <div class="hero-actions">
-          <div class="theme-toggle" id="theme-toggle">
-            <span>Theme:</span>
-            <button type="button" class="theme-link" data-theme="light">
-              Light
-            </button>
-            <span class="theme-sep">|</span>
-            <button type="button" class="theme-link" data-theme="dark">
-              Dark
-            </button>
-          </div>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Forever Jukebox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Tilt+Neon&display=swap" rel="stylesheet" />
+</head>
+
+<body>
+  <div id="app">
+    <header class="hero">
+      <div class="hero-actions">
+        <button type="button" class="retro-toggle-btn" id="retro-toggle">Switch to Retro Mode</button>
+        <div class="theme-toggle" id="theme-toggle">
+          <span>Theme:</span>
+          <button type="button" class="theme-link" data-theme="light">
+            Light
+          </button>
+          <span class="theme-sep">|</span>
+          <button type="button" class="theme-link" data-theme="dark">
+            Dark
+          </button>
         </div>
-        <div class="hero-main">
-          <div class="hero-title">
-            <h1 class="hero-title-neon">THE FOREVER JUKEBOX</h1>
-          </div>
-          <nav class="tabs" aria-label="Primary">
-            <button class="tab-btn active" data-tab-button="top">Top Songs</button>
-            <button class="tab-btn" data-tab-button="search">Search</button>
-            <button class="tab-btn" data-tab-button="play" disabled>Listen</button>
-            <button class="tab-btn" data-tab-button="faq">FAQ</button>
-          </nav>
+      </div>
+      <div class="hero-main">
+        <div class="hero-title">
+          <h1 class="hero-title-neon">THE FOREVER JUKEBOX</h1>
         </div>
-      </header>
-      <section class="panel tab-panel" data-tab-panel="top">
-        <div class="panel-title">Top 20</div>
-        <ol class="top-list" id="top-songs">
-          Loading top songs…
-        </ol>
-      </section>
-      <section class="panel tab-panel hidden" data-tab-panel="search">
-        <div class="panel-title">Search</div>
-        <div class="search-panel">
-          <div class="search-hint" id="search-hint">
-            Step 1: Find a Spotify track.
-          </div>
-          <div class="search-bar">
-            <input
-              id="search-input"
-              class="search-input"
-              type="search"
-              placeholder="Search by artist or track"
-              autocomplete="off"
-            />
-            <button id="search-button">Search</button>
-          </div>
-          <div class="search-results" id="search-results">
-            Search results will appear here.
-          </div>
+        <nav class="tabs" aria-label="Primary">
+          <button class="tab-btn active" data-tab-button="top">Top Songs</button>
+          <button class="tab-btn" data-tab-button="search">Search</button>
+          <button class="tab-btn" data-tab-button="play" disabled>Listen</button>
+          <button class="tab-btn" data-tab-button="faq">FAQ</button>
+        </nav>
+      </div>
+    </header>
+    <section class="panel tab-panel" data-tab-panel="top">
+      <div class="panel-title">Top 20</div>
+      <ol class="top-list" id="top-songs">
+        Loading top songs…
+      </ol>
+    </section>
+    <section class="panel tab-panel hidden" data-tab-panel="search">
+      <div class="panel-title">Search</div>
+      <div class="search-panel">
+        <div class="search-hint" id="search-hint">
+          Step 1: Find a Spotify track.
         </div>
-      </section>
-      <section class="panel tab-panel hidden" data-tab-panel="play">
-        <div class="panel" id="play-status">
-          <div class="status-row">
-            <div
-              class="spinner hidden"
-              id="analysis-spinner"
-              aria-hidden="true"
-            ></div>
-            <div class="status-text" id="analysis-status">
-              Select a track to begin.
+        <div class="search-bar">
+          <input id="search-input" class="search-input" type="search" placeholder="Search by artist or track"
+            autocomplete="off" />
+          <button id="search-button">Search</button>
+        </div>
+        <div class="search-results" id="search-results">
+          Search results will appear here.
+        </div>
+      </div>
+    </section>
+    <section class="panel tab-panel hidden" data-tab-panel="play">
+      <div class="panel" id="play-status">
+        <div class="status-row">
+          <div class="spinner hidden" id="analysis-spinner" aria-hidden="true"></div>
+          <div class="status-text" id="analysis-status">
+            Select a track to begin.
+          </div>
+          <div class="status-progress" id="analysis-progress"></div>
+        </div>
+      </div>
+      <div class="play-title" id="play-title"></div>
+      <div class="menu-bar hidden" id="play-menu">
+        <div class="menu-left">
+          <button id="play" class="hidden">Play</button>
+          <button id="tuning">Tune</button>
+          <button id="track-info">Info</button>
+          <button id="short-url">Copy URL</button>
+        </div>
+      </div>
+      <div id="viz-panel" class="hidden">
+        <div id="jukebox-viz" class="viz">
+          <div id="viz-layer" class="viz-layer"></div>
+          <div class="viz-top">
+            <div class="viz-actions">
+              <button id="fullscreen">Fullscreen</button>
             </div>
-            <div class="status-progress" id="analysis-progress"></div>
-          </div>
-        </div>
-        <div class="play-title" id="play-title"></div>
-        <div class="menu-bar hidden" id="play-menu">
-          <div class="menu-left">
-            <button id="play" class="hidden">Play</button>
-            <button id="tuning">Tune</button>
-            <button id="track-info">Info</button>
-            <button id="short-url">Copy URL</button>
-          </div>
-        </div>
-        <div id="viz-panel" class="hidden">
-          <div id="jukebox-viz" class="viz">
-            <div id="viz-layer" class="viz-layer"></div>
-            <div class="viz-top">
-              <div class="viz-actions">
-                <button id="fullscreen">Fullscreen</button>
-              </div>
-              <div class="viz-controls">
-                <span>Visualization:</span>
-                <button class="viz-btn active" data-viz="0">1</button>
-                <button class="viz-btn" data-viz="1">2</button>
-                <button class="viz-btn" data-viz="2">3</button>
-                <button class="viz-btn" data-viz="3">4</button>
-                <button class="viz-btn" data-viz="4">5</button>
-                <button class="viz-btn" data-viz="5">6</button>
-              </div>
-            </div>
-            <div class="viz-bottom" id="viz-stats">
-              <div>
-                <strong>Listen Time:</strong>
-                <span id="listen-time">00:00:00</span>
-              </div>
-              <div>
-                <strong>Total Beats:</strong> <span id="beats-played">0</span>
-              </div>
+            <div class="viz-controls">
+              <span>Visualization:</span>
+              <button class="viz-btn active" data-viz="0">1</button>
+              <button class="viz-btn" data-viz="1">2</button>
+              <button class="viz-btn" data-viz="2">3</button>
+              <button class="viz-btn" data-viz="3">4</button>
+              <button class="viz-btn" data-viz="4">5</button>
+              <button class="viz-btn" data-viz="5">6</button>
+              <button class="viz-btn" data-viz="6">7</button>
+              <button class="viz-btn" data-viz="7">8</button>
             </div>
           </div>
-        </div>
-      </section>
-      <section class="panel tab-panel hidden" data-tab-panel="faq">
-        <div class="panel-title">FAQ</div>
-        <div class="faq">
-          <h4>What the what?</h4>
-          <p>
-            This web app lets you search a song on Spotify, match it to YouTube
-            audio, and generate a forever-changing version of the song.
-          </p>
-
-          <h4>How does it work?</h4>
-          <p>
-            The engine analyzes the audio into beats and segments, then plays it
-            beat by beat. At each beat there is a chance to jump to a different
-            part of the song that sounds similar. Similarity uses features like
-            timbre, loudness, duration, and beat position. The visualization
-            shows the possible jump paths for each beat.
-          </p>
-          <p>
-            The backend is written in Python and runs the analysis engine. The
-            web UI is a TypeScript app. The source code is available in the
-            <a
-              href="https://github.com/creightonlinza/forever-jukebox/"
-              target="_blank"
-              rel="noreferrer"
-              >forever-jukebox</a
-            >
-            repository.
-          </p>
-
-          <h4>Keyboard commands</h4>
-          <ul>
-            <li><strong>Space</strong> - start/stop playback (Listen tab)</li>
-            <li>
-              <strong>Shift (hold)</strong> - force branching while playing
-            </li>
-            <li><strong>Delete</strong> - remove a selected branch</li>
-          </ul>
-
-          <h4>How can I tune the Jukebox?</h4>
-          <ul>
-            <li>Click the Tune button to open the tuning panel.</li>
-            <li>
-              Lower the threshold for higher audio continuity; raise it for more
-              branches.
-            </li>
-            <li>
-              Adjust branch probability min/max and ramp speed to shape how
-              often jumps happen.
-            </li>
-            <li>
-              Use the checkboxes to allow or restrict certain branch types.
-            </li>
-            <li>
-              Click a branch in the visualization, then press Delete to remove
-              it.
-            </li>
-          </ul>
-
-          <h4>Credits</h4>
-          <ul>
-            <li>Original inspiration: Paul Lamere and the Infinite Jukebox.</li>
-            <li>EternalJukebox: keeping the dream alive.</li>
-            <li>Remixatron: beat-aligned segmentation concepts.</li>
-            <li>madmom: beat and downbeat tracking.</li>
-            <li>
-              librosa, numpy, scipy, soundfile, yt-dlp: DSP and audio I/O +
-              downloads.
-            </li>
-          </ul>
-
-          <h4>Help! Something broke!</h4>
-          <p>
-            Please file an issue here:
-            <a
-              href="https://github.com/creightonlinza/forever-jukebox/issues/new"
-              target="_blank"
-              rel="noreferrer"
-              >Create an issue</a
-            >.
-          </p>
-        </div>
-      </section>
-      <div id="tuning-modal" class="modal">
-        <div class="modal-panel">
-          <div class="modal-header">
-            <h2>Tuning</h2>
-            <button id="tuning-close">Close</button>
-          </div>
-          <div class="modal-body">
-            <label>
-              Branch Similarity Threshold: <span id="threshold-val">0</span>
-              <input
-                id="threshold"
-                type="range"
-                min="0"
-                max="80"
-                step="5"
-                value="0"
-              />
-            </label>
-            <div class="hint">
-              Computed threshold: <span id="computed-threshold">-</span>
+          <div class="viz-bottom" id="viz-stats">
+            <div>
+              <strong>Listen Time:</strong>
+              <span id="listen-time">00:00:00</span>
             </div>
-            <label>
-              Branch Probability Min: <span id="min-prob-val">18%</span>
-              <input
-                id="min-prob"
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value="18"
-              />
-            </label>
-            <label>
-              Branch Probability Max: <span id="max-prob-val">50%</span>
-              <input
-                id="max-prob"
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value="50"
-              />
-            </label>
-            <label>
-              Branch Ramp Speed: <span id="ramp-val">10%</span>
-              <input
-                id="ramp"
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value="10"
-              />
-            </label>
-            <div class="checkbox-row">
-              <label
-                ><input id="last-edge" type="checkbox" checked /> Loop extension
-                optimization</label
-              >
-              <label
-                ><input id="just-backwards" type="checkbox" /> Allow only
-                reverse branches</label
-              >
-              <label
-                ><input id="just-long" type="checkbox" /> Allow only long
-                branches</label
-              >
-              <label
-                ><input id="remove-seq" type="checkbox" /> Remove sequential
-                branches</label
-              >
+            <div>
+              <strong>Total Beats:</strong> <span id="beats-played">0</span>
             </div>
-          </div>
-          <div class="modal-footer">
-            <button id="tuning-apply">Apply</button>
           </div>
         </div>
       </div>
-      <div id="info-modal" class="modal">
-        <div class="modal-panel">
-          <div class="modal-header">
-            <h2>Track Info</h2>
-            <button id="info-close">Close</button>
-          </div>
-          <div class="modal-body info-body">
-            <div class="info-row">
-              <span class="info-label">Song length:</span>
-              <span id="info-duration">00:00:00</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Total beats:</span>
-              <span id="info-beats">0</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">Total branches:</span>
-              <span id="info-branches">0</span>
-            </div>
-          </div>
-      </div>
-    </div>
-      <footer class="site-footer">
+    </section>
+    <section class="panel tab-panel hidden" data-tab-panel="faq">
+      <div class="panel-title">FAQ</div>
+      <div class="faq">
+        <h4>What the what?</h4>
         <p>
-          The Forever Jukebox &amp; Analysis Engine by
-          <a href="https://creighton.dev" target="_blank" rel="noreferrer"
-            >Creighton Linza</a
-          >. Based off of
-          <a href="https://musicmachinery.com/" target="_blank" rel="noreferrer"
-            >Paul Lamere</a
-          >'s original Infinite Jukebox.
+          This web app lets you search a song on Spotify, match it to YouTube
+          audio, and generate a forever-changing version of the song.
         </p>
-      </footer>
+
+        <h4>How does it work?</h4>
+        <p>
+          The engine analyzes the audio into beats and segments, then plays it
+          beat by beat. At each beat there is a chance to jump to a different
+          part of the song that sounds similar. Similarity uses features like
+          timbre, loudness, duration, and beat position. The visualization
+          shows the possible jump paths for each beat.
+        </p>
+        <p>
+          The backend is written in Python and runs the analysis engine. The
+          web UI is a TypeScript app. The source code is available in the
+          <a href="https://github.com/creightonlinza/forever-jukebox/" target="_blank"
+            rel="noreferrer">forever-jukebox</a>
+          repository.
+        </p>
+
+        <h4>Keyboard commands</h4>
+        <ul>
+          <li><strong>Space</strong> - start/stop playback (Listen tab)</li>
+          <li>
+            <strong>Shift (hold)</strong> - force branching while playing
+          </li>
+          <li><strong>Delete</strong> - remove a selected branch</li>
+        </ul>
+
+        <h4>How can I tune the Jukebox?</h4>
+        <ul>
+          <li>Click the Tune button to open the tuning panel.</li>
+          <li>
+            Lower the threshold for higher audio continuity; raise it for more
+            branches.
+          </li>
+          <li>
+            Adjust branch probability min/max and ramp speed to shape how
+            often jumps happen.
+          </li>
+          <li>
+            Use the checkboxes to allow or restrict certain branch types.
+          </li>
+          <li>
+            Click a branch in the visualization, then press Delete to remove
+            it.
+          </li>
+        </ul>
+
+        <h4>Credits</h4>
+        <ul>
+          <li>Original inspiration: Paul Lamere and the Infinite Jukebox.</li>
+          <li>EternalJukebox: keeping the dream alive.</li>
+          <li>Remixatron: beat-aligned segmentation concepts.</li>
+          <li>madmom: beat and downbeat tracking.</li>
+          <li>
+            librosa, numpy, scipy, soundfile, yt-dlp: DSP and audio I/O +
+            downloads.
+          </li>
+        </ul>
+
+        <h4>Help! Something broke!</h4>
+        <p>
+          Please file an issue here:
+          <a href="https://github.com/creightonlinza/forever-jukebox/issues/new" target="_blank" rel="noreferrer">Create
+            an issue</a>.
+        </p>
+      </div>
+    </section>
+    <div id="tuning-modal" class="modal">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>Tuning</h2>
+          <button id="tuning-close">Close</button>
+        </div>
+        <div class="modal-body">
+          <label>
+            Branch Similarity Threshold: <span id="threshold-val">0</span>
+            <input id="threshold" type="range" min="0" max="80" step="5" value="0" />
+          </label>
+          <div class="hint">
+            Computed threshold: <span id="computed-threshold">-</span>
+          </div>
+          <label>
+            Branch Probability Min: <span id="min-prob-val">18%</span>
+            <input id="min-prob" type="range" min="0" max="100" step="1" value="18" />
+          </label>
+          <label>
+            Branch Probability Max: <span id="max-prob-val">50%</span>
+            <input id="max-prob" type="range" min="0" max="100" step="1" value="50" />
+          </label>
+          <label>
+            Branch Ramp Speed: <span id="ramp-val">10%</span>
+            <input id="ramp" type="range" min="0" max="100" step="5" value="10" />
+          </label>
+          <div class="checkbox-row">
+            <label><input id="last-edge" type="checkbox" checked /> Loop extension
+              optimization</label>
+            <label><input id="just-backwards" type="checkbox" /> Allow only
+              reverse branches</label>
+            <label><input id="just-long" type="checkbox" /> Allow only long
+              branches</label>
+            <label><input id="remove-seq" type="checkbox" /> Remove sequential
+              branches</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="tuning-apply">Apply</button>
+        </div>
+      </div>
     </div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+    <div id="info-modal" class="modal">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>Track Info</h2>
+          <button id="info-close">Close</button>
+        </div>
+        <div class="modal-body info-body">
+          <div class="info-row">
+            <span class="info-label">Song length:</span>
+            <span id="info-duration">00:00:00</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Total beats:</span>
+            <span id="info-beats">0</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Total branches:</span>
+            <span id="info-branches">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="site-footer">
+      <p>
+        The Forever Jukebox &amp; Analysis Engine by
+        <a href="https://creighton.dev" target="_blank" rel="noreferrer">Creighton Linza</a>. Based off of
+        <a href="https://musicmachinery.com/" target="_blank" rel="noreferrer">Paul Lamere</a>'s original Infinite
+        Jukebox.
+      </p>
+    </footer>
+  </div>
+  <!-- Decorative jukebox images for retro mode -->
+  <img src="/assets/jukebox.png" class="retro-img retro-img-left" alt="" aria-hidden="true">
+  <img src="/assets/jukebox.png" class="retro-img retro-img-right" alt="" aria-hidden="true">
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>

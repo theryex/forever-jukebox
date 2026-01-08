@@ -744,6 +744,19 @@ def analyze_audio(
 ) -> dict[str, Any]:
     cfg = config or AnalysisConfig()
     reporter = ProgressReporter(progress_cb)
+    
+    # Initialize GPU if enabled and available
+    if cfg.use_gpu:
+        try:
+            from .gpu import detect_gpu, GPUBackend, get_gpu_info
+            backend = detect_gpu()
+            if backend != GPUBackend.NONE:
+                info = get_gpu_info()
+                gpu_name = info.get("name", "Unknown")
+                reporter.report(1, f"gpu_{backend.value}_{gpu_name}")
+        except ImportError:
+            pass  # GPU module not available
+    
     reporter.report(50, "load_audio")
     y, sr = features.load_audio(path, sr=cfg.sample_rate)
     y_beats = y

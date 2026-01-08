@@ -1,8 +1,11 @@
 services:
   forever-jukebox:
     container_name: forever-jukebox
-    image: forever-jukebox
-    build: .
+    image: forever-jukebox:${GPU_MODE:-cpu}
+    build:
+      context: .
+      args:
+        GPU_MODE: ${GPU_MODE:-cpu}
     ports:
       - "8000:8000"
     volumes:
@@ -11,7 +14,23 @@ services:
       SPOTIFY_CLIENT_ID: "${SPOTIFY_CLIENT_ID:-}"
       SPOTIFY_CLIENT_SECRET: "${SPOTIFY_CLIENT_SECRET:-}"
       YOUTUBE_API_KEY: "${YOUTUBE_API_KEY:-}"
+      FOREVER_JUKEBOX_GPU: "${GPU_MODE:-cpu}"
     restart: unless-stopped
+    # For NVIDIA GPU, uncomment below:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    # For AMD GPU, uncomment below:
+    # devices:
+    #   - /dev/kfd:/dev/kfd
+    #   - /dev/dri:/dev/dri
+    # group_add:
+    #   - video
+    #   - render
 
 volumes:
   storage:

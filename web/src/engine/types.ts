@@ -86,3 +86,35 @@ export interface JukeboxState {
   lastBranchPoint: number;
   curRandomBranchChance: number;
 }
+
+// Types for Canonizer
+export interface Beat {
+  start: number;
+  duration: number;
+  confidence?: number;
+  which: number;
+}
+
+export interface Section {
+  start: number;
+  duration: number;
+  confidence?: number;
+  loudness?: number;
+  tempo?: number;
+  tempo_confidence?: number;
+  key?: number;
+  key_confidence?: number;
+  mode?: number;
+  mode_confidence?: number;
+  time_signature?: number;
+  time_signature_confidence?: number;
+}
+
+export interface AnalysisResult {
+  track?: TrackMeta;
+  bars?: { start: number; duration: number; confidence?: number }[];
+  beats?: Beat[];
+  sections?: Section[];
+  segments?: Segment[];
+  tatums?: { start: number; duration: number; confidence?: number }[];
+}

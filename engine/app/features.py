@@ -12,6 +12,20 @@ from scipy import fftpack, signal
 from . import env
 from .constants import EPS
 
+# GPU acceleration - lazy import to avoid errors when torch not installed
+_gpu_available = None
+
+def _check_gpu_available() -> bool:
+    """Check if GPU acceleration is available (cached)."""
+    global _gpu_available
+    if _gpu_available is None:
+        try:
+            from .gpu import is_gpu_available
+            _gpu_available = is_gpu_available()
+        except ImportError:
+            _gpu_available = False
+    return _gpu_available
+
 
 DEFAULT_FRAME_LENGTH = 2048
 DEFAULT_HOP_LENGTH = 512
@@ -252,6 +266,14 @@ def stft_magnitude(
     n_fft: int = DEFAULT_FRAME_LENGTH,
     hop_length: int = DEFAULT_HOP_LENGTH,
 ) -> tuple[np.ndarray, np.ndarray]:
+    # Try GPU acceleration if available
+    if _check_gpu_available():
+        try:
+            from .features_gpu import stft_magnitude_gpu
+            return stft_magnitude_gpu(y, sr, n_fft, hop_length)
+        except Exception:
+            pass  # Fall through to CPU implementation
+    
     n_perseg = min(n_fft, y.size) if y.size else n_fft
     noverlap = max(0, n_perseg - hop_length)
     freqs, times, stft = signal.stft(y, fs=sr, nperseg=n_perseg, noverlap=noverlap)
@@ -478,6 +500,14 @@ def beat_sync_mean(feature: np.ndarray, beat_frames: np.ndarray) -> np.ndarray:
 
 
 def cosine_similarity_matrix(feature: np.ndarray) -> np.ndarray:
+    # Try GPU acceleration if available
+    if _check_gpu_available():
+        try:
+            from .features_gpu import cosine_similarity_matrix_gpu
+            return cosine_similarity_matrix_gpu(feature)
+        except Exception:
+            pass  # Fall through to CPU implementation
+    
     if feature.size == 0:
         return np.zeros((0, 0), dtype=float)
     norms = np.linalg.norm(feature, axis=0, keepdims=True) + EPS

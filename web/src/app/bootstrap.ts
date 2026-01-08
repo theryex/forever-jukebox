@@ -29,6 +29,7 @@ import {
 import { runSearch } from "./search";
 import { SHORT_URL_RESET_MS, TOP_SONGS_LIMIT } from "./constants";
 import type { AppContext, AppState, TabId } from "./context";
+import { installGlobalBackgroundTimer } from "./backgroundTimer";
 
 const vizStorageKey = "fj-viz";
 
@@ -37,6 +38,8 @@ type PlaybackDeps = Parameters<typeof pollAnalysis>[1];
 type SearchDeps = Parameters<typeof runSearch>[1];
 
 export function bootstrap() {
+  // Initialize background timer for audio playback when tab is hidden
+  installGlobalBackgroundTimer();
   const elements = getElements();
   const initialTheme = resolveStoredTheme();
   applyThemeVariables(initialTheme);
@@ -209,11 +212,21 @@ export function bootstrap() {
     });
     window.addEventListener("keydown", handleKeydown);
     window.addEventListener("keyup", handleKeyup);
+    elements.retroToggleButton.addEventListener("click", handleRetroToggle);
 
     visualizations.forEach((viz) => {
       viz.setOnSelect(handleBeatSelect);
       viz.setOnEdgeSelect(handleEdgeSelect);
     });
+  }
+
+  function handleRetroToggle() {
+    const isRetro = document.body.classList.toggle("retro-mode");
+    elements.retroToggleButton.textContent = isRetro
+      ? "Switch to Modern Mode"
+      : "Switch to Retro Mode";
+    // Refresh visualizations to update theme colors
+    visualizations.forEach((viz) => viz.refresh());
   }
 
   function handleTabClick(event: Event) {

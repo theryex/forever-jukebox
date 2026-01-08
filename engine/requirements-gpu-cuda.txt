@@ -1,0 +1,21 @@
+# GPU acceleration requirements for NVIDIA CUDA
+# Install with: pip install -r requirements-gpu-cuda.txt
+
+# Base requirements
+-r requirements.txt
+
+# PyTorch with CUDA support
+# For CUDA 12.1 (adjust version as needed):
+# pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+#
+# For CUDA 11.8:
+# pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# CuPy for efficient GPU operations (median filter, etc.)
+# Choose the appropriate version for your CUDA installation:
+# cupy-cuda11x for CUDA 11.x
+# cupy-cuda12x for CUDA 12.x
+cupy-cuda12x>=12.0.0
