@@ -54,6 +54,80 @@ def _make_quanta(starts: List[float], duration: float, confidence: Optional[List
     return quanta
 
 
+def _zscore(matrix: np.ndarray) -> np.ndarray:
+    mean = np.mean(matrix, axis=0)
+    std = np.std(matrix, axis=0)
+    std[std < 1e-6] = 1.0
+    return (matrix - mean) / std
+
+
+def _smooth(values: np.ndarray, window: int = 3) -> np.ndarray:
+    if values.size == 0:
+        return values
+    if window <= 1:
+        return values
+    kernel = np.ones(window, dtype=float) / window
+    pad = window // 2
+    padded = np.pad(values, (pad, pad), mode="edge")
+    return np.convolve(padded, kernel, mode="valid")
+
+
+def _bar_feature_vectors(bars: List[Dict[str, Any]], segments: List[Dict[str, Any]]) -> np.ndarray:
+    features = []
+    for i, bar in enumerate(bars):
+        start = bar["start"]
+        end = start + bar["duration"]
+        overlaps = [
+            seg for seg in segments
+            if seg["start"] < end and (seg["start"] + seg["duration"]) > start
+        ]
+        if not overlaps:
+            features.append(np.zeros(25, dtype=float))
+            continue
+        pitches = np.mean([seg["pitches"] for seg in overlaps], axis=0)
+        timbre = np.mean([seg["timbre"] for seg in overlaps], axis=0)
+        loudness = np.mean(
+            [(seg["loudness_start"] + seg["loudness_max"]) * 0.5 for seg in overlaps]
+        )
+        vec = np.concatenate([pitches, timbre, np.asarray([loudness])], axis=0)
+        features.append(vec.astype(float))
+    return np.vstack(features) if features else np.zeros((0, 25), dtype=float)
+
+
+def _sections_from_bars(bars: List[Dict[str, Any]], segments: List[Dict[str, Any]], duration: float) -> List[Dict[str, Any]]:
+    if len(bars) <= 1:
+        return _make_quanta([0.0], duration, confidence=[1.0])
+    bar_vecs = _bar_feature_vectors(bars, segments)
+    if bar_vecs.size == 0:
+        return _make_quanta([0.0], duration, confidence=[1.0])
+    z = _zscore(bar_vecs)
+    diffs = np.linalg.norm(np.diff(z, axis=0), axis=1)
+    smooth = _smooth(diffs, window=3)
+
+    min_gap = 8
+    candidates = []
+    for i in range(1, len(smooth) - 1):
+        if smooth[i] > smooth[i - 1] and smooth[i] >= smooth[i + 1]:
+            candidates.append(i)
+    candidates.sort(key=lambda idx: smooth[idx], reverse=True)
+
+    selected = []
+    for idx in candidates:
+        bar_index = idx + 1
+        if all(abs(bar_index - s) >= min_gap for s in selected):
+            selected.append(bar_index)
+    selected.sort()
+
+    max_sections = 12
+    max_boundaries = max_sections - 1
+    if len(selected) > max_boundaries:
+        selected = sorted(selected, key=lambda idx: smooth[idx - 1], reverse=True)[:max_boundaries]
+        selected.sort()
+
+    section_starts = [bars[0]["start"]] + [bars[i]["start"] for i in selected]
+    return _make_quanta(section_starts, duration, confidence=[1.0] * len(section_starts))
+
+
 def analyze_audio(audio_path: str, calibration_path: Optional[str] = None) -> Dict[str, Any]:
     config = AnalysisConfig()
     calibration = None
@@ -162,7 +236,7 @@ def analyze_audio(audio_path: str, calibration_path: Optional[str] = None) -> Di
             tatum_starts.append(beat + (beat_duration * t / config.tatums_per_beat))
     tatums = _make_quanta(sorted(set(tatum_starts)), duration, confidence=[1.0] * len(set(tatum_starts)))
 
-    sections = _make_quanta([0.0], duration, confidence=[1.0])
+    sections = _sections_from_bars(bars, segments, duration)
 
     tempos = []
     for i in range(len(beat_times) - 1):
