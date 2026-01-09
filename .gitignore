@@ -10,9 +10,5 @@ __pycache__/
 .DS_Store
 .env
 
-# dirs
-api/storage/
-spotify/
-
 # Fly.io
 fly.toml
