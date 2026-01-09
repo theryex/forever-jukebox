@@ -259,3 +259,68 @@ def analyze_audio(audio_path: str, calibration_path: Optional[str] = None) -> Di
     }
 
     return analysis
+
+
+def _round_value(value: float, decimals: int) -> float:
+    return float(np.round(value, decimals=decimals))
+
+
+def _quantize_quanta(quanta: List[Dict[str, Any]], eps: float = 1e-6) -> None:
+    last_start = -float("inf")
+    for q in quanta:
+        start = _round_value(q.get("start", 0.0), 5)
+        duration = _round_value(q.get("duration", 0.0), 5)
+        if start <= last_start:
+            start = last_start + eps
+        if duration <= 0.0:
+            duration = eps
+        q["start"] = float(start)
+        q["duration"] = float(duration)
+        last_start = start
+        if "confidence" in q:
+            q["confidence"] = _round_value(q["confidence"], 3)
+
+
+def _quantize_segments(segments: List[Dict[str, Any]], eps: float = 1e-6) -> None:
+    last_start = -float("inf")
+    for seg in segments:
+        start = _round_value(seg.get("start", 0.0), 5)
+        duration = _round_value(seg.get("duration", 0.0), 5)
+        if start <= last_start:
+            start = last_start + eps
+        if duration <= 0.0:
+            duration = eps
+        seg["start"] = float(start)
+        seg["duration"] = float(duration)
+        last_start = start
+        seg["confidence"] = _round_value(seg.get("confidence", 0.0), 3)
+        seg["loudness_start"] = _round_value(seg.get("loudness_start", 0.0), 3)
+        seg["loudness_max"] = _round_value(seg.get("loudness_max", 0.0), 3)
+        seg["loudness_max_time"] = _round_value(seg.get("loudness_max_time", 0.0), 3)
+        if abs(seg["loudness_start"] - round(seg["loudness_start"])) <= 1e-6:
+            seg["loudness_start"] = int(round(seg["loudness_start"]))
+        if abs(seg["loudness_max"] - round(seg["loudness_max"])) <= 1e-6:
+            seg["loudness_max"] = int(round(seg["loudness_max"]))
+        seg["pitches"] = [_round_value(v, 3) for v in seg.get("pitches", [])]
+        seg["timbre"] = [_round_value(v, 3) for v in seg.get("timbre", [])]
+
+
+def quantize_analysis(analysis: Dict[str, Any]) -> Dict[str, Any]:
+    _quantize_quanta(analysis.get("sections", []))
+    _quantize_quanta(analysis.get("bars", []))
+    _quantize_quanta(analysis.get("beats", []))
+    _quantize_quanta(analysis.get("tatums", []))
+    _quantize_segments(analysis.get("segments", []))
+
+    track = analysis.get("track", {})
+    if "duration" in track:
+        track["duration"] = _round_value(track["duration"], 5)
+    if "tempo" in track:
+        track["tempo"] = _round_value(track["tempo"], 3)
+    if "time_signature" in track:
+        track["time_signature"] = int(round(track["time_signature"]))
+    if "mode" in track:
+        track["mode"] = int(round(track["mode"]))
+    if "key" in track:
+        track["key"] = int(round(track["key"]))
+    return analysis

@@ -2,7 +2,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .analysis import analyze_audio
+from .analysis import analyze_audio, quantize_analysis
 
 
 def main() -> None:
@@ -13,6 +13,7 @@ def main() -> None:
     args = parser.parse_args()
 
     analysis = analyze_audio(args.audio_path, calibration_path=args.calibration)
+    analysis = quantize_analysis(analysis)
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
