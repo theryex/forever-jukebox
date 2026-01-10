@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -46,9 +47,18 @@ def segment_stats(analysis: dict) -> Dict[str, Any]:
     }
 
 
-def worker(task: Tuple[str, str]) -> Dict[str, Any]:
+def _set_batch_env() -> None:
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+    os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+
+
+def worker(task: Tuple[str, str], batch: bool) -> Dict[str, Any]:
     audio_path, analysis_path = task
-    generated = analyze_audio(audio_path)
+    if batch:
+        _set_batch_env()
+    generated = analyze_audio(audio_path, batch=batch)
     gold = load_analysis(Path(analysis_path))
     return {
         "generated": segment_stats(generated),
@@ -58,10 +68,33 @@ def worker(task: Tuple[str, str]) -> Dict[str, Any]:
     }
 
 
-def build_tasks(audio_dir: Path, analysis_dir: Path, limit: int | None) -> List[Tuple[str, str]]:
+def worker_batch(task: Tuple[str, str]) -> Dict[str, Any]:
+    return worker(task, True)
+
+
+def load_id_list(path: Path | None) -> set[str] | None:
+    if not path:
+        return None
+    ids = set()
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            value = line.strip()
+            if value:
+                ids.add(value)
+    return ids
+
+
+def build_tasks(
+    audio_dir: Path,
+    analysis_dir: Path,
+    limit: int | None,
+    id_filter: set[str] | None,
+) -> List[Tuple[str, str]]:
     tasks = []
     for analysis_path in analysis_dir.glob("*.json"):
         stem = analysis_path.stem
+        if id_filter is not None and stem not in id_filter:
+            continue
         matches = list(audio_dir.glob(stem + ".*"))
         if not matches:
             continue
@@ -85,14 +118,22 @@ def main() -> None:
     parser.add_argument("-o", "--output", required=True)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--id-list", type=Path, default=None)
+    parser.add_argument("--batch", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
 
     audio_dir = Path(args.audio_dir)
     analysis_dir = Path(args.analysis_dir)
 
-    tasks = build_tasks(audio_dir, analysis_dir, args.limit)
+    id_filter = load_id_list(args.id_list)
+    tasks = build_tasks(audio_dir, analysis_dir, args.limit, id_filter)
     if not tasks:
         raise RuntimeError("No matching audio/analysis pairs found")
+    if id_filter is not None:
+        print(
+            f"Loaded {len(id_filter)} ids; matched {len(tasks)} audio/analysis pairs.",
+            flush=True,
+        )
 
     gen_timbre_mean = []
     gen_timbre_std = []
@@ -111,14 +152,20 @@ def main() -> None:
     gold_segment_durations = []
     gold_segments_per_second = []
 
+    if args.batch:
+        _set_batch_env()
     with ProcessPoolExecutor(max_workers=args.workers) as executor:
-        futures = [executor.submit(worker, task) for task in tasks]
+        if args.batch:
+            futures = [executor.submit(worker_batch, task) for task in tasks]
+            result_iter = (future.result() for future in as_completed(futures))
+        else:
+            futures = [executor.submit(worker, task, False) for task in tasks]
+            result_iter = (future.result() for future in as_completed(futures))
         completed = 0
-        total = len(futures)
+        total = len(tasks)
         start_time = time.monotonic()
         avg_seconds = None
-        for future in as_completed(futures):
-            result = future.result()
+        for result in result_iter:
             completed += 1
             elapsed = time.monotonic() - start_time
             avg_seconds = elapsed / completed if completed > 0 else None

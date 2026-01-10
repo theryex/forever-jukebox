@@ -128,7 +128,11 @@ def _sections_from_bars(bars: List[Dict[str, Any]], segments: List[Dict[str, Any
     return _make_quanta(section_starts, duration, confidence=[1.0] * len(section_starts))
 
 
-def analyze_audio(audio_path: str, calibration_path: Optional[str] = None) -> Dict[str, Any]:
+def analyze_audio(
+    audio_path: str,
+    calibration_path: Optional[str] = None,
+    batch: bool = False,
+) -> Dict[str, Any]:
     config = AnalysisConfig()
     calibration = None
     if calibration_path:
@@ -140,7 +144,7 @@ def analyze_audio(audio_path: str, calibration_path: Optional[str] = None) -> Di
     audio, sample_rate = decode_audio(audio_path, sample_rate=config.features.sample_rate)
     duration = len(audio) / sample_rate if sample_rate else 0.0
 
-    beat_times, beat_numbers = extract_beats(audio, sample_rate)
+    beat_times, beat_numbers = extract_beats(audio, sample_rate, batch=batch)
     if not beat_times:
         beat_times = [0.0]
         beat_numbers = [1]
