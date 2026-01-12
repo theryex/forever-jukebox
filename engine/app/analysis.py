@@ -165,9 +165,11 @@ def analyze_audio(
     beat_thread = None
     if progress_cb and duration > 0:
         def beat_heartbeat() -> None:
+            extra_minutes = max(0.0, (duration - 180.0) / 60.0)
+            wait_s = 2.0 + (0.75 * extra_minutes)
             next_progress = 15
             while not beat_stop.is_set() and next_progress < 80:
-                if beat_stop.wait(2.0):
+                if beat_stop.wait(wait_s):
                     break
                 report(next_progress, "beats")
                 next_progress += 5

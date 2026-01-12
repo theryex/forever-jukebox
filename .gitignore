@@ -11,4 +11,4 @@ __pycache__/
 .env
 
 # Fly.io
-fly.toml
+*.toml
