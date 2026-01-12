@@ -7,7 +7,7 @@ import numpy as np
 from .audio import decode_audio
 from .beats import extract_beats
 from .config import AnalysisConfig, load_calibration
-from .features import compute_frame_features, summarize_segment_features
+from .features import compute_frame_features
 from .segmentation import compute_novelty, segment_from_novelty
 
 
@@ -168,21 +168,60 @@ def analyze_audio(
     for i in range(len(boundaries) - 1):
         start = boundaries[i]
         end = boundaries[i + 1]
-        seg_feat = summarize_segment_features(frame_features, start, end)
-        mfcc = seg_feat["mfcc"]
-        timbre = mfcc[1:13] if len(mfcc) >= 13 else np.pad(mfcc, (0, 12 - len(mfcc)))
-        hpcp = seg_feat["hpcp"]
+        times = frame_features["frame_times"]
+        idx = np.where((times >= start) & (times < end))[0]
+        if len(idx) == 0:
+            if times.size == 0:
+                mfcc_dim = frame_features["mfcc"].shape[1] if frame_features["mfcc"].ndim == 2 else 13
+                hpcp_dim = frame_features["hpcp"].shape[1] if frame_features["hpcp"].ndim == 2 else 12
+                mfcc = np.zeros(mfcc_dim, dtype=float)
+                hpcp = np.zeros(hpcp_dim, dtype=float)
+                rms_seq = np.asarray([0.0], dtype=float)
+                seg_times = np.asarray([start], dtype=float)
+            else:
+                candidate = np.searchsorted(times, start, side="left")
+                candidate = min(max(int(candidate), 0), len(times) - 1)
+                idx = np.array([candidate])
+        if len(idx) > 0:
+            mfcc_frames = frame_features["mfcc"][idx]
+            hpcp_frames = frame_features["hpcp"][idx]
+            rms_seq = np.asarray(frame_features["rms_db"][idx], dtype=float)
+            seg_times = times[idx]
+            if mfcc_frames.ndim == 1:
+                mfcc_frames = mfcc_frames[None, :]
+            if hpcp_frames.ndim == 1:
+                hpcp_frames = hpcp_frames[None, :]
+            mfcc_dim = mfcc_frames.shape[1]
+            if mfcc_dim < 13:
+                mfcc_frames = np.pad(mfcc_frames, ((0, 0), (0, 13 - mfcc_dim)), mode="constant")
+            weights = np.power(10.0, rms_seq / 20.0)
+            if weights.size > 0:
+                p10 = np.percentile(weights, 10)
+                p90 = np.percentile(weights, 90)
+                weights = np.clip(weights, p10, p90)
+                wsum = float(weights.sum())
+            else:
+                wsum = 0.0
+            if wsum > 0.0:
+                # Energy-weighted MFCC mean to reduce low-energy frame bias
+                timbre = (weights[:, None] * mfcc_frames[:, 1:13]).sum(axis=0) / wsum
+            else:
+                mfcc_mean = np.mean(mfcc_frames, axis=0)
+                timbre = mfcc_mean[1:13]
+            hpcp = np.mean(hpcp_frames, axis=0)
+        if len(idx) == 0 and times.size == 0:
+            timbre = np.zeros(12, dtype=float)
         if hpcp.size == 0:
             pitches = np.zeros(12, dtype=float)
         else:
             max_val = float(np.max(hpcp)) if np.max(hpcp) > 0 else 1.0
             pitches = hpcp / max_val
-        rms_seq = np.asarray(seg_feat["rms_db"], dtype=float)
+        rms_seq = np.asarray(rms_seq, dtype=float)
         loudness_start = float(rms_seq[0]) if rms_seq.size > 0 else 0.0
         loudness_max = float(rms_seq.max()) if rms_seq.size > 0 else 0.0
         if rms_seq.size > 0:
             max_idx = int(rms_seq.argmax())
-            loudness_max_time = float(seg_feat["times"][max_idx] - start)
+            loudness_max_time = float(seg_times[max_idx] - start)
         else:
             loudness_max_time = 0.0
         confidence = _segment_confidence(novelty, frame_features["frame_times"], start)
