@@ -13,6 +13,7 @@ class JobBase(BaseModel):
 class JobProgress(JobBase):
     status: str
     progress: int | None = None
+    message: str | None = None
 
 
 class JobError(JobBase):
@@ -67,4 +68,6 @@ class PlayCountResponse(BaseModel):
 class AnalysisStartResponse(BaseModel):
     id: str
     status: str
-    progress: int
+    progress: int | None = None
+    message: str | None = None
+    message: str | None = None

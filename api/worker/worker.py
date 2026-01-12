@@ -7,7 +7,6 @@ import os
 import subprocess
 import sys
 import time
-import threading
 import multiprocessing
 from pathlib import Path
 
@@ -24,16 +23,7 @@ GENERATOR_CONFIG = Path(os.environ.get("GENERATOR_CONFIG", ""))
 POLL_INTERVAL_S = float(os.environ.get("POLL_INTERVAL_S", "1.0"))
 WORKER_COUNT = int(os.environ.get("WORKER_COUNT", "1"))
 
-ENGINE_PROGRESS_START = 50
-ENGINE_PROGRESS_WAIT = 75
-ENGINE_PROGRESS_END = 100
-API_DOWNLOAD_END = 25
-API_ENGINE_START = 26
 API_PROGRESS_END = 100
-API_PROGRESS_WAIT = int(
-    round(API_ENGINE_START + (ENGINE_PROGRESS_WAIT - ENGINE_PROGRESS_START) * (API_PROGRESS_END - API_ENGINE_START) / 50)
-)
-BUMP_IDLE_S = 3.0
 logger = get_logger("foreverjukebox.worker")
 
 
@@ -59,39 +49,8 @@ def run_job(job_id: str, input_path: str, output_path: str) -> None:
     output_abs = abs_storage_path(STORAGE_ROOT, output_path)
     output_abs.parent.mkdir(parents=True, exist_ok=True)
 
-    progress_lock = threading.Lock()
-    progress_state = {"value": API_DOWNLOAD_END, "last_update": time.time()}
-    stop_event = threading.Event()
-
-    set_job_progress(DB_PATH, job_id, API_DOWNLOAD_END)
-
     def map_engine_progress(value: int) -> int:
-        if value <= ENGINE_PROGRESS_START:
-            return API_ENGINE_START
-        if value >= ENGINE_PROGRESS_END:
-            return API_PROGRESS_END
-        scaled = API_ENGINE_START + (value - ENGINE_PROGRESS_START) * (API_PROGRESS_END - API_ENGINE_START) / (
-            ENGINE_PROGRESS_END - ENGINE_PROGRESS_START
-        )
-        return int(round(scaled))
-
-    def bump_progress() -> None:
-        while not stop_event.is_set():
-            with progress_lock:
-                current = progress_state["value"]
-                last_update = progress_state["last_update"]
-            if current >= API_PROGRESS_WAIT:
-                break
-            if current >= API_ENGINE_START and time.time() - last_update > BUMP_IDLE_S:
-                next_value = min(API_PROGRESS_WAIT, current + 1)
-                set_job_progress(DB_PATH, job_id, next_value)
-                with progress_lock:
-                    progress_state["value"] = next_value
-                    progress_state["last_update"] = time.time()
-            stop_event.wait(0.5)
-
-    progress_thread = threading.Thread(target=bump_progress, daemon=True)
-    progress_thread.start()
+        return max(0, min(API_PROGRESS_END, int(value)))
 
     cmd = [
         sys.executable,
@@ -100,7 +59,7 @@ def run_job(job_id: str, input_path: str, output_path: str) -> None:
         str(input_abs),
         "-o",
         str(output_abs),
-        "--config",
+        "--calibration",
         str(GENERATOR_CONFIG),
     ]
 
@@ -115,26 +74,19 @@ def run_job(job_id: str, input_path: str, output_path: str) -> None:
     )
     assert proc.stdout is not None
     output_lines: list[str] = []
-    try:
-        for line in proc.stdout:
-            if line.startswith("PROGRESS:"):
-                parts = line.strip().split(":", 2)
-                if len(parts) >= 2:
-                    try:
-                        progress = map_engine_progress(int(parts[1]))
-                        set_job_progress(DB_PATH, job_id, progress)
-                        with progress_lock:
-                            progress_state["value"] = progress
-                            progress_state["last_update"] = time.time()
-                    except ValueError:
-                        pass
-                continue
-            output_lines.append(line)
-            logger.info("%s", line.rstrip())
-        returncode = proc.wait()
-    finally:
-        stop_event.set()
-        progress_thread.join(1.0)
+    for line in proc.stdout:
+        if line.startswith("PROGRESS:"):
+            parts = line.strip().split(":", 2)
+            if len(parts) >= 2:
+                try:
+                    progress = map_engine_progress(int(parts[1]))
+                    set_job_progress(DB_PATH, job_id, progress)
+                except ValueError:
+                    pass
+            continue
+        output_lines.append(line)
+        logger.info("%s", line.rstrip())
+    returncode = proc.wait()
     if returncode != 0:
         raise JobFailure(f"Engine exited with status {returncode}", output_lines)
 

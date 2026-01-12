@@ -1,5 +1,6 @@
 services:
   forever-jukebox:
+    platform: linux/amd64
     container_name: forever-jukebox
     image: forever-jukebox
     build: .

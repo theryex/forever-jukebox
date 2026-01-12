@@ -1,6 +1,11 @@
-"""Audio analysis package."""
+"""Forever Jukebox analysis engine."""
 
-from . import env  # noqa: F401
-from .analyzer import analyze_audio
-
-__all__ = ["analyze_audio"]
+__all__ = [
+    "analysis",
+    "audio",
+    "beats",
+    "config",
+    "features",
+    "segmentation",
+    "main",
+]

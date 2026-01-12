@@ -20,16 +20,16 @@ if [[ "${1:-}" == "--clean" ]]; then
   running_pids=()
   while IFS= read -r pid; do
     running_pids+=("$pid")
-  done < <(pgrep -f "$ROOT/api/worker/worker.py" || true)
+  done < <(pgrep -f "worker/worker.py" || true)
   while IFS= read -r pid; do
     running_pids+=("$pid")
   done < <(pgrep -f "uvicorn api.main:app" || true)
   if [[ "${#running_pids[@]}" -gt 0 ]]; then
     echo "Stopping running dev processes..."
-    pkill -f "$ROOT/api/worker/worker.py" || true
+    pkill -f "worker/worker.py" || true
     pkill -f "uvicorn api.main:app" || true
     for _ in {1..10}; do
-      if pgrep -f "$ROOT/api/worker/worker.py" >/dev/null 2>&1; then
+      if pgrep -f "worker/worker.py" >/dev/null 2>&1; then
         sleep 0.2
         continue
       fi
@@ -39,8 +39,8 @@ if [[ "${1:-}" == "--clean" ]]; then
       fi
       break
     done
-    if pgrep -f "$ROOT/api/worker/worker.py" >/dev/null 2>&1; then
-      pkill -9 -f "$ROOT/api/worker/worker.py" || true
+    if pgrep -f "worker/worker.py" >/dev/null 2>&1; then
+      pkill -9 -f "worker/worker.py" || true
     fi
     if pgrep -f "uvicorn api.main:app" >/dev/null 2>&1; then
       pkill -9 -f "uvicorn api.main:app" || true
@@ -84,7 +84,7 @@ resolve_python() {
     echo "FJ_PYTHON is set but not executable: $FJ_PYTHON"
     exit 1
   fi
-  for candidate in python3.12 python3.11 python3.10 python3; do
+  for candidate in python3.10 python3; do
     if command -v "$candidate" >/dev/null 2>&1; then
       PYTHON_BIN="$(command -v "$candidate")"
       return
@@ -167,7 +167,7 @@ ensure_web_deps() {
 }
 
 export GENERATOR_REPO="$ROOT/engine"
-export GENERATOR_CONFIG="$ROOT/engine/tuned_config.json"
+export GENERATOR_CONFIG="$ROOT/engine/calibration.json"
 
 pids=()
 
@@ -214,8 +214,9 @@ cleanup() {
   echo "Shutting down..."
   for pid in "${pids[@]:-}"; do
     kill "$pid" 2>/dev/null || true
+    kill -- "-$pid" 2>/dev/null || true
   done
-  pkill -f "$ROOT/api/worker/worker.py" 2>/dev/null || true
+  pkill -f "worker/worker.py" 2>/dev/null || true
   pkill -f "uvicorn api.main:app" 2>/dev/null || true
   wait
 }

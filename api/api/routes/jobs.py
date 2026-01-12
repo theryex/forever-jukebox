@@ -60,10 +60,33 @@ def _recycle_job(job) -> None:
     logger.info("Recycling stale job %s (%s)", job.id, job.status)
 
 
+def _message_for_progress(status: str, progress: int | None) -> str | None:
+    if status == "downloading":
+        return "Fetching audio..."
+    if status == "queued":
+        return "Queued..."
+    if status != "processing":
+        return None
+    if progress is None:
+        return "Processing..."
+    if progress < 10:
+        return "Processing audio..."
+    if progress < 80:
+        return "Analyzing audio..."
+    return "Building analysis..."
+
+
 def _job_response(job) -> JSONResponse:
     base_payload = {"id": job.id, "youtube_id": job.youtube_id}
     if job.status in {"queued", "processing", "downloading"}:
-        payload = JobProgress(status=job.status, progress=job.progress, **base_payload)
+        progress = job.progress if job.status == "processing" else None
+        message = _message_for_progress(job.status, progress)
+        payload = JobProgress(
+            status=job.status,
+            progress=progress,
+            message=message,
+            **base_payload,
+        )
         return JSONResponse(payload.model_dump(), status_code=202)
 
     if job.status == "failed":
@@ -285,7 +308,12 @@ def create_analysis_youtube(
         progress=0,
     )
     background_tasks.add_task(_download_youtube_audio, job_id, youtube_id)
-    payload = AnalysisStartResponse(id=job_id, status="downloading", progress=0)
+    payload = AnalysisStartResponse(
+        id=job_id,
+        status="downloading",
+        progress=None,
+        message=_message_for_progress("downloading", None),
+    )
     return JSONResponse(payload.model_dump(), status_code=202)
 
 

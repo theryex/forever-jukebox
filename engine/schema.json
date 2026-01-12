@@ -17,6 +17,7 @@
     "analysis": {
       "type": "object",
       "properties": {
+        "engine_version": { "type": "integer" },
         "sections": { "$ref": "#/definitions/quantumList" },
         "bars": { "$ref": "#/definitions/quantumList" },
         "beats": { "$ref": "#/definitions/quantumList" },

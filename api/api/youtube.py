@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import httpx
-
 
 YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 YOUTUBE_VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
@@ -49,12 +47,14 @@ def parse_iso8601_duration(value: str) -> int | None:
 
 
 def search_youtube_api(
-    client: httpx.Client,
+    client: "httpx.Client",
     api_key: str,
     query: str,
     max_results: int,
     target_duration: float | None,
 ) -> list[dict[str, Any]]:
+    import httpx
+
     params = {
         "part": "snippet",
         "q": query,

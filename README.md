@@ -20,7 +20,7 @@ beat/segment/section data locally.
 
 ## Structure
 
-- `engine/` — The Forever Jukebox Audio Analysis (generator + calibration).
+- `engine/` — The Forever Jukebox Audio Analysis (generator + calibration bundle).
 - `api/` — REST API + worker that calls the engine.
 - `web/` — Web UI (see `web/README.md` for details).
 - `android/` — Native Android app (see `android/README.md` for details).
