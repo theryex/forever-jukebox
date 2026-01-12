@@ -12,8 +12,9 @@ beat/segment/section data locally.
 - The Echo Nest / Spotify Audio Analysis: foundational analysis schema and ideas.
 - The Infinite Jukebox (Paul Lamere): original interactive concept and UX inspiration.
 - EternalJukebox: continued inspiration for infinite playback experiences.
-- Remixatron: beat-aligned segmentation concepts and madmom usage.
 - madmom: beat/downbeat tracking models and utilities.
+- Essentia: audio features and DSP toolkits.
+- Remixatron: beat-aligned segmentation concepts and madmom usage.
 - librosa, numpy, scipy, soundfile, audioread: DSP and audio I/O.
 - yt-dlp: YouTube search metadata and audio.
 - OpenAI Codex (GPT-5): implementation guidance and tooling.
