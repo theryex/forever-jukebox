@@ -60,7 +60,7 @@ export async function startYoutubeAnalysisFlow(
   context.state.analysisLoaded = false;
   deps.updateVizVisibility();
   deps.setActiveTab("play");
-  deps.setLoadingProgress(null, "Fetching audio...");
+  deps.setLoadingProgress(null, "Fetching audio");
   context.state.lastYouTubeId = youtubeId;
   deps.updateTrackUrl(youtubeId);
   await tryLoadCachedAudio(context, youtubeId);
@@ -158,7 +158,7 @@ export async function tryLoadExistingTrackByName(
     state.analysisLoaded = false;
     deps.updateVizVisibility();
     deps.setActiveTab("play");
-    deps.setLoadingProgress(null, "Fetching audio...");
+    deps.setLoadingProgress(null, "Fetching audio");
     state.lastYouTubeId = youtubeId;
     deps.updateTrackUrl(youtubeId);
     state.lastJobId = jobId;

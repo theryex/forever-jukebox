@@ -439,7 +439,7 @@ export async function pollAnalysis(context: AppContext, deps: PlaybackDeps, jobI
             continue;
           }
         }
-        deps.setLoadingProgress(100, "Calculating pathways...");
+        deps.setLoadingProgress(100, "Calculating pathways");
         if (applyAnalysisResult(context, response)) {
           deps.setActiveTab("play");
           return;
@@ -464,7 +464,7 @@ export async function loadTrackByYouTubeId(
 ) {
   resetForNewTrack(context);
   deps.setActiveTab("play");
-  deps.setLoadingProgress(null, "Fetching audio...");
+  deps.setLoadingProgress(null, "Fetching audio");
   context.state.lastYouTubeId = youtubeId;
   await tryLoadCachedAudio(context, youtubeId);
   try {

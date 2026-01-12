@@ -62,18 +62,16 @@ def _recycle_job(job) -> None:
 
 def _message_for_progress(status: str, progress: int | None) -> str | None:
     if status == "downloading":
-        return "Fetching audio..."
+        return "Fetching audio"
     if status == "queued":
-        return "Queued..."
+        return "Queued"
     if status != "processing":
         return None
-    if progress is None:
-        return "Processing..."
-    if progress < 10:
-        return "Processing audio..."
+    if progress is None or progress < 10:
+        return "Processing"
     if progress < 80:
-        return "Analyzing audio..."
-    return "Building analysis..."
+        return "Analyzing"
+    return "Wrapping up"
 
 
 def _job_response(job) -> JSONResponse:
