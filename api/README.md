@@ -25,6 +25,7 @@ Set API keys:
 export SPOTIFY_CLIENT_ID=...
 export SPOTIFY_CLIENT_SECRET=...
 export YOUTUBE_API_KEY=...
+export DELETE_JOB_KEY=...
 ```
 
 ## Run the API
@@ -100,6 +101,14 @@ Fetch top tracks (defaults to 20):
 ```bash
 curl "/api/top?limit=20"
 ```
+
+Delete a job and its stored files:
+
+```bash
+curl -X DELETE "/api/jobs/<id>?key=$DELETE_JOB_KEY"
+```
+
+You can also pass the key as an `X-Delete-Track-Key` header instead of the query string.
 
 ## Storage
 

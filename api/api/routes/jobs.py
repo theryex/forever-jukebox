@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Body, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from ..db import (
@@ -127,6 +128,24 @@ def _cleanup_failure(job_id: str, message: str) -> None:
         result_path.unlink()
     delete_job(DB_PATH, job_id)
     logger.info("Job %s failed: %s", job_id, message)
+
+
+def _delete_job_artifacts(job_id: str, job) -> None:
+    paths: list[Path] = []
+    if job and job.input_path:
+        paths.append(abs_storage_path(STORAGE_ROOT, job.input_path))
+    if job and job.output_path:
+        paths.append(abs_storage_path(STORAGE_ROOT, job.output_path))
+    paths.append(STORAGE_ROOT / "logs" / f"{job_id}.log")
+    for path in paths:
+        if path.is_file():
+            path.unlink()
+    for candidate in (STORAGE_ROOT / "audio").glob(f"{job_id}.*"):
+        if candidate.is_file():
+            candidate.unlink()
+    for candidate in (STORAGE_ROOT / "analysis").glob(f"{job_id}.*"):
+        if candidate.is_file():
+            candidate.unlink()
 
 
 def _download_youtube_audio(job_id: str, youtube_id: str) -> None:
@@ -353,3 +372,25 @@ def get_job_by_track_match(
         _recycle_job(job)
         raise HTTPException(status_code=404, detail="Job not found")
     return _job_response(job)
+
+
+@router.delete("/api/jobs/{job_id}")
+def delete_job_by_id(
+    job_id: str,
+    key: str | None = Query(None),
+    delete_key_header: str | None = Header(None, alias="X-Delete-Track-Key"),
+) -> JSONResponse:
+    expected_key = os.environ.get("DELETE_JOB_KEY")
+    if not expected_key:
+        raise HTTPException(status_code=403, detail="DELETE_JOB_KEY is not configured")
+    provided_key = delete_key_header or key
+    if not provided_key or provided_key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid delete key")
+
+    job = get_job(DB_PATH, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    _delete_job_artifacts(job_id, job)
+    delete_job(DB_PATH, job_id)
+    return JSONResponse({"status": "deleted", "id": job_id}, status_code=200)
