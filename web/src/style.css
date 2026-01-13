@@ -194,6 +194,32 @@ body {
   margin-bottom: 12px;
 }
 
+.subtabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.subtab-spacer {
+  flex: 1;
+}
+
+.subtab-btn {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-control);
+  background: var(--surface-panel);
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.subtab-btn.active {
+  background: var(--surface-control);
+}
+
 .faq h3 {
   margin: 0 0 6px;
   font-size: 20px;
@@ -397,6 +423,48 @@ button:hover {
   color: var(--text);
 }
 
+.top-list.hidden {
+  display: none;
+}
+
+.favorites-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.favorite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.favorite-row a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  flex: 1;
+}
+
+.favorite-row a:hover {
+  text-decoration: underline;
+}
+
+.favorite-remove {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.favorite-toggle.active {
+  background: var(--surface-control);
+  border-color: var(--border-control);
+}
+
 .top-list a {
   color: var(--accent);
   text-decoration: none;
@@ -439,6 +507,20 @@ button:hover {
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 14px;
+}
+
+.toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-panel);
+  background: var(--surface-panel);
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  z-index: 30;
 }
 
 .search-input {

@@ -40,9 +40,17 @@
         </div>
       </header>
       <section class="panel tab-panel" data-tab-panel="top">
-        <div class="panel-title">Top 20</div>
+        <div class="subtabs" id="top-subtabs">
+          <button class="subtab-btn active" data-top-subtab="top">Top 20</button>
+          <span class="subtab-spacer" aria-hidden="true"></span>
+          <button class="subtab-btn" data-top-subtab="favorites">Favorites</button>
+        </div>
+        <div class="panel-title" id="top-list-title">Top 20</div>
         <ol class="top-list" id="top-songs">
           Loading top songs…
+        </ol>
+        <ol class="top-list favorites-list hidden" id="favorites-list">
+          No favorites yet.
         </ol>
       </section>
       <section class="panel tab-panel hidden" data-tab-panel="search">
@@ -86,6 +94,7 @@
             <button id="play" class="hidden">Play</button>
             <button id="tuning">Tune</button>
             <button id="track-info">Info</button>
+            <button id="favorite-toggle" class="favorite-toggle">Favorite</button>
             <button id="short-url">Copy URL</button>
           </div>
         </div>
@@ -312,6 +321,7 @@
         </p>
       </footer>
     </div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

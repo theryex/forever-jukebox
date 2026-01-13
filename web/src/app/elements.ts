@@ -71,6 +71,10 @@ export function getElements() {
     document.querySelector<HTMLButtonElement>("#track-info"),
     "#track-info"
   );
+  const favoriteButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorite-toggle"),
+    "#favorite-toggle"
+  );
   const playTitle = requireElement(
     document.querySelector<HTMLDivElement>("#play-title"),
     "#play-title"
@@ -187,6 +191,22 @@ export function getElements() {
     document.querySelector<HTMLOListElement>("#top-songs"),
     "#top-songs"
   );
+  const favoritesList = requireElement(
+    document.querySelector<HTMLOListElement>("#favorites-list"),
+    "#favorites-list"
+  );
+  const topSongsTabs = requireNonEmpty(
+    Array.from(document.querySelectorAll<HTMLButtonElement>("[data-top-subtab]")),
+    "[data-top-subtab]"
+  );
+  const topListTitle = requireElement(
+    document.querySelector<HTMLDivElement>("#top-list-title"),
+    "#top-list-title"
+  );
+  const toast = requireElement(
+    document.querySelector<HTMLDivElement>("#toast"),
+    "#toast"
+  );
   const vizStats = document.querySelector<HTMLDivElement>("#viz-stats");
 
   return {
@@ -207,6 +227,7 @@ export function getElements() {
     shortUrlButton,
     tuningButton,
     infoButton,
+    favoriteButton,
     playTitle,
     themeLinks,
     fullscreenButton,
@@ -236,6 +257,10 @@ export function getElements() {
     searchResults,
     searchHint,
     topSongsList,
+    favoritesList,
+    topSongsTabs,
+    topListTitle,
+    toast,
     vizStats,
   };
 }

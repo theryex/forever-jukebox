@@ -23,6 +23,7 @@ export type PlaybackDeps = {
   updateTrackUrl: (youtubeId: string, replace?: boolean) => void;
   setAnalysisStatus: (message: string, spinning: boolean) => void;
   setLoadingProgress: (progress: number | null, message?: string | null) => void;
+  onTrackChange?: (youtubeId: string | null) => void;
 };
 
 export function updateListenTimeDisplay(context: AppContext) {
@@ -275,6 +276,8 @@ export function resetForNewTrack(context: AppContext) {
   state.lastPlayCountedJobId = null;
   elements.playTitle.textContent = "";
   state.trackDurationSec = null;
+  state.trackTitle = null;
+  state.trackArtist = null;
   state.vizData = null;
   updateTrackInfo(context);
   const emptyVizData = { beats: [], edges: [] };
@@ -357,6 +360,8 @@ export function applyAnalysisResult(
   const track = resultTrack ?? response.track;
   const title = track?.title;
   const artist = track?.artist;
+  state.trackTitle = typeof title === "string" ? title : null;
+  state.trackArtist = typeof artist === "string" ? artist : null;
   state.trackDurationSec =
     typeof track?.duration === "number" && Number.isFinite(track.duration)
       ? track.duration
@@ -466,6 +471,7 @@ export async function loadTrackByYouTubeId(
   deps.setActiveTab("play");
   deps.setLoadingProgress(null, "Fetching audio");
   context.state.lastYouTubeId = youtubeId;
+  deps.onTrackChange?.(youtubeId);
   await tryLoadCachedAudio(context, youtubeId);
   try {
     const response = await fetchJobByYoutube(youtubeId);

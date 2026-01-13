@@ -27,6 +27,7 @@ export type SearchDeps = {
   loadAudioFromJob: (jobId: string) => Promise<boolean>;
   resetForNewTrack: () => void;
   updateVizVisibility: () => void;
+  onTrackChange?: (youtubeId: string | null) => void;
 };
 
 function isAnalysisComplete(response: AnalysisResponse | null): response is AnalysisComplete {
@@ -62,6 +63,7 @@ export async function startYoutubeAnalysisFlow(
   deps.setActiveTab("play");
   deps.setLoadingProgress(null, "Fetching audio");
   context.state.lastYouTubeId = youtubeId;
+  deps.onTrackChange?.(youtubeId);
   deps.updateTrackUrl(youtubeId);
   await tryLoadCachedAudio(context, youtubeId);
   const payload = { youtube_id: youtubeId, title, artist };
@@ -160,6 +162,7 @@ export async function tryLoadExistingTrackByName(
     deps.setActiveTab("play");
     deps.setLoadingProgress(null, "Fetching audio");
     state.lastYouTubeId = youtubeId;
+    deps.onTrackChange?.(youtubeId);
     deps.updateTrackUrl(youtubeId);
     state.lastJobId = jobId;
     if (isAnalysisInProgress(response)) {

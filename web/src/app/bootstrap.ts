@@ -4,7 +4,7 @@ import type { Edge } from "../engine/types";
 import { getElements } from "./elements";
 import { attachVisualizationResize, createVisualizations } from "./visualization";
 import { applyTheme, applyThemeVariables, resolveStoredTheme } from "./theme";
-import { setAnalysisStatus, setLoadingProgress, isEditableTarget } from "./ui";
+import { setAnalysisStatus, setLoadingProgress, isEditableTarget, showToast } from "./ui";
 import { navigateToTab, setActiveTab, updateTrackUrl } from "./tabs";
 import { handleRouteChange } from "./routing";
 import { fetchTopSongs } from "./api";
@@ -29,6 +29,15 @@ import {
 import { runSearch } from "./search";
 import { SHORT_URL_RESET_MS, TOP_SONGS_LIMIT } from "./constants";
 import type { AppContext, AppState, TabId } from "./context";
+import {
+  addFavorite,
+  isFavorite,
+  loadFavorites,
+  maxFavorites,
+  removeFavorite,
+  saveFavorites,
+  type FavoriteTrack,
+} from "./favorites";
 
 const vizStorageKey = "fj-viz";
 
@@ -51,6 +60,8 @@ export function bootstrap() {
   const state: AppState = {
     activeTabId: "top",
     activeVizIndex: 0,
+    topSongsTab: "top",
+    favorites: loadFavorites(),
     playTimerMs: 0,
     lastPlayStamp: null,
     lastBeatIndex: null,
@@ -68,6 +79,9 @@ export function bootstrap() {
     selectedEdge: null,
     topSongsRefreshTimer: null,
     trackDurationSec: null,
+    trackTitle: null,
+    trackArtist: null,
+    toastTimer: null,
     pollController: null,
     listenTimerId: null,
     wakeLock: null,
@@ -124,8 +138,11 @@ export function bootstrap() {
   elements.playTabButton.disabled = true;
   setAnalysisStatus(context, "Select a track to begin.", false);
   applyTheme(context, initialTheme);
+  renderFavoritesList();
+  setTopSongsTab("top");
 
   resetForNewTrack(context);
+  syncFavoriteButton();
 
   handleRouteChange(context, playbackDeps, window.location.pathname).catch((err) => {
     console.warn(`Route load failed: ${String(err)}`);
@@ -147,6 +164,7 @@ export function bootstrap() {
         setAnalysisStatus(context, message, spinning),
       setLoadingProgress: (progress: number | null, message?: string | null) =>
         setLoadingProgress(context, progress, message),
+      onTrackChange: () => syncFavoriteButton(),
     };
   }
 
@@ -168,6 +186,7 @@ export function bootstrap() {
       loadAudioFromJob: (jobId: string) => loadAudioFromJob(context, jobId),
       resetForNewTrack: () => resetForNewTrack(context),
       updateVizVisibility: () => updateVizVisibility(context),
+      onTrackChange: () => syncFavoriteButton(),
     };
   }
 
@@ -183,6 +202,9 @@ export function bootstrap() {
     elements.tabButtons.forEach((button) => {
       button.addEventListener("click", handleTabClick);
     });
+    elements.topSongsTabs.forEach((button) => {
+      button.addEventListener("click", handleTopSongsTabClick);
+    });
     elements.searchButton.addEventListener("click", handleSearchClick);
     elements.searchInput.addEventListener("keydown", handleSearchKeydown);
     elements.thresholdInput.addEventListener("input", handleThresholdInput);
@@ -191,6 +213,7 @@ export function bootstrap() {
     elements.rampInput.addEventListener("input", handleRampInput);
     elements.tuningButton.addEventListener("click", handleOpenTuning);
     elements.infoButton.addEventListener("click", handleOpenInfo);
+    elements.favoriteButton.addEventListener("click", handleFavoriteToggle);
     elements.fullscreenButton.addEventListener("click", handleFullscreenToggle);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -214,6 +237,126 @@ export function bootstrap() {
       viz.setOnSelect(handleBeatSelect);
       viz.setOnEdgeSelect(handleEdgeSelect);
     });
+  }
+
+  function setTopSongsTab(tabId: "top" | "favorites") {
+    state.topSongsTab = tabId;
+    elements.topSongsTabs.forEach((button) => {
+      button.classList.toggle("active", button.dataset.topSubtab === tabId);
+    });
+    elements.topSongsList.classList.toggle("hidden", tabId !== "top");
+    elements.favoritesList.classList.toggle("hidden", tabId !== "favorites");
+    elements.topListTitle.textContent = tabId === "top" ? "Top 20" : "Favorites";
+    if (tabId === "top") {
+      fetchTopSongsList().catch((err) => {
+        console.warn(`Top songs load failed: ${String(err)}`);
+      });
+    }
+  }
+
+  function updateFavorites(nextFavorites: FavoriteTrack[]) {
+    state.favorites = nextFavorites;
+    saveFavorites(nextFavorites);
+    renderFavoritesList();
+    syncFavoriteButton();
+  }
+
+  function renderFavoritesList() {
+    elements.favoritesList.innerHTML = "";
+    if (state.favorites.length === 0) {
+      elements.favoritesList.textContent = "No favorites yet.";
+      return;
+    }
+    for (const item of state.favorites) {
+      const li = document.createElement("li");
+      const row = document.createElement("div");
+      row.className = "favorite-row";
+      const link = document.createElement("a");
+      link.href = `/listen/${encodeURIComponent(item.uniqueSongId)}`;
+      link.textContent = `${item.title || "Untitled"} — ${item.artist || "Unknown"}`;
+      link.dataset.youtubeId = item.uniqueSongId;
+      link.addEventListener("click", handleFavoriteClick);
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "favorite-remove";
+      removeButton.textContent = "×";
+      removeButton.dataset.favoriteId = item.uniqueSongId;
+      removeButton.addEventListener("click", handleFavoriteRemove);
+      row.append(link, removeButton);
+      li.append(row);
+      elements.favoritesList.appendChild(li);
+    }
+  }
+
+  function syncFavoriteButton() {
+    const currentId = state.lastYouTubeId;
+    const active = currentId ? isFavorite(state.favorites, currentId) : false;
+    elements.favoriteButton.classList.toggle("active", active);
+    elements.favoriteButton.textContent = active ? "Favorited" : "Favorite";
+  }
+
+  function handleTopSongsTabClick(event: Event) {
+    const button = event.currentTarget as HTMLButtonElement | null;
+    const tabId = button?.dataset.topSubtab as "top" | "favorites" | undefined;
+    if (!tabId) {
+      return;
+    }
+    setTopSongsTab(tabId);
+  }
+
+  function handleFavoriteClick(event: Event) {
+    event.preventDefault();
+    const target = event.currentTarget as HTMLAnchorElement | null;
+    const youtubeId = target?.dataset.youtubeId;
+    if (!youtubeId) {
+      return;
+    }
+    navigateToTabWithState("play", { youtubeId });
+    loadTrackByYouTubeId(context, playbackDeps, youtubeId);
+  }
+
+  function handleFavoriteRemove(event: Event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const target = event.currentTarget as HTMLButtonElement | null;
+    const favoriteId = target?.dataset.favoriteId;
+    if (!favoriteId) {
+      return;
+    }
+    updateFavorites(removeFavorite(state.favorites, favoriteId));
+  }
+
+  function handleFavoriteToggle() {
+    const currentId = state.lastYouTubeId;
+    if (!currentId) {
+      return;
+    }
+    if (isFavorite(state.favorites, currentId)) {
+      updateFavorites(removeFavorite(state.favorites, currentId));
+      showToast(context, "Removed from Favorites");
+      return;
+    }
+    const title = state.trackTitle || "Untitled";
+    const artist = state.trackArtist || "Unknown";
+    const track: FavoriteTrack = {
+      uniqueSongId: currentId,
+      title,
+      artist,
+      duration: state.trackDurationSec,
+      artworkUrl: null,
+      sourceType: "youtube",
+    };
+    const result = addFavorite(state.favorites, track);
+    if (result.status === "limit") {
+      showToast(context, `Maximum favorites reached (${maxFavorites()}).`);
+      return;
+    }
+    updateFavorites(result.favorites);
+    if (result.status === "added") {
+      showToast(context, "Added to Favorites");
+    } else {
+      showToast(context, "Favorited");
+    }
   }
 
   function handleTabClick(event: Event) {

@@ -44,3 +44,16 @@ export function isEditableTarget(target: EventTarget | null): boolean {
     target.isContentEditable
   );
 }
+
+export function showToast(context: AppContext, message: string) {
+  const { elements, state } = context;
+  elements.toast.textContent = message;
+  elements.toast.classList.remove("hidden");
+  if (state.toastTimer !== null) {
+    window.clearTimeout(state.toastTimer);
+  }
+  state.toastTimer = window.setTimeout(() => {
+    elements.toast.classList.add("hidden");
+    state.toastTimer = null;
+  }, 2000);
+}
