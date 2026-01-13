@@ -1,4 +1,4 @@
-import { Edge, QuantumBase } from "../engine/types";
+import type { Edge, QuantumBase } from "../engine/types";
 import {
   BEAT_AVOID_RADIUS_PX,
   BEAT_SELECT_RADIUS_PX,
@@ -20,7 +20,7 @@ interface JumpLine {
 }
 
 export type Positioner = (
-  count: number,
+  data: VisualizationData,
   width: number,
   height: number
 ) => Array<{ x: number; y: number }>;
@@ -176,7 +176,7 @@ export class CanvasViz {
       return;
     }
     const { width, height } = this.container.getBoundingClientRect();
-    this.positions = this.positioner(this.data.beats.length, width, height);
+    this.positions = this.positioner(this.data, width, height);
     this.center = { x: width / 2, y: height / 2 };
   }
 

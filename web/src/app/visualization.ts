@@ -2,7 +2,8 @@ import { CanvasViz } from "../visualization/CanvasViz";
 
 export function createVisualizations(vizLayer: HTMLElement) {
   const positioners = [
-    (count: number, width: number, height: number) => {
+    (data: { beats: { length: number } }, width: number, height: number) => {
+      const count = data.beats.length;
       const radius = Math.min(width, height) * 0.4;
       const cx = width / 2;
       const cy = height / 2;
@@ -14,7 +15,8 @@ export function createVisualizations(vizLayer: HTMLElement) {
         };
       });
     },
-    (count: number, width: number, height: number) => {
+    (data: { beats: { length: number } }, width: number, height: number) => {
+      const count = data.beats.length;
       const cx = width / 2;
       const cy = height / 2;
       const maxRadius = Math.min(width, height) * 0.42;
@@ -30,9 +32,48 @@ export function createVisualizations(vizLayer: HTMLElement) {
         };
       });
     },
-    (count: number, width: number, height: number) => {
-      const cols = Math.ceil(Math.sqrt(count));
-      const rows = Math.ceil(count / cols);
+    (
+      data: { beats: Array<{ parent?: { children?: unknown[] } }> },
+      width: number,
+      height: number
+    ) => {
+      const count = data.beats.length;
+      let beatsPerBar = 4;
+      if (count > 0) {
+        const counts = new Map<number, number>();
+        let totalParents = 0;
+        const seenParents = new Set<object>();
+        for (const beat of data.beats) {
+          const parent = beat.parent;
+          if (!parent || !parent.children) {
+            continue;
+          }
+          if (!seenParents.has(parent)) {
+            seenParents.add(parent);
+            const length = Math.max(1, parent.children.length);
+            counts.set(length, (counts.get(length) ?? 0) + 1);
+            totalParents += 1;
+          }
+        }
+        if (counts.size > 0) {
+          let best = beatsPerBar;
+          let bestCount = -1;
+          for (const [size, count] of counts.entries()) {
+            if (count > bestCount) {
+              bestCount = count;
+              best = size;
+            }
+          }
+          beatsPerBar = best;
+        }
+        if (totalParents === 0) {
+          beatsPerBar = 4;
+        }
+      }
+      const totalBars = Math.max(1, Math.ceil(count / Math.max(1, beatsPerBar)));
+      const barsPerRow = Math.max(1, Math.ceil(Math.sqrt(totalBars)));
+      const cols = Math.max(1, beatsPerBar * barsPerRow);
+      const rows = Math.max(1, Math.ceil(count / cols));
       const padding = 40;
       const gridW = width - padding * 2;
       const gridH = height - padding * 2;
@@ -45,7 +86,8 @@ export function createVisualizations(vizLayer: HTMLElement) {
         };
       });
     },
-    (count: number, width: number, height: number) => {
+    (data: { beats: { length: number } }, width: number, height: number) => {
+      const count = data.beats.length;
       const padding = 40;
       const amp = height * 0.25;
       const center = height / 2;
@@ -59,7 +101,8 @@ export function createVisualizations(vizLayer: HTMLElement) {
         };
       });
     },
-    (count: number, width: number, height: number) => {
+    (data: { beats: { length: number } }, width: number, height: number) => {
+      const count = data.beats.length;
       const cx = width / 2;
       const cy = height / 2;
       const ampX = width * 0.35;
@@ -72,7 +115,8 @@ export function createVisualizations(vizLayer: HTMLElement) {
         };
       });
     },
-    (count: number, width: number, height: number) => {
+    (data: { beats: { length: number } }, width: number, height: number) => {
+      const count = data.beats.length;
       const cx = width / 2;
       const cy = height / 2;
       const maxRadius = Math.min(width, height) * 0.42;
