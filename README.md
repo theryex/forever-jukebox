@@ -15,7 +15,8 @@ beat/segment/section data locally.
 - madmom: beat/downbeat tracking models and utilities.
 - Essentia: audio features and DSP toolkits.
 - Remixatron: beat-aligned segmentation concepts and madmom usage.
-- librosa, numpy, scipy, soundfile, audioread: DSP and audio I/O.
+- numpy, scipy: DSP and math.
+- ffmpeg: audio decoding.
 - yt-dlp: YouTube search metadata and audio.
 - OpenAI Codex (GPT-5): implementation guidance and tooling.
 
