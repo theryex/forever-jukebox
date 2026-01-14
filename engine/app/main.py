@@ -19,7 +19,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    from .analysis import analyze_audio, quantize_analysis
+    from .analysis import analyze_audio
 
     def progress_printer(percent: int, stage: str) -> None:
         print(f"PROGRESS:{percent}:{stage}", flush=True)
@@ -28,8 +28,6 @@ def main() -> None:
     analysis_progress = progress_cb
 
     data = analyze_audio(args.input, calibration_path=args.calibration, progress_cb=analysis_progress)
-    data = quantize_analysis(data)
-
     output_path = Path(args.output) if args.output else None
     payload = json.dumps(data, sort_keys=True, indent=None, separators=(",", ":"))
 
