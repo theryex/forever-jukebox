@@ -9,6 +9,42 @@ import numpy as np
 from scipy import signal as scipy_signal
 
 _CACHED = {}
+_DOWNBEAT_FPS = 100
+
+
+def _refine_beat_indices(indices: np.ndarray, activations: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    if activations.ndim > 1:
+        energy = activations.sum(axis=1)
+    else:
+        energy = activations
+    count = energy.shape[0]
+    refined = np.empty(len(indices), dtype=float)
+    peaks = np.empty(len(indices), dtype=int)
+    for i, idx in enumerate(indices):
+        idx = int(idx)
+        if idx <= 0 or idx >= count - 1:
+            refined[i] = float(idx)
+            peaks[i] = idx
+            continue
+        left = max(idx - 1, 0)
+        right = min(idx + 1, count - 1)
+        peak = left + int(np.argmax(energy[left:right + 1]))
+        peaks[i] = peak
+        if peak <= 0 or peak >= count - 1:
+            refined[i] = float(peak)
+            continue
+        y1, y2, y3 = energy[peak - 1], energy[peak], energy[peak + 1]
+        denom = (y1 - 2 * y2 + y3)
+        if abs(denom) < 1e-12:
+            refined[i] = float(peak)
+            continue
+        delta = 0.5 * (y1 - y3) / denom
+        if delta < -0.5:
+            delta = -0.5
+        elif delta > 0.5:
+            delta = 0.5
+        refined[i] = float(peak) + float(delta)
+    return refined, peaks
 
 
 def _madmom_downbeats(proc, activations: np.ndarray) -> np.ndarray:
@@ -22,7 +58,7 @@ def _madmom_downbeats(proc, activations: np.ndarray) -> np.ndarray:
             last = first
         activations = activations[first:last]
     if not activations.any():
-        return np.empty((0, 2))
+        return np.empty((0, 3))
 
     results = [hmm.viterbi(activations) for hmm in proc.hmms]
     best = int(np.argmax([float(r[1]) for r in results]))
@@ -45,7 +81,22 @@ def _madmom_downbeats(proc, activations: np.ndarray) -> np.ndarray:
                 beats = np.hstack((beats, peak))
     else:
         beats = np.nonzero(np.diff(beat_numbers))[0] + 1
-    return np.vstack(((beats + first) / float(proc.fps), beat_numbers[beats])).T
+    if beats.size == 0:
+        return np.empty((0, 3))
+    refined, peaks = _refine_beat_indices(beats, activations)
+    times = (refined + float(first)) / float(proc.fps)
+    if activations.ndim > 1:
+        energy = activations.sum(axis=1)
+    else:
+        energy = activations
+    min_e = float(energy.min()) if energy.size else 0.0
+    max_e = float(energy.max()) if energy.size else 0.0
+    if max_e - min_e < 1e-6:
+        conf = np.full_like(refined, 0.5, dtype=float)
+    else:
+        conf = (energy[peaks] - min_e) / (max_e - min_e)
+        conf = np.clip(conf, 0.0, 1.0)
+    return np.vstack((times, beat_numbers[beats], conf)).T
 
 
 def _get_downbeat_processors():
@@ -53,14 +104,18 @@ def _get_downbeat_processors():
     tracker = _CACHED.get("downbeat_tracker")
     if proc is None or tracker is None:
         from madmom.features.downbeats import DBNDownBeatTrackingProcessor, RNNDownBeatProcessor
-        proc = RNNDownBeatProcessor(fps=100)
-        tracker = DBNDownBeatTrackingProcessor(beats_per_bar=[3, 4], fps=100)
+        proc = RNNDownBeatProcessor(fps=_DOWNBEAT_FPS)
+        tracker = DBNDownBeatTrackingProcessor(beats_per_bar=[3, 4], fps=_DOWNBEAT_FPS)
         _CACHED["downbeat_proc"] = proc
         _CACHED["downbeat_tracker"] = tracker
     return proc, tracker
 
 
-def extract_beats(audio: np.ndarray, sample_rate: int, batch: bool = False) -> Tuple[List[float], List[int]]:
+def extract_beats(
+    audio: np.ndarray,
+    sample_rate: int,
+    batch: bool = False,
+) -> Tuple[List[float], List[int], List[float]]:
     """Return beat times and beat numbers (1-based within bar)."""
     if not hasattr(collections, "MutableSequence"):
         collections.MutableSequence = collections.abc.MutableSequence
@@ -94,15 +149,16 @@ def extract_beats(audio: np.ndarray, sample_rate: int, batch: bool = False) -> T
         proc, tracker = _get_downbeat_processors()
     else:
         from madmom.features.downbeats import DBNDownBeatTrackingProcessor, RNNDownBeatProcessor
-        proc = RNNDownBeatProcessor(fps=100)
-        tracker = DBNDownBeatTrackingProcessor(beats_per_bar=[3, 4], fps=100)
+        proc = RNNDownBeatProcessor(fps=_DOWNBEAT_FPS)
+        tracker = DBNDownBeatTrackingProcessor(beats_per_bar=[3, 4], fps=_DOWNBEAT_FPS)
     act = proc(signal)
     try:
         downbeats = _madmom_downbeats(tracker, act)
         times = downbeats[:, 0].tolist()
         beat_numbers = downbeats[:, 1].astype(int).tolist()
+        confidences = downbeats[:, 2].tolist() if downbeats.shape[1] > 2 else [1.0] * len(times)
         if times:
-            return times, beat_numbers
+            return times, beat_numbers, confidences
     except Exception as exc:
         raise RuntimeError("madmom downbeats failed") from exc
     raise RuntimeError("madmom downbeats empty")

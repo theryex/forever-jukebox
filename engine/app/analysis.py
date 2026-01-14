@@ -95,7 +95,11 @@ def _bar_feature_vectors(bars: List[Dict[str, Any]], segments: List[Dict[str, An
     return np.vstack(features) if features else np.zeros((0, 25), dtype=float)
 
 
-def _sections_from_bars(bars: List[Dict[str, Any]], segments: List[Dict[str, Any]], duration: float) -> List[Dict[str, Any]]:
+def _sections_from_bars(
+    bars: List[Dict[str, Any]],
+    segments: List[Dict[str, Any]],
+    duration: float,
+) -> List[Dict[str, Any]]:
     if len(bars) <= 1:
         return _make_quanta([0.0], duration, confidence=[1.0])
     bar_vecs = _bar_feature_vectors(bars, segments)
@@ -126,7 +130,20 @@ def _sections_from_bars(bars: List[Dict[str, Any]], segments: List[Dict[str, Any
         selected.sort()
 
     section_starts = [bars[0]["start"]] + [bars[i]["start"] for i in selected]
-    return _make_quanta(section_starts, duration, confidence=[1.0] * len(section_starts))
+    section_confidence = []
+    bar_index = 0
+    for i, start in enumerate(section_starts):
+        end = section_starts[i + 1] if i + 1 < len(section_starts) else duration
+        confidences = []
+        while bar_index < len(bars) and bars[bar_index]["start"] < end:
+            if bars[bar_index]["start"] >= start:
+                confidences.append(float(bars[bar_index].get("confidence", 1.0)))
+            bar_index += 1
+        if confidences:
+            section_confidence.append(float(np.mean(confidences)))
+        else:
+            section_confidence.append(1.0)
+    return _make_quanta(section_starts, duration, confidence=section_confidence)
 
 
 def analyze_audio(
@@ -176,7 +193,7 @@ def analyze_audio(
         beat_thread = threading.Thread(target=beat_heartbeat, daemon=True)
         beat_thread.start()
     try:
-        beat_times, beat_numbers = extract_beats(audio, sample_rate, batch=batch)
+        beat_times, beat_numbers, beat_confidences = extract_beats(audio, sample_rate, batch=batch)
     finally:
         if beat_thread:
             beat_stop.set()
@@ -184,6 +201,7 @@ def analyze_audio(
     if not beat_times:
         beat_times = [0.0]
         beat_numbers = [1]
+        beat_confidences = [1.0]
 
     report(90, "features")
     frame_features = compute_frame_features(audio, config.features)
@@ -311,22 +329,32 @@ def analyze_audio(
                     pitches = pitches / total
                 seg["pitches"] = pitches.tolist()
 
-    beats = _make_quanta(beat_times, duration, confidence=[1.0] * len(beat_times))
+    beats = _make_quanta(beat_times, duration, confidence=beat_confidences)
 
     # Bars based on downbeat indices (1-based within bar).
-    bar_starts = [t for t, num in zip(beat_times, beat_numbers) if num == 1]
+    bar_starts = []
+    bar_confidences = []
+    for t, num, conf in zip(beat_times, beat_numbers, beat_confidences):
+        if num == 1:
+            bar_starts.append(t)
+            bar_confidences.append(conf)
     if not bar_starts:
         bar_starts = [beat_times[0]]
-    bars = _make_quanta(bar_starts, duration, confidence=[1.0] * len(bar_starts))
+        bar_confidences = [beat_confidences[0] if beat_confidences else 1.0]
+    bars = _make_quanta(bar_starts, duration, confidence=bar_confidences)
 
     # Tatums derived from beats.
     tatum_starts = []
+    tatum_confidences = []
     for i, beat in enumerate(beat_times):
         next_beat = beat_times[i + 1] if i + 1 < len(beat_times) else duration
         beat_duration = max(0.0, next_beat - beat)
         for t in range(config.tatums_per_beat):
             tatum_starts.append(beat + (beat_duration * t / config.tatums_per_beat))
-    tatums = _make_quanta(sorted(set(tatum_starts)), duration, confidence=[1.0] * len(set(tatum_starts)))
+            tatum_confidences.append(beat_confidences[i] if i < len(beat_confidences) else 1.0)
+    tatums = _make_quanta(tatum_starts, duration, confidence=tatum_confidences)
+    for tatum in tatums:
+        tatum["start"] = _round_value(tatum["start"], 3)
 
     sections = _sections_from_bars(bars, segments, duration)
 
@@ -358,63 +386,3 @@ def analyze_audio(
 def _round_value(value: float, decimals: int) -> float:
     return float(np.round(value, decimals=decimals))
 
-
-def _quantize_quanta(quanta: List[Dict[str, Any]], eps: float = 1e-6) -> None:
-    last_start = -float("inf")
-    for q in quanta:
-        start = _round_value(q.get("start", 0.0), 5)
-        duration = _round_value(q.get("duration", 0.0), 5)
-        if start <= last_start:
-            start = last_start + eps
-        if duration <= 0.0:
-            duration = eps
-        q["start"] = float(start)
-        q["duration"] = float(duration)
-        last_start = start
-        if "confidence" in q:
-            q["confidence"] = _round_value(q["confidence"], 3)
-
-
-def _quantize_segments(segments: List[Dict[str, Any]], eps: float = 1e-6) -> None:
-    last_start = -float("inf")
-    for seg in segments:
-        start = _round_value(seg.get("start", 0.0), 5)
-        duration = _round_value(seg.get("duration", 0.0), 5)
-        if start <= last_start:
-            start = last_start + eps
-        if duration <= 0.0:
-            duration = eps
-        seg["start"] = float(start)
-        seg["duration"] = float(duration)
-        last_start = start
-        seg["confidence"] = _round_value(seg.get("confidence", 0.0), 3)
-        seg["loudness_start"] = _round_value(seg.get("loudness_start", 0.0), 3)
-        seg["loudness_max"] = _round_value(seg.get("loudness_max", 0.0), 3)
-        seg["loudness_max_time"] = _round_value(seg.get("loudness_max_time", 0.0), 3)
-        if abs(seg["loudness_start"] - round(seg["loudness_start"])) <= 1e-6:
-            seg["loudness_start"] = int(round(seg["loudness_start"]))
-        if abs(seg["loudness_max"] - round(seg["loudness_max"])) <= 1e-6:
-            seg["loudness_max"] = int(round(seg["loudness_max"]))
-        seg["pitches"] = [_round_value(v, 3) for v in seg.get("pitches", [])]
-        seg["timbre"] = [_round_value(v, 3) for v in seg.get("timbre", [])]
-
-
-def quantize_analysis(analysis: Dict[str, Any]) -> Dict[str, Any]:
-    _quantize_quanta(analysis.get("sections", []))
-    _quantize_quanta(analysis.get("bars", []))
-    _quantize_quanta(analysis.get("beats", []))
-    _quantize_quanta(analysis.get("tatums", []))
-    _quantize_segments(analysis.get("segments", []))
-
-    track = analysis.get("track", {})
-    if "duration" in track:
-        track["duration"] = _round_value(track["duration"], 5)
-    if "tempo" in track:
-        track["tempo"] = _round_value(track["tempo"], 3)
-    if "time_signature" in track:
-        track["time_signature"] = int(round(track["time_signature"]))
-    if "mode" in track:
-        track["mode"] = int(round(track["mode"]))
-    if "key" in track:
-        track["key"] = int(round(track["key"]))
-    return analysis
