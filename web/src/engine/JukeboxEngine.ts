@@ -26,6 +26,10 @@ const DEFAULT_CONFIG: JukeboxConfig = {
 
 const TICK_INTERVAL_MS = 50;
 const RESYNC_TOLERANCE_SECONDS = 0.05;
+const JUMP_OFFSET_FRACTION = 0.06;
+const MIN_JUMP_OFFSET_SECONDS = 0.015;
+const MAX_JUMP_OFFSET_SECONDS = 0.05;
+const JUMP_OFFSET_EPSILON = 0.001;
 
 type UpdateListener = (state: JukeboxState) => void;
 
@@ -289,7 +293,14 @@ export class JukeboxEngine {
     this.curRandomBranchChance = branchState.curRandomBranchChance;
     const chosenIndex = selection.index;
     if (chosenIndex !== wrappedIndex) {
-      const targetTime = this.beats[chosenIndex].start;
+      const targetBeat = this.beats[chosenIndex];
+      const unclampedOffset = targetBeat.duration * JUMP_OFFSET_FRACTION;
+      const offset = Math.min(
+        Math.max(unclampedOffset, MIN_JUMP_OFFSET_SECONDS),
+        MAX_JUMP_OFFSET_SECONDS
+      );
+      const maxOffset = Math.max(0, targetBeat.duration - JUMP_OFFSET_EPSILON);
+      const targetTime = targetBeat.start + Math.min(offset, maxOffset);
       this.player.scheduleJump(targetTime, this.nextTransitionTime);
       this.lastJumped = true;
       this.lastJumpTime = targetTime;
