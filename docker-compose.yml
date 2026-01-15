@@ -1,3 +1,18 @@
+# =============================================================================
+# Forever Jukebox Docker Compose
+# =============================================================================
+# 
+# Usage:
+#   CPU:  docker compose up -d
+#   CUDA: GPU_MODE=cuda docker compose up -d --build
+#   ROCm: GPU_MODE=rocm docker compose up -d --build
+#
+# Calibration:
+#   Set CALIBRATION_MODE=upstream to use calibration.json (simpler format)
+#   Default uses tuned_config.json (legacy format with PCA matrices)
+#
+# =============================================================================
+
 services:
   forever-jukebox:
     container_name: forever-jukebox
@@ -7,30 +22,84 @@ services:
       args:
         GPU_MODE: ${GPU_MODE:-cpu}
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
     volumes:
       - storage:/app/api/storage
+      # Optional: Mount custom calibration
+      # - ./my-calibration.json:/app/engine/calibration.json:ro
     environment:
+      # Spotify API credentials
       SPOTIFY_CLIENT_ID: "${SPOTIFY_CLIENT_ID:-}"
       SPOTIFY_CLIENT_SECRET: "${SPOTIFY_CLIENT_SECRET:-}"
+      # YouTube API (optional)
       YOUTUBE_API_KEY: "${YOUTUBE_API_KEY:-}"
+      # GPU mode
       FOREVER_JUKEBOX_GPU: "${GPU_MODE:-cpu}"
+      # Calibration mode: "legacy" (tuned_config.json) or "upstream" (calibration.json)
+      CALIBRATION_MODE: "${CALIBRATION_MODE:-legacy}"
+      # Progress output for analysis
+      FJ_PROGRESS: "${FJ_PROGRESS:-0}"
     restart: unless-stopped
-    # For NVIDIA GPU, uncomment below:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-    # For AMD GPU, uncomment below:
-    # devices:
-    #   - /dev/kfd:/dev/kfd
-    #   - /dev/dri:/dev/dri
-    # group_add:
-    #   - video
-    #   - render
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   storage:
+
+# =============================================================================
+# GPU Profiles
+# =============================================================================
+# Use: docker compose --profile nvidia up -d
+# Or:  docker compose --profile amd up -d
+# =============================================================================
+
+---
+# NVIDIA GPU variant
+services:
+  forever-jukebox-nvidia:
+    extends:
+      service: forever-jukebox
+    container_name: forever-jukebox-nvidia
+    image: forever-jukebox:cuda
+    build:
+      context: .
+      args:
+        GPU_MODE: cuda
+    environment:
+      FOREVER_JUKEBOX_GPU: cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - nvidia
+
+---
+# AMD GPU variant
+services:
+  forever-jukebox-amd:
+    extends:
+      service: forever-jukebox
+    container_name: forever-jukebox-amd
+    image: forever-jukebox:rocm
+    build:
+      context: .
+      args:
+        GPU_MODE: rocm
+    environment:
+      FOREVER_JUKEBOX_GPU: rocm
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
+    profiles:
+      - amd

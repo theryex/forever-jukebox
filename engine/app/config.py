@@ -1,61 +1,109 @@
-"""Configuration defaults for analysis."""
+"""Configuration for analysis engine.
+
+Supports both tuned_config.json (legacy) and calibration.json (upstream) formats.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
-from typing import Any, Optional
+import json
+from dataclasses import dataclass, field, fields
+from typing import Any, Dict, Optional
+
+
+@dataclass
+class SegmentationConfig:
+    """Segmentation parameters (upstream format)."""
+    min_segment_duration: float = 0.25
+    novelty_smoothing: int = 8
+    peak_threshold: float = 0.3
+    peak_prominence: float = 0.2
+    max_segments_per_second: float = 2.5
+    beat_snap_tolerance: float = 0.12
+
+
+@dataclass
+class FeatureConfig:
+    """Feature extraction parameters."""
+    sample_rate: int = 22050
+    frame_size: int = 2048
+    hop_size: int = 512
 
 
 @dataclass(frozen=True)
 class AnalysisConfig:
+    """Complete analysis configuration.
+    
+    Supports both legacy tuned_config.json and upstream calibration.json formats.
+    """
+    # Core parameters
     sample_rate: int = 22050
     hop_length: int = 512
+    time_signature: int = 4
+    tatums_per_beat: int = 2
+    
+    # Beat detection
     percussive_beats_only: bool = False
     use_librosa_beats: bool = False
+    use_madmom_downbeats: bool = True
+    tempo_min_bpm: float = 60.0
+    tempo_max_bpm: float = 200.0
+    beat_snap_window_s: float = 0.07
+    
+    # Segmentation
     use_laplacian_sections: bool = False
     use_laplacian_segments: bool = False
-    use_madmom_downbeats: bool = False
     laplacian_cqt_bins_per_octave: int = 36
     laplacian_cqt_octaves: int = 7
     laplacian_max_clusters: int = 12
-    time_signature: int = 4
-    tatum_divisions: int = 2
+    segment_min_duration_s: float = 0.05
+    segment_snap_bar_window_s: float = 0.12
+    segment_snap_beat_window_s: float = 0.06
+    
+    # Section detection
     section_seconds: float = 30.0
     section_use_novelty: bool = True
     section_novelty_percentile: float = 90.0
     section_min_spacing_s: float = 8.0
     section_snap_bar_window_s: float = 0.2
+    
+    # Features
     onset_percentile: float = 75.0
     onset_min_spacing_s: float = 0.05
-    tempo_min_bpm: float = 60.0
-    tempo_max_bpm: float = 200.0
-    beat_snap_window_s: float = 0.07
-    segment_min_duration_s: float = 0.05
+    novelty_smooth_frames: int = 3
+    
+    # Timbre calibration (legacy)
     timbre_standardize: bool = True
     timbre_scale: float = 10.0
-    segment_snap_bar_window_s: float = 0.12
-    segment_snap_beat_window_s: float = 0.06
-    novelty_smooth_frames: int = 3
-    mfcc_window_ms: float = 25.0
-    mfcc_hop_ms: float = 10.0
-    mfcc_n_mels: int = 40
-    mfcc_n_mfcc: int = 12
-    mfcc_use_0th: bool = True
     timbre_calibration_matrix: Optional[list[list[float]]] = None
     timbre_calibration_bias: Optional[list[float]] = None
     timbre_mode: str = "mfcc"
     timbre_pca_components: Optional[list[list[float]]] = None
     timbre_pca_mean: Optional[list[float]] = None
+    timbre_unit_norm: bool = False
+    
+    # MFCC parameters
+    mfcc_window_ms: float = 25.0
+    mfcc_hop_ms: float = 10.0
+    mfcc_n_mels: int = 40
+    mfcc_n_mfcc: int = 12
+    mfcc_use_0th: bool = True
+    
+    # Beat novelty
     beat_novelty_percentile: float = 75.0
     beat_novelty_min_spacing: int = 1
-    timbre_unit_norm: bool = False
+    
+    # Segment self-similarity
     segment_selfsim_kernel_beats: int = 4
     segment_selfsim_percentile: float = 85.0
     segment_selfsim_min_spacing_beats: int = 2
+    
+    # Section self-similarity
     section_selfsim_kernel_beats: int = 16
     section_selfsim_percentile: float = 80.0
     section_selfsim_min_spacing_beats: int = 8
     section_merge_similarity: float = 0.0
+    
+    # Calibration mappings (legacy)
     segment_scalar_scale: Optional[dict[str, float]] = None
     segment_scalar_bias: Optional[dict[str, float]] = None
     pitch_scale: Optional[list[float]] = None
@@ -75,16 +123,53 @@ class AnalysisConfig:
     target_section_rate: Optional[float] = None
     target_section_rate_tolerance: float = 0.2
     section_include_bounds: bool = True
-
+    
     # GPU acceleration options
-    use_gpu: bool = True  # Enable GPU acceleration if available
-    gpu_device: int = 0   # GPU device index to use
+    use_gpu: bool = True
+    gpu_device: int = 0
+    
+    # Upstream segmentation config (optional nested)
+    segmentation: Optional[SegmentationConfig] = None
+    features: Optional[FeatureConfig] = None
+    
+    def get_feature_config(self) -> FeatureConfig:
+        """Get feature config, using nested or deriving from top-level."""
+        if self.features:
+            return self.features
+        return FeatureConfig(
+            sample_rate=self.sample_rate,
+            frame_size=2048,  # Default
+            hop_size=self.hop_length,
+        )
+    
+    def get_segmentation_config(self) -> SegmentationConfig:
+        """Get segmentation config, using nested or defaults."""
+        if self.segmentation:
+            return self.segmentation
+        return SegmentationConfig(
+            min_segment_duration=self.segment_min_duration_s,
+            novelty_smoothing=self.novelty_smooth_frames,
+            beat_snap_tolerance=self.segment_snap_beat_window_s,
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        result = {}
+        for f in fields(AnalysisConfig):
+            val = getattr(self, f.name)
+            if val is not None:
+                if isinstance(val, (SegmentationConfig, FeatureConfig)):
+                    result[f.name] = val.__dict__.copy()
+                else:
+                    result[f.name] = val
+        return result
 
 
 def config_from_dict(data: dict[str, Any]) -> AnalysisConfig:
+    """Create config from dictionary (legacy tuned_config.json format)."""
     defaults = AnalysisConfig()
-    kwargs = {field.name: getattr(defaults, field.name) for field in fields(AnalysisConfig)}
-
+    kwargs = {f.name: getattr(defaults, f.name) for f in fields(AnalysisConfig)}
+    
     bool_fields = {
         "percussive_beats_only",
         "use_librosa_beats",
@@ -106,7 +191,7 @@ def config_from_dict(data: dict[str, Any]) -> AnalysisConfig:
         "laplacian_cqt_octaves",
         "laplacian_max_clusters",
         "time_signature",
-        "tatum_divisions",
+        "tatums_per_beat",
         "novelty_smooth_frames",
         "mfcc_n_mels",
         "mfcc_n_mfcc",
@@ -162,7 +247,7 @@ def config_from_dict(data: dict[str, Any]) -> AnalysisConfig:
         "target_segment_rate",
         "target_section_rate",
     }
-
+    
     for name in bool_fields:
         kwargs[name] = bool(data.get(name, kwargs[name]))
     for name in int_fields:
@@ -174,5 +259,34 @@ def config_from_dict(data: dict[str, Any]) -> AnalysisConfig:
     for name in passthrough_fields:
         if name in data:
             kwargs[name] = data[name]
-
+    
+    # Handle nested config (upstream format)
+    if "segmentation" in data and isinstance(data["segmentation"], dict):
+        kwargs["segmentation"] = SegmentationConfig(**data["segmentation"])
+    if "features" in data and isinstance(data["features"], dict):
+        kwargs["features"] = FeatureConfig(**data["features"])
+    
+    # Remove nested configs from frozen dataclass instantiation
+    # (they're optional and handled separately)
     return AnalysisConfig(**kwargs)
+
+
+def load_calibration(path: str) -> Dict[str, Any]:
+    """Load calibration file (upstream format).
+    
+    Upstream calibration.json contains:
+    - timbre: {a: [...], b: [...]} for affine mapping
+    - loudness: {start: {a, b}, max: {a, b}}
+    - confidence: {source: [...], target: [...]}
+    - pitch: {power: float, weights: [...]}
+    - config: nested config overrides
+    """
+    with open(path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def load_config(path: str) -> AnalysisConfig:
+    """Load config from JSON file (either format)."""
+    with open(path, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+    return config_from_dict(data)

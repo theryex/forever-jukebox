@@ -8,3 +8,4 @@ numba==0.59.1
 llvmlite==0.42.0
 mido==1.3.2
 mutagen==1.47.0
+essentia==2.1b6.dev1389
