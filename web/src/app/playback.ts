@@ -263,6 +263,8 @@ function updatePlayButton(context: AppContext, isRunning: boolean) {
   if (text) {
     text.textContent = label;
   }
+  const shouldPulse = isRunning && context.state.activeTabId !== "play";
+  context.elements.playTabButton.classList.toggle("is-playing", shouldPulse);
   context.elements.playButton.title = label;
   context.elements.playButton.setAttribute("aria-label", label);
 }

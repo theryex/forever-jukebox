@@ -525,9 +525,23 @@ button:hover {
   padding-right: 15px;
 }
 
+.tab-btn.is-playing {
+  animation: play-tab-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes play-tab-pulse {
+  0%,
+  100% {
+    background: var(--surface-panel);
+  }
+  50% {
+    background: rgba(var(--text-rgb), 0.12);
+  }
+}
+
 .tune-toggle .tune-icon,
 .play-toggle .play-icon {
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 30;
+  font-variation-settings: "FILL" 1, "wght" 300, "GRAD" 0, "opsz" 30;
   color: var(--text);
   font-size: 30px;
   line-height: 1;
