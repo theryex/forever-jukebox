@@ -12,7 +12,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Analyze audio into a Spotify-style JSON structure.")
     parser.add_argument("input", help="Path to input audio (wav/mp3/m4a).")
     parser.add_argument("-o", "--output", help="Path to output JSON file.")
-    parser.add_argument("--calibration", help="Path to calibration JSON bundle.")
+    parser.add_argument("--config", help="Path to JSON config for analysis parameters (tuned_config.json format).")
+    parser.add_argument("--calibration", help="Path to calibration JSON bundle (calibration.json format).")
     return parser.parse_args()
 
 
@@ -20,14 +21,26 @@ def main() -> None:
     args = parse_args()
 
     from .analysis import analyze_audio
+    from .config import config_from_dict
 
     def progress_printer(percent: int, stage: str) -> None:
         print(f"PROGRESS:{percent}:{stage}", flush=True)
 
-    progress_cb = progress_printer if os.environ.get("ENGINE_PROGRESS") == "true" else None
-    analysis_progress = progress_cb
+    config = None
+    if args.config:
+        config_data = json.loads(Path(args.config).read_text(encoding="utf-8"))
+        config = config_from_dict(config_data)
 
-    data = analyze_audio(args.input, calibration_path=args.calibration, progress_cb=analysis_progress)
+    progress_cb = progress_printer if os.environ.get("FJ_PROGRESS") == "1" else None
+    
+    # Support both config and calibration paths
+    data = analyze_audio(
+        args.input,
+        config=config,
+        calibration_path=args.calibration,
+        progress_cb=progress_cb,
+    )
+
     output_path = Path(args.output) if args.output else None
     payload = json.dumps(data, sort_keys=True, indent=None, separators=(",", ":"))
 

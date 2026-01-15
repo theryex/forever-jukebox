@@ -3,6 +3,8 @@
 # =============================================================================
 # GPU Support: Set GPU_MODE build arg to "cuda" or "rocm" for GPU acceleration
 # Default: CPU only
+#
+# Engine: Uses Essentia + GPU hybrid analysis pipeline
 # =============================================================================
 
 ARG GPU_MODE=cpu
@@ -18,7 +20,7 @@ COPY web/ ./
 RUN npm run build
 
 # =============================================================================
-# Stage 2: Runtime (CPU)
+# Stage 2: Runtime
 # =============================================================================
 FROM python:3.11-slim AS runtime
 
@@ -27,6 +29,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     FOREVER_JUKEBOX_GPU=${GPU_MODE}
 
+# Install system dependencies including Essentia requirements
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsndfile1 \
@@ -36,14 +39,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gfortran \
     curl \
     ca-certificates \
+    libsndfile1-dev \
     unzip \
+    # Essentia dependencies
+    libyaml-dev \
+    libfftw3-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libavresample-dev \
+    libsamplerate0-dev \
+    libtag1-dev \
+    libchromaprint-dev \
+    # Cleanup
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
-# Copy requirements first to improve Docker caching
-COPY api/requirements.txt /app/api/requirements.txt
-COPY engine/requirements.txt /app/engine/requirements.txt
+COPY api/ ./api/
+COPY engine/ ./engine/
+COPY --from=web-build /app/web/dist ./web/dist
+COPY docker/entrypoint.sh /app/entrypoint.sh
 
 # Install base Python packages
 RUN python -m venv /opt/venv \
@@ -91,7 +106,8 @@ RUN if [ "$GPU_MODE" = "cuda" ]; then \
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app/api" \
     GENERATOR_REPO="/app/engine" \
-    GENERATOR_CONFIG="/app/engine/tuned_config.json"
+    GENERATOR_CONFIG="/app/engine/tuned_config.json" \
+    GENERATOR_CALIBRATION="/app/engine/calibration.json"
 
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

@@ -1,3 +1,8 @@
+"""Core audio analysis pipeline.
+
+Combines upstream's improved analysis algorithms with GPU acceleration.
+"""
+
 from __future__ import annotations
 
 import threading
@@ -7,16 +12,18 @@ import numpy as np
 
 from .audio import decode_audio
 from .beats import extract_beats
-from .config import AnalysisConfig, load_calibration
-from .features import compute_frame_features
+from .config import AnalysisConfig, FeatureConfig, SegmentationConfig, load_calibration
+from .features_essentia import compute_frame_features
 from .segmentation import compute_novelty, segment_from_novelty
 
 
 def _apply_affine(values: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Apply affine transformation: result = values * a + b."""
     return values * a + b
 
 
 def _apply_confidence_mapping(values: np.ndarray, mapping: Dict[str, Any]) -> np.ndarray:
+    """Apply curve-based confidence mapping via interpolation."""
     src = np.asarray(mapping.get("source", []), dtype=float)
     tgt = np.asarray(mapping.get("target", []), dtype=float)
     if src.size == 0 or tgt.size == 0:
@@ -25,12 +32,14 @@ def _apply_confidence_mapping(values: np.ndarray, mapping: Dict[str, Any]) -> np
 
 
 def _apply_pitch_power(values: np.ndarray, power: float) -> np.ndarray:
+    """Apply power transformation to pitch values."""
     if power is None:
         return values
     return np.power(values, power)
 
 
 def _segment_confidence(novelty: np.ndarray, frame_times: np.ndarray, start: float) -> float:
+    """Compute segment confidence from novelty at start time."""
     if novelty.size == 0:
         return 0.5
     idx = np.searchsorted(frame_times, start, side="left")
@@ -42,6 +51,7 @@ def _segment_confidence(novelty: np.ndarray, frame_times: np.ndarray, start: flo
 
 
 def _make_quanta(starts: List[float], duration: float, confidence: Optional[List[float]] = None) -> List[Dict[str, Any]]:
+    """Create quantum list (beats, bars, tatums, sections) from start times."""
     quanta = []
     for i, start in enumerate(starts):
         end = starts[i + 1] if i + 1 < len(starts) else duration
@@ -56,6 +66,7 @@ def _make_quanta(starts: List[float], duration: float, confidence: Optional[List
 
 
 def _zscore(matrix: np.ndarray) -> np.ndarray:
+    """Z-score normalize matrix columns."""
     mean = np.mean(matrix, axis=0)
     std = np.std(matrix, axis=0)
     std[std < 1e-6] = 1.0
@@ -63,6 +74,7 @@ def _zscore(matrix: np.ndarray) -> np.ndarray:
 
 
 def _smooth(values: np.ndarray, window: int = 3) -> np.ndarray:
+    """Apply moving average smoothing."""
     if values.size == 0:
         return values
     if window <= 1:
@@ -74,6 +86,7 @@ def _smooth(values: np.ndarray, window: int = 3) -> np.ndarray:
 
 
 def _bar_feature_vectors(bars: List[Dict[str, Any]], segments: List[Dict[str, Any]]) -> np.ndarray:
+    """Compute 25-dimensional feature vector per bar (pitch + timbre + loudness)."""
     features = []
     for i, bar in enumerate(bars):
         start = bar["start"]
@@ -100,6 +113,7 @@ def _sections_from_bars(
     segments: List[Dict[str, Any]],
     duration: float,
 ) -> List[Dict[str, Any]]:
+    """Detect sections based on bar feature vector changes."""
     if len(bars) <= 1:
         return _make_quanta([0.0], duration, confidence=[1.0])
     bar_vecs = _bar_feature_vectors(bars, segments)
@@ -109,7 +123,7 @@ def _sections_from_bars(
     diffs = np.linalg.norm(np.diff(z, axis=0), axis=1)
     smooth = _smooth(diffs, window=3)
 
-    min_gap = 8
+    min_gap = 8  # Minimum 8 bars between sections
     candidates = []
     for i in range(1, len(smooth) - 1):
         if smooth[i] > smooth[i - 1] and smooth[i] >= smooth[i + 1]:
@@ -146,12 +160,30 @@ def _sections_from_bars(
     return _make_quanta(section_starts, duration, confidence=section_confidence)
 
 
+def _round_value(value: float, decimals: int) -> float:
+    """Round a value to specified decimal places."""
+    return float(np.round(value, decimals=decimals))
+
+
 def analyze_audio(
     audio_path: str,
+    config: Optional[AnalysisConfig] = None,
     calibration_path: Optional[str] = None,
     batch: bool = False,
     progress_cb: Optional[Callable[[int, str], None]] = None,
 ) -> Dict[str, Any]:
+    """Analyze audio file and produce Spotify-style analysis JSON.
+    
+    Args:
+        audio_path: Path to audio file.
+        config: Analysis configuration (legacy format).
+        calibration_path: Path to calibration JSON (upstream format).
+        batch: Whether to cache madmom processors for batch processing.
+        progress_cb: Progress callback (percent, stage).
+        
+    Returns:
+        Analysis dictionary with sections, bars, beats, tatums, segments, track.
+    """
     last_reported = -1
 
     def report(percent: float, stage: str) -> None:
@@ -165,18 +197,32 @@ def analyze_audio(
         last_reported = pct
         progress_cb(pct, stage)
 
-    config = AnalysisConfig()
+    # Load configuration
+    if config is None:
+        config = AnalysisConfig()
+    
     calibration = None
     if calibration_path:
         calibration = load_calibration(calibration_path)
+        # Apply config overrides from calibration
         config_data = calibration.get("config")
         if config_data:
-            config = AnalysisConfig.from_dict(config_data)
+            from .config import config_from_dict
+            # Merge with existing config
+            merged = config.to_dict()
+            merged.update(config_data)
+            config = config_from_dict(merged)
+    
+    # Get feature/segmentation configs
+    feature_config = config.get_feature_config()
+    seg_config = config.get_segmentation_config()
 
+    # Decode audio
     report(0, "decode")
-    audio, sample_rate = decode_audio(audio_path, sample_rate=config.features.sample_rate)
+    audio, sample_rate = decode_audio(audio_path, sample_rate=feature_config.sample_rate)
     duration = len(audio) / sample_rate if sample_rate else 0.0
 
+    # Beat detection with progress updates
     report(10, "beats")
     beat_stop = threading.Event()
     beat_thread = None
@@ -203,22 +249,25 @@ def analyze_audio(
         beat_numbers = [1]
         beat_confidences = [1.0]
 
+    # Feature extraction
     report(90, "features")
-    frame_features = compute_frame_features(audio, config.features)
+    frame_features = compute_frame_features(audio, feature_config)
     novelty = compute_novelty(
         frame_features["mfcc"],
         frame_features["hpcp"],
         frame_features["rms_db"],
     )
 
+    # Segmentation
     boundaries = segment_from_novelty(
         frame_features["frame_times"],
         novelty,
         beat_times,
-        config.segmentation,
+        seg_config,
         duration,
     )
 
+    # Build segments with energy-weighted MFCC
     segments = []
     total_segments = max(len(boundaries) - 1, 1)
     for i in range(total_segments):
@@ -250,6 +299,8 @@ def analyze_audio(
             mfcc_dim = mfcc_frames.shape[1]
             if mfcc_dim < 13:
                 mfcc_frames = np.pad(mfcc_frames, ((0, 0), (0, 13 - mfcc_dim)), mode="constant")
+            
+            # Energy-weighted MFCC mean (upstream improvement)
             weights = np.power(10.0, rms_seq / 20.0)
             if weights.size > 0:
                 p10 = np.percentile(weights, 10)
@@ -259,7 +310,6 @@ def analyze_audio(
             else:
                 wsum = 0.0
             if wsum > 0.0:
-                # Energy-weighted MFCC mean to reduce low-energy frame bias
                 timbre = (weights[:, None] * mfcc_frames[:, 1:13]).sum(axis=0) / wsum
             else:
                 mfcc_mean = np.mean(mfcc_frames, axis=0)
@@ -294,6 +344,7 @@ def analyze_audio(
         }
         segments.append(segment)
 
+    # Apply calibration (upstream format)
     if calibration:
         timbre_map = calibration.get("timbre")
         loud_map = calibration.get("loudness")
@@ -319,19 +370,20 @@ def analyze_audio(
                 )[0])
             if pitch_map:
                 power = float(pitch_map.get("power", 1.0))
-                weights = np.asarray(pitch_map.get("weights", [1.0] * 12), dtype=float)
-                pitches = np.asarray(seg["pitches"], dtype=float)
-                pitches = np.maximum(pitches, 0.0)
-                pitches = pitches ** power
-                pitches = pitches * weights
-                total = float(pitches.sum())
+                pitch_weights = np.asarray(pitch_map.get("weights", [1.0] * 12), dtype=float)
+                p = np.asarray(seg["pitches"], dtype=float)
+                p = np.maximum(p, 0.0)
+                p = p ** power
+                p = p * pitch_weights
+                total = float(p.sum())
                 if total > 0:
-                    pitches = pitches / total
-                seg["pitches"] = pitches.tolist()
+                    p = p / total
+                seg["pitches"] = p.tolist()
 
+    # Create beats
     beats = _make_quanta(beat_times, duration, confidence=beat_confidences)
 
-    # Bars based on downbeat indices (1-based within bar).
+    # Create bars based on downbeat indices (beat_number == 1)
     bar_starts = []
     bar_confidences = []
     for t, num, conf in zip(beat_times, beat_numbers, beat_confidences):
@@ -343,21 +395,24 @@ def analyze_audio(
         bar_confidences = [beat_confidences[0] if beat_confidences else 1.0]
     bars = _make_quanta(bar_starts, duration, confidence=bar_confidences)
 
-    # Tatums derived from beats.
+    # Create tatums
+    tatums_per_beat = config.tatums_per_beat
     tatum_starts = []
     tatum_confidences = []
     for i, beat in enumerate(beat_times):
         next_beat = beat_times[i + 1] if i + 1 < len(beat_times) else duration
         beat_duration = max(0.0, next_beat - beat)
-        for t in range(config.tatums_per_beat):
-            tatum_starts.append(beat + (beat_duration * t / config.tatums_per_beat))
+        for t in range(tatums_per_beat):
+            tatum_starts.append(beat + (beat_duration * t / tatums_per_beat))
             tatum_confidences.append(beat_confidences[i] if i < len(beat_confidences) else 1.0)
     tatums = _make_quanta(tatum_starts, duration, confidence=tatum_confidences)
     for tatum in tatums:
         tatum["start"] = _round_value(tatum["start"], 3)
 
+    # Create sections
     sections = _sections_from_bars(bars, segments, duration)
 
+    # Calculate tempo
     tempos = []
     for i in range(len(beat_times) - 1):
         dt = beat_times[i + 1] - beat_times[i]
@@ -366,7 +421,7 @@ def analyze_audio(
     tempo = float(np.median(tempos)) if tempos else 0.0
 
     analysis = {
-        "engine_version": 2,
+        "engine_version": 3,  # Updated version for merged engine
         "sections": sections,
         "bars": bars,
         "beats": beats,
@@ -379,10 +434,5 @@ def analyze_audio(
         },
     }
 
-    report(100, "features")
+    report(100, "done")
     return analysis
-
-
-def _round_value(value: float, decimals: int) -> float:
-    return float(np.round(value, decimals=decimals))
-
