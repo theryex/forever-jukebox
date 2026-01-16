@@ -142,6 +142,7 @@ export function bootstrap() {
     canonizerEnabled: false,
     canonizerBeatIndex: 0,
     canonizerTimerId: null,
+    rawAnalysis: null,
     tuningParams: null,
   };
   const context: AppContext = {
@@ -1064,26 +1065,28 @@ export function bootstrap() {
     // Get the raw analysis data from the engine
     // The canonizer needs the full analysis result
     try {
-      // Use the visualization data beats as a proxy for analysis
-      const vizData = state.vizData;
-      if (!vizData) {
-        return;
+      // Use stored raw analysis if available, otherwise fall back to minimal data
+      if (state.rawAnalysis) {
+        canonizerEngine.loadAnalysis(state.rawAnalysis as any);
+      } else {
+        // Fallback: use visualization data beats as proxy (limited functionality)
+        const vizData = state.vizData;
+        if (!vizData) {
+          return;
+        }
+        const analysisForCanonizer = {
+          beats: vizData.beats.map((b, i) => ({
+            start: b.start,
+            duration: b.duration,
+            which: i,
+          })),
+          sections: [],
+          segments: [],
+          bars: [],
+          track: { duration: player.getDuration() || 0 },
+        };
+        canonizerEngine.loadAnalysis(analysisForCanonizer as any);
       }
-
-      // Create a minimal analysis result for the canonizer
-      const analysisForCanonizer = {
-        beats: vizData.beats.map((b, i) => ({
-          start: b.start,
-          duration: b.duration,
-          which: i,
-        })),
-        sections: [],
-        segments: [],
-        bars: [],
-        track: { duration: player.getDuration() || 0 },
-      };
-
-      canonizerEngine.loadAnalysis(analysisForCanonizer as any);
 
       // Set up the canonizer visualization with beat data
       const canonizerBeats = canonizerEngine.getBeats();

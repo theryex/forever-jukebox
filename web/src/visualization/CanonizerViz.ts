@@ -102,6 +102,8 @@ export class CanonizerViz {
         this.canvas.style.inset = "0";
         this.canvas.style.width = "100%";
         this.canvas.style.height = "100%";
+        this.canvas.style.zIndex = "100"; // Ensure on top of other viz canvases
+        this.canvas.style.pointerEvents = "none"; // Don't block mouse events
     }
 
     private resize() {
