@@ -47,16 +47,12 @@ services:
       retries: 3
       start_period: 60s
 
-volumes:
-  storage:
-
   # =============================================================================
   # GPU Profiles
   # =============================================================================
   # Use: docker compose --profile nvidia up -d
   # Or:  docker compose --profile amd up -d
   # =============================================================================
-
 
   # NVIDIA GPU variant
   forever-jukebox-nvidia:
@@ -100,3 +96,6 @@ volumes:
       - render
     profiles:
       - amd
+
+volumes:
+  storage:
