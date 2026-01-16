@@ -2,12 +2,21 @@ import { JukeboxEngine } from "../engine";
 import { BufferedAudioPlayer } from "../audio/BufferedAudioPlayer";
 import type { Edge } from "../engine/types";
 import { getElements } from "./elements";
-import { attachVisualizationResize, createVisualizations } from "./visualization";
+import {
+  attachVisualizationResize,
+  createVisualizations,
+} from "./visualization";
 import { applyTheme, applyThemeVariables, resolveStoredTheme } from "./theme";
-import { setAnalysisStatus, setLoadingProgress, isEditableTarget, showToast } from "./ui";
+import {
+  setAnalysisStatus,
+  setLoadingProgress,
+  isEditableTarget,
+  showToast,
+} from "./ui";
 import { navigateToTab, setActiveTab, updateTrackUrl } from "./tabs";
 import { handleRouteChange } from "./routing";
-import { fetchTopSongs } from "./api";
+import { deleteJob, fetchTopSongs } from "./api";
+import { deleteCachedTrack } from "./cache";
 import {
   applyAnalysisResult,
   applyTuningChanges,
@@ -81,6 +90,8 @@ export function bootstrap() {
     trackTitle: null,
     trackArtist: null,
     toastTimer: null,
+    deleteEligible: false,
+    deleteEligibilityJobId: null,
     pollController: null,
     listenTimerId: null,
     wakeLock: null,
@@ -143,9 +154,11 @@ export function bootstrap() {
   resetForNewTrack(context);
   syncFavoriteButton();
 
-  handleRouteChange(context, playbackDeps, window.location.pathname).catch((err) => {
-    console.warn(`Route load failed: ${String(err)}`);
-  });
+  handleRouteChange(context, playbackDeps, window.location.pathname).catch(
+    (err) => {
+      console.warn(`Route load failed: ${String(err)}`);
+    }
+  );
 
   window.addEventListener("popstate", handlePopState);
   wireUiHandlers();
@@ -180,7 +193,8 @@ export function bootstrap() {
         setAnalysisStatus(context, message, spinning),
       setLoadingProgress: (progress: number | null, message?: string | null) =>
         setLoadingProgress(context, progress, message),
-      pollAnalysis: (jobId: string) => pollAnalysis(context, playbackDeps, jobId),
+      pollAnalysis: (jobId: string) =>
+        pollAnalysis(context, playbackDeps, jobId),
       applyAnalysisResult: (response) => applyAnalysisResult(context, response),
       loadAudioFromJob: (jobId: string) => loadAudioFromJob(context, jobId),
       resetForNewTrack: () => resetForNewTrack(context),
@@ -213,6 +227,7 @@ export function bootstrap() {
     elements.tuningButton.addEventListener("click", handleOpenTuning);
     elements.infoButton.addEventListener("click", handleOpenInfo);
     elements.favoriteButton.addEventListener("click", handleFavoriteToggle);
+    elements.deleteButton.addEventListener("click", handleDeleteJobClick);
     elements.fullscreenButton.addEventListener("click", handleFullscreenToggle);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -249,7 +264,8 @@ export function bootstrap() {
     });
     elements.topSongsList.classList.toggle("hidden", tabId !== "top");
     elements.favoritesList.classList.toggle("hidden", tabId !== "favorites");
-    elements.topListTitle.textContent = tabId === "top" ? "Top 20" : "Favorites";
+    elements.topListTitle.textContent =
+      tabId === "top" ? "Top 20" : "Favorites";
     if (tabId === "top") {
       fetchTopSongsList().catch((err) => {
         console.warn(`Top songs load failed: ${String(err)}`);
@@ -276,7 +292,9 @@ export function bootstrap() {
       row.className = "favorite-row";
       const link = document.createElement("a");
       link.href = `/listen/${encodeURIComponent(item.uniqueSongId)}`;
-      link.textContent = `${item.title || "Untitled"} — ${item.artist || "Unknown"}`;
+      link.textContent = `${item.title || "Untitled"} — ${
+        item.artist || "Unknown"
+      }`;
       link.dataset.youtubeId = item.uniqueSongId;
       link.addEventListener("click", handleFavoriteClick);
       const removeButton = document.createElement("button");
@@ -412,6 +430,34 @@ export function bootstrap() {
     openInfo(context);
   }
 
+  function handleDeleteJobClick() {
+    const jobId = state.lastJobId;
+    const youtubeId = state.lastYouTubeId;
+    if (!jobId) {
+      return;
+    }
+    deleteJob(jobId)
+      .then(() => {
+        if (youtubeId) {
+          deleteCachedTrack(youtubeId).catch((err) => {
+            console.warn(`Cache delete failed: ${String(err)}`);
+          });
+        }
+        if (youtubeId && isFavorite(state.favorites, youtubeId)) {
+          updateFavorites(removeFavorite(state.favorites, youtubeId));
+        }
+        resetForNewTrack(context);
+        navigateToTabWithState("top", { replace: true });
+        showToast(context, "Deleted song");
+      })
+      .catch(() => {
+        state.deleteEligible = false;
+        state.deleteEligibilityJobId = jobId;
+        elements.deleteButton.classList.add("hidden");
+        showToast(context, "Song can no longer be deleted");
+      });
+  }
+
   function handleFullscreenToggle() {
     if (!document.fullscreenElement) {
       elements.vizPanel
@@ -447,7 +493,10 @@ export function bootstrap() {
 
   function updateFullscreenButton(isFullscreen: boolean) {
     const label = isFullscreen ? "Exit Fullscreen" : "Fullscreen";
-    const icon = elements.fullscreenButton.querySelector<HTMLSpanElement>(".fullscreen-icon");
+    const icon =
+      elements.fullscreenButton.querySelector<HTMLSpanElement>(
+        ".fullscreen-icon"
+      );
     if (icon) {
       icon.textContent = isFullscreen ? "fullscreen_exit" : "fullscreen";
     }
@@ -615,7 +664,8 @@ export function bootstrap() {
       elements.topSongsList.innerHTML = "";
       for (const item of items.slice(0, TOP_SONGS_LIMIT)) {
         const title = typeof item.title === "string" ? item.title : "Untitled";
-        const artist = typeof item.artist === "string" ? item.artist : "Unknown";
+        const artist =
+          typeof item.artist === "string" ? item.artist : "Unknown";
         const youtubeId =
           typeof item.youtube_id === "string" ? item.youtube_id : "";
         const li = document.createElement("li");
@@ -632,7 +682,9 @@ export function bootstrap() {
         elements.topSongsList.appendChild(li);
       }
     } catch (err) {
-      elements.topSongsList.textContent = `Top songs unavailable: ${String(err)}`;
+      elements.topSongsList.textContent = `Top songs unavailable: ${String(
+        err
+      )}`;
     }
   }
 
@@ -649,7 +701,11 @@ export function bootstrap() {
 
   async function copyShortUrl() {
     if (!state.lastYouTubeId) {
-      setAnalysisStatus(context, "Select a track to generate a short URL.", false);
+      setAnalysisStatus(
+        context,
+        "Select a track to generate a short URL.",
+        false
+      );
       navigateToTabWithState("search");
       return;
     }
@@ -665,7 +721,11 @@ export function bootstrap() {
   }
 
   function setActiveVisualization(index: number) {
-    if (index === state.activeVizIndex || index < 0 || index >= visualizations.length) {
+    if (
+      index === state.activeVizIndex ||
+      index < 0 ||
+      index >= visualizations.length
+    ) {
       return;
     }
     visualizations[state.activeVizIndex]?.setVisible(false);
@@ -676,13 +736,22 @@ export function bootstrap() {
       visualizations[state.activeVizIndex]?.setData(state.vizData);
     }
     visualizations[state.activeVizIndex]?.setSelectedEdge(
-      state.selectedEdge && !state.selectedEdge.deleted ? state.selectedEdge : null
+      state.selectedEdge && !state.selectedEdge.deleted
+        ? state.selectedEdge
+        : null
     );
     if (state.lastBeatIndex !== null) {
-      visualizations[state.activeVizIndex]?.update(state.lastBeatIndex, false, null);
+      visualizations[state.activeVizIndex]?.update(
+        state.lastBeatIndex,
+        false,
+        null
+      );
     }
     elements.vizButtons.forEach((button) => {
-      button.classList.toggle("active", Number(button.dataset.viz) === state.activeVizIndex);
+      button.classList.toggle(
+        "active",
+        Number(button.dataset.viz) === state.activeVizIndex
+      );
     });
     localStorage.setItem(vizStorageKey, String(state.activeVizIndex));
   }

@@ -70,3 +70,15 @@ export async function updateCachedTrack(
       reject(request.error ?? new Error("IndexedDB write failed"));
   });
 }
+
+export async function deleteCachedTrack(youtubeId: string) {
+  const db = await openTrackCacheDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(trackCacheStore, "readwrite");
+    const store = tx.objectStore(trackCacheStore);
+    const request = store.delete(youtubeId);
+    request.onsuccess = () => resolve();
+    request.onerror = () =>
+      reject(request.error ?? new Error("IndexedDB delete failed"));
+  });
+}

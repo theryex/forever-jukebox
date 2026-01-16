@@ -40,7 +40,9 @@
               Top Songs
             </button>
             <button class="tab-btn" data-tab-button="search">Search</button>
-            <button class="tab-btn" data-tab-button="play" disabled>Listen</button>
+            <button class="tab-btn" data-tab-button="play" disabled>
+              Listen
+            </button>
             <button class="tab-btn" data-tab-button="faq">FAQ</button>
           </nav>
         </div>
@@ -111,6 +113,18 @@
             </button>
           </div>
           <div class="menu-right">
+            <button
+              id="delete-job"
+              class="delete-toggle hidden"
+              aria-label="Delete within 30 minutes of creation"
+              title="Delete within 30 minutes of creation"
+            >
+              <span
+                class="material-symbols-outlined delete-icon"
+                aria-hidden="true"
+                >delete</span
+              >
+            </button>
             <button id="tuning" class="tune-toggle" aria-label="Tune">
               <span
                 class="material-symbols-outlined tune-icon"
@@ -204,12 +218,13 @@
             The app uses the Spotify API for searching track data, and YouTube
             for the audio. The audio gets analyzed by the Forever Jukebox
             Analysis Engine, an attempt to approximate Spotify’s legacy
-            analysis, which has since been deprecated. The engine determines beats, segments,
-            and other features and passes them to the frontend, which then plays
-            the audio beat by beat. At each beat there is a chance to jump to a
-            different part of the song that sounds similar. Similarity uses
-            features like timbre, loudness, duration, and beat position. The
-            visualizations show the possible jump paths for each beat.
+            analysis, which has since been deprecated. The engine determines
+            beats, segments, and other features and passes them to the frontend,
+            which then plays the audio beat by beat. At each beat there is a
+            chance to jump to a different part of the song that sounds similar.
+            Similarity uses features like timbre, loudness, duration, and beat
+            position. The visualizations show the possible jump paths for each
+            beat.
           </p>
           <p>
             The full source code is available in the

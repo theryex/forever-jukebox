@@ -33,6 +33,8 @@ export type AppState = {
   trackTitle: string | null;
   trackArtist: string | null;
   toastTimer: number | null;
+  deleteEligible: boolean;
+  deleteEligibilityJobId: string | null;
   pollController: AbortController | null;
   listenTimerId: number | null;
   wakeLock: WakeLockSentinel | null;

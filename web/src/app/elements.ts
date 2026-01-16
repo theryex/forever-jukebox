@@ -79,6 +79,10 @@ export function getElements() {
     document.querySelector<HTMLButtonElement>("#favorite-toggle"),
     "#favorite-toggle"
   );
+  const deleteButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#delete-job"),
+    "#delete-job"
+  );
   const playTitle = requireElement(
     document.querySelector<HTMLDivElement>("#play-title"),
     "#play-title"
@@ -233,6 +237,7 @@ export function getElements() {
     tuningButton,
     infoButton,
     favoriteButton,
+    deleteButton,
     playTitle,
     themeLinks,
     fullscreenButton,

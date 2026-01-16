@@ -15,7 +15,7 @@ import {
   type AnalysisInProgress,
   type AnalysisResponse,
 } from "./api";
-import { readCachedTrack, updateCachedTrack } from "./cache";
+import { deleteCachedTrack, readCachedTrack, updateCachedTrack } from "./cache";
 
 export type PlaybackDeps = {
   setActiveTab: (tabId: "top" | "search" | "play" | "faq") => void;
@@ -39,6 +39,39 @@ export function updateListenTimeDisplay(context: AppContext) {
     state.playTimerMs +
     (state.lastPlayStamp !== null ? now - state.lastPlayStamp : 0);
   elements.listenTimeEl.textContent = formatDuration(totalMs / 1000);
+}
+
+function maybeUpdateDeleteEligibility(
+  context: AppContext,
+  response: AnalysisResponse | null,
+  jobIdOverride?: string | null
+) {
+  if (!response) {
+    return;
+  }
+  const { state, elements } = context;
+  const jobId = jobIdOverride ?? ("id" in response ? response.id : undefined);
+  if (!jobId || state.deleteEligibilityJobId === jobId) {
+    return;
+  }
+  let eligible = false;
+  const createdAt =
+    "created_at" in response ? response.created_at : undefined;
+  if (typeof createdAt === "string") {
+    const createdMs = Date.parse(createdAt);
+    if (!Number.isNaN(createdMs)) {
+      const ageMs = Date.now() - createdMs;
+      eligible = ageMs <= 30 * 60 * 1000;
+    }
+  } else {
+    state.deleteEligible = false;
+    elements.deleteButton.classList.add("hidden");
+    state.deleteEligibilityJobId = null;
+    return;
+  }
+  state.deleteEligibilityJobId = jobId;
+  state.deleteEligible = eligible;
+  elements.deleteButton.classList.toggle("hidden", !eligible);
 }
 
 export function updateTrackInfo(context: AppContext) {
@@ -307,6 +340,9 @@ export function resetForNewTrack(context: AppContext) {
   state.trackDurationSec = null;
   state.trackTitle = null;
   state.trackArtist = null;
+  state.deleteEligible = false;
+  state.deleteEligibilityJobId = null;
+  elements.deleteButton.classList.add("hidden");
   state.vizData = null;
   updateTrackInfo(context);
   const emptyVizData = { beats: [], edges: [] };
@@ -376,6 +412,7 @@ export function applyAnalysisResult(
   if (!response || response.status !== "complete" || !response.result) {
     return false;
   }
+  maybeUpdateDeleteEligibility(context, response, response.id);
   const { elements, engine, state, visualizations } = context;
   engine.loadAnalysis(response.result);
   const graph = engine.getGraphState();
@@ -455,6 +492,7 @@ export async function pollAnalysis(
         deps.navigateToTab("top", { replace: true });
         return;
       }
+      maybeUpdateDeleteEligibility(context, response, jobId);
       if (isAnalysisInProgress(response)) {
         const progress =
           typeof response.progress === "number" ? response.progress : null;
@@ -522,6 +560,7 @@ export async function loadTrackByYouTubeId(
       deps.navigateToTab("top", { replace: true });
       return;
     }
+    maybeUpdateDeleteEligibility(context, response, response.id);
     context.state.lastJobId = response.id;
     if (isAnalysisInProgress(response)) {
       await pollAnalysis(context, deps, response.id);

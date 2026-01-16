@@ -15,6 +15,7 @@ export type AnalysisStatus =
 
 type AnalysisBase = {
   youtube_id?: string;
+  created_at?: string;
 };
 
 export type AnalysisInProgress = AnalysisBase & {
@@ -83,19 +84,22 @@ function parseAnalysisResponse(data: unknown): AnalysisResponse | null {
   const id = typeof data.id === "string" ? data.id : undefined;
   const youtubeId =
     typeof data.youtube_id === "string" ? data.youtube_id : undefined;
+  const createdAt =
+    typeof data.created_at === "string" ? data.created_at : undefined;
   const progress = typeof data.progress === "number" ? data.progress : undefined;
   const message = typeof data.message === "string" ? data.message : undefined;
   if (status === "downloading" || status === "queued" || status === "processing") {
     if (!id) {
       return null;
     }
-    return { status, id, progress, message, youtube_id: youtubeId };
+    return { status, id, progress, message, youtube_id: youtubeId, created_at: createdAt };
   }
   if (status === "failed") {
     return {
       status,
       id,
       youtube_id: youtubeId,
+      created_at: createdAt,
       error: typeof data.error === "string" ? data.error : undefined,
     };
   }
@@ -108,6 +112,7 @@ function parseAnalysisResponse(data: unknown): AnalysisResponse | null {
       id,
       result: data.result as AnalysisResult,
       youtube_id: youtubeId,
+      created_at: createdAt,
       track: isRecord(data.track) ? (data.track as TrackMeta) : undefined,
     };
   }
@@ -117,6 +122,7 @@ function parseAnalysisResponse(data: unknown): AnalysisResponse | null {
       id,
       result: data.result as AnalysisResult,
       youtube_id: youtubeId,
+      created_at: createdAt,
       track: isRecord(data.track) ? (data.track as TrackMeta) : undefined,
     };
   }
@@ -205,6 +211,17 @@ export async function recordPlay(jobId: string) {
   });
   if (!response.ok) {
     throw new Error(`Play count failed (${response.status})`);
+  }
+}
+
+export async function deleteJob(jobId: string) {
+  const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const error = new Error(`Delete failed (${response.status})`);
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
   }
 }
 
