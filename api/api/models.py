@@ -75,4 +75,10 @@ class AnalysisStartResponse(BaseModel):
     status: str
     progress: int | None = None
     message: str | None = None
-    message: str | None = None
+
+
+class AppConfigResponse(BaseModel):
+    allow_user_upload: bool
+    allow_user_youtube: bool
+    max_upload_size: int | None = None
+    allowed_upload_exts: list[str] | None = None

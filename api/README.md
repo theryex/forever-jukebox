@@ -80,6 +80,14 @@ Upload audio (requires `ALLOW_USER_UPLOAD=true`, max 15MB, m4a/webm/mp3/wav/flac
 curl -X POST "/api/upload" -F "file=@/path/to/audio.m4a"
 ```
 
+Get app configuration flags:
+
+```bash
+curl "/app-config"
+```
+
+Response fields include `allow_user_upload`, `allow_user_youtube`, `max_upload_size` (bytes, only when uploads enabled), and `allowed_upload_exts` (only when uploads enabled).
+
 Fetch audio for a job:
 
 ```bash

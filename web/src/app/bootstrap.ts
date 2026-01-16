@@ -15,8 +15,8 @@ import {
 } from "./ui";
 import { navigateToTab, setActiveTab, updateTrackUrl } from "./tabs";
 import { handleRouteChange } from "./routing";
-import { deleteJob, fetchTopSongs } from "./api";
-import { deleteCachedTrack } from "./cache";
+import { deleteJob, fetchAppConfig, fetchTopSongs } from "./api";
+import { deleteCachedTrack, saveAppConfig } from "./cache";
 import {
   applyAnalysisResult,
   applyTuningChanges,
@@ -148,6 +148,14 @@ export function bootstrap() {
   elements.playTabButton.disabled = true;
   setAnalysisStatus(context, "Select a track to begin.", false);
   applyTheme(context, initialTheme);
+  fetchTopSongsList().catch((err) => {
+    console.warn(`Top songs load failed: ${String(err)}`);
+  });
+  fetchAppConfig()
+    .then((config) => saveAppConfig(config))
+    .catch((err) => {
+      console.warn(`App config fetch failed: ${String(err)}`);
+    });
   renderFavoritesList();
   setTopSongsTab("top");
 
@@ -266,11 +274,6 @@ export function bootstrap() {
     elements.favoritesList.classList.toggle("hidden", tabId !== "favorites");
     elements.topListTitle.textContent =
       tabId === "top" ? "Top 20" : "Favorites";
-    if (tabId === "top") {
-      fetchTopSongsList().catch((err) => {
-        console.warn(`Top songs load failed: ${String(err)}`);
-      });
-    }
   }
 
   function updateFavorites(nextFavorites: FavoriteTrack[]) {
@@ -646,11 +649,7 @@ export function bootstrap() {
   }
 
   function setActiveTabWithRefresh(tabId: TabId) {
-    setActiveTab(context, tabId, () => {
-      fetchTopSongsList().catch((err) => {
-        console.warn(`Top songs load failed: ${String(err)}`);
-      });
-    });
+    setActiveTab(context, tabId, () => {});
   }
 
   async function fetchTopSongsList() {

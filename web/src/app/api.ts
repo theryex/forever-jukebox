@@ -66,6 +66,13 @@ export type TopSongItem = {
   youtube_id?: string;
 };
 
+export type AppConfig = {
+  allow_user_upload: boolean;
+  allow_user_youtube: boolean;
+  max_upload_size?: number | null;
+  allowed_upload_exts?: string[] | null;
+};
+
 async function fetchJson(url: string, options?: RequestInit) {
   const response = await fetch(url, options);
   if (!response.ok) {
@@ -203,6 +210,11 @@ export async function searchYoutube(query: string, duration: number) {
 export async function fetchTopSongs(limit: number) {
   const data = await fetchJson(`/api/top?limit=${encodeURIComponent(limit)}`);
   return Array.isArray(data?.items) ? (data.items as TopSongItem[]) : [];
+}
+
+export async function fetchAppConfig(): Promise<AppConfig> {
+  const data = await fetchJson("/app-config");
+  return data as AppConfig;
 }
 
 export async function recordPlay(jobId: string) {
