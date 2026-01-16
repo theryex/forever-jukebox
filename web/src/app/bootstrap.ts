@@ -357,6 +357,7 @@ export function bootstrap() {
     window.addEventListener("keydown", handleKeydown);
     window.addEventListener("keyup", handleKeyup);
     elements.retroToggleButton.addEventListener("click", handleRetroToggle);
+    elements.canonizerToggle.addEventListener("click", handleCanonizerToggle);
 
     visualizations.forEach((viz) => {
       viz.setOnSelect(handleBeatSelect);
@@ -995,10 +996,19 @@ export function bootstrap() {
   function handleRetroToggle() {
     const isRetro = document.body.classList.toggle("retro-mode");
     elements.retroToggleButton.textContent = isRetro
-      ? "Switch to Modern Mode"
-      : "Switch to Retro Mode";
+      ? "Modern Mode"
+      : "Retro Mode";
     // Refresh visualizations to update theme colors
     visualizations.forEach((viz) => viz.refresh());
+  }
+
+  function handleCanonizerToggle() {
+    const isActive = elements.canonizerToggle.classList.toggle("active");
+    elements.canonizerToggle.textContent = isActive
+      ? "Autocanonizer: ON"
+      : "Autocanonizer";
+    // TODO: Full canonizer integration with CanonizerEngine and CanonizerPlayer
+    // For now, this is a placeholder that toggles the button state
   }
 
   function handleTabClick(event: Event) {

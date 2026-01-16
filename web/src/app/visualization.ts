@@ -91,21 +91,7 @@ export function createVisualizations(vizLayer: HTMLElement) {
         };
       });
     },
-    // Visualization 7: Classic Eternal Jukebox Circle
-    // A tighter circle layout matching the original Infinite Jukebox
-    (count: number, width: number, height: number) => {
-      const radius = Math.min(width, height) * 0.38;
-      const cx = width / 2;
-      const cy = height / 2;
-      return Array.from({ length: count }, (_, i) => {
-        const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
-        return {
-          x: cx + Math.cos(angle) * radius,
-          y: cy + Math.sin(angle) * radius,
-        };
-      });
-    },
-    // Visualization 8: Retro Tiles
+    // Visualization 7: Retro Tiles
     // Same layout as viz 7, but designed for the retro tile renderer
     // (tiles are rendered with special coloring based on timbre)
     (count: number, width: number, height: number) => {

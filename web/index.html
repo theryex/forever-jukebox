@@ -43,7 +43,8 @@
       </div>
       <div class="hero-main">
         <div class="hero-title">
-          <h1 class="hero-title-neon">THE FOREVER JUKEBOX</h1>
+          <h1 class="hero-title-neon">THE <a href="https://www.ryex.xyz" target="_blank" rel="noreferrer"
+              class="title-link">FLOPPA</a> JUKEBOX</h1>
         </div>
         <nav class="tabs" aria-label="Primary">
           <button class="tab-btn active" data-tab-button="top">
@@ -54,6 +55,7 @@
             Listen
           </button>
           <button class="tab-btn" data-tab-button="faq">FAQ</button>
+          <button type="button" class="tab-btn retro-toggle-btn" id="retro-toggle">Retro Mode</button>
         </nav>
       </div>
     </header>
@@ -300,6 +302,7 @@
                   <button id="tuning">Tune</button>
                   <button id="track-info">Info</button>
                   <button id="short-url">Copy URL</button>
+                  <button id="canonizer-toggle">Autocanonizer</button>
                 </div>
               </div>
               <div id="viz-panel" class="hidden">
@@ -318,7 +321,6 @@
                       <button class="viz-btn" data-viz="4">5</button>
                       <button class="viz-btn" data-viz="5">6</button>
                       <button class="viz-btn" data-viz="6">7</button>
-                      <button class="viz-btn" data-viz="7">8</button>
                     </div>
                   </div>
                   <div class="viz-bottom" id="viz-stats">
@@ -403,9 +405,9 @@
                   </li>
                 </ul>
 
-                <h4>Help! Something broke! / I have an idea!</h4>
+                <h4>Help! Something broke!</h4>
                 <p>
-                  Please file issues and feature requests here:
+                  Please file an issue here:
                   <a href="https://github.com/creightonlinza/forever-jukebox/issues/new" target="_blank"
                     rel="noreferrer">Create
                     an issue</a>.
@@ -416,9 +418,7 @@
               <div class="modal-panel">
                 <div class="modal-header">
                   <h2>Tuning</h2>
-                  <button id="tuning-close" class="modal-close" aria-label="Close">
-                    <span class="material-symbols-outlined modal-close-icon" aria-hidden="true">close</span>
-                  </button>
+                  <button id="tuning-close">Close</button>
                 </div>
                 <div class="modal-body">
                   <label>
@@ -440,10 +440,6 @@
                     Branch Ramp Speed: <span id="ramp-val">10%</span>
                     <input id="ramp" type="range" min="0" max="100" step="5" value="10" />
                   </label>
-                  <label>
-                    Volume: <span id="volume-val">50</span>
-                    <input id="volume" type="range" min="0" max="100" step="5" value="50" />
-                  </label>
                   <div class="checkbox-row">
                     <label><input id="last-edge" type="checkbox" checked /> Loop extension
                       optimization</label>
@@ -455,8 +451,7 @@
                       branches</label>
                   </div>
                 </div>
-                <div class="modal-footer tuning-footer">
-                  <button id="tuning-reset">Reset</button>
+                <div class="modal-footer">
                   <button id="tuning-apply">Apply</button>
                 </div>
               </div>
@@ -465,9 +460,7 @@
               <div class="modal-panel">
                 <div class="modal-header">
                   <h2>Track Info</h2>
-                  <button id="info-close" class="modal-close" aria-label="Close">
-                    <span class="material-symbols-outlined modal-close-icon" aria-hidden="true">close</span>
-                  </button>
+                  <button id="info-close">Close</button>
                 </div>
                 <div class="modal-body info-body">
                   <div class="info-row">
@@ -485,62 +478,16 @@
                 </div>
               </div>
             </div>
-            <div id="favorites-sync-enter-modal" class="modal">
-              <div class="modal-panel">
-                <div class="modal-header">
-                  <h2>Favorites Sync</h2>
-                  <button id="favorites-sync-enter-close" class="modal-close" aria-label="Close">
-                    <span class="material-symbols-outlined modal-close-icon" aria-hidden="true">close</span>
-                  </button>
-                </div>
-                <div class="modal-body">
-                  <p class="modal-hint">
-                    Enter the 3-word sync code to pull down your favorites.
-                  </p>
-                  <input id="favorites-sync-enter-input" class="search-input" type="text"
-                    placeholder="the-forever-jukebox" autocomplete="off" />
-                  <p id="favorites-sync-enter-status" class="modal-status hidden" role="status" aria-live="polite"></p>
-                </div>
-                <div class="modal-footer">
-                  <button id="favorites-sync-enter-button" type="button">
-                    Sync favorites
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div id="favorites-sync-create-modal" class="modal">
-              <div class="modal-panel">
-                <div class="modal-header">
-                  <h2>Favorites Sync</h2>
-                  <button id="favorites-sync-create-close" class="modal-close" aria-label="Close">
-                    <span class="material-symbols-outlined modal-close-icon" aria-hidden="true">close</span>
-                  </button>
-                </div>
-                <div class="modal-body">
-                  <p class="modal-hint" id="favorites-sync-create-hint">
-                    Create a sync code to share your favorites between devices.
-                  </p>
-                  <div id="favorites-sync-create-output" class="favorites-sync-code hidden"></div>
-                  <p id="favorites-sync-create-status" class="modal-status hidden" role="status" aria-live="polite"></p>
-                </div>
-                <div class="modal-footer">
-                  <button id="favorites-sync-create-button" type="button">
-                    Create sync code
-                  </button>
-                </div>
-              </div>
-            </div>
             <footer class="site-footer">
               <p>
                 The Forever Jukebox &amp; Analysis Engine by
-                <a href="https://creighton.dev" target="_blank" rel="noreferrer">Creighton</a>. Based off of
+                <a href="https://creighton.dev" target="_blank" rel="noreferrer">Creighton Linza</a>. Based off of
                 <a href="https://musicmachinery.com/" target="_blank" rel="noreferrer">Paul Lamere</a>'s original
                 Infinite
-                Jukebox.
+                Jukebox. Modified by <a href="https://github.com/theryex" target="_blank" rel="noreferrer">Ryex</a>.
               </p>
             </footer>
           </div>
-          <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
           <!-- Decorative jukebox images for retro mode -->
           <img src="/assets/jukebox.png" class="retro-img retro-img-left" alt="" aria-hidden="true">
           <img src="/assets/jukebox.png" class="retro-img retro-img-right" alt="" aria-hidden="true">
