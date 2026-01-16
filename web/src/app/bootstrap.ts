@@ -2,6 +2,7 @@ import { JukeboxEngine } from "../engine";
 import { BufferedAudioPlayer } from "../audio/BufferedAudioPlayer";
 import { CanonizerEngine } from "../engine/CanonizerEngine";
 import { CanonizerPlayer } from "../audio/CanonizerPlayer";
+import { CanonizerViz } from "../visualization/CanonizerViz";
 import type { Edge } from "../engine/types";
 import { getElements } from "./elements";
 import { attachVisualizationResize, createVisualizations } from "./visualization";
@@ -57,6 +58,8 @@ export function bootstrap() {
   // Initialize canonizer instances
   const canonizerEngine = new CanonizerEngine();
   const canonizerPlayer = new CanonizerPlayer();
+  const canonizerViz = new CanonizerViz(elements.vizLayer);
+  canonizerViz.setVisible(false); // Hidden by default
 
   const state: AppState = {
     activeTabId: "top",
@@ -95,6 +98,7 @@ export function bootstrap() {
     state,
     canonizerEngine,
     canonizerPlayer,
+    canonizerViz,
   };
 
   const playbackDeps = createPlaybackDeps();
@@ -256,11 +260,17 @@ export function bootstrap() {
       if (state.isRunning) {
         stopPlayback(context);
       }
+      // Hide regular visualizations, show canonizer viz
+      visualizations.forEach((viz) => viz.setVisible(false));
+      canonizerViz.setVisible(true);
       // Initialize canonizer with current analysis
       initializeCanonizer();
     } else {
       // Stop canonizer playback
       stopCanonizerPlayback();
+      // Hide canonizer viz, restore regular visualization
+      canonizerViz.setVisible(false);
+      visualizations[state.activeVizIndex]?.setVisible(true);
     }
   }
 
@@ -302,6 +312,13 @@ export function bootstrap() {
       };
 
       canonizerEngine.loadAnalysis(analysisForCanonizer as any);
+
+      // Set up the canonizer visualization with beat data
+      const canonizerBeats = canonizerEngine.getBeats();
+      canonizerViz.setData({
+        beats: canonizerBeats,
+        duration: player.getDuration() || 0,
+      });
 
       // Initialize the canonizer player with the audio URL
       if (state.lastJobId) {
@@ -350,12 +367,11 @@ export function bootstrap() {
     const beat = beats[state.canonizerBeatIndex];
     const delay = canonizerPlayer.playBeat(beat);
 
-    // Update visualization
-    visualizations[state.activeVizIndex]?.update(
-      state.canonizerBeatIndex,
-      false,
-      state.lastBeatIndex
-    );
+    // Update canonizer visualization with both playhead positions
+    const mainIndex = state.canonizerBeatIndex;
+    const otherIndex = beat.other ? beat.other.which : mainIndex;
+    canonizerViz.update(mainIndex, otherIndex);
+
     state.lastBeatIndex = state.canonizerBeatIndex;
     elements.beatsPlayedEl.textContent = `${state.canonizerBeatIndex}`;
 

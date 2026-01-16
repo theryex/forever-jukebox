@@ -16,3 +16,6 @@ spotify/
 
 # Fly.io
 fly.toml
+
+# Reference code (not part of project)
+EternalJukebox/

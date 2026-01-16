@@ -1,6 +1,7 @@
 import type { JukeboxEngine } from "../engine";
 import type { BufferedAudioPlayer } from "../audio/BufferedAudioPlayer";
 import type { CanvasViz } from "../visualization/CanvasViz";
+import type { CanonizerViz } from "../visualization/CanonizerViz";
 import type { Edge } from "../engine/types";
 import type { getElements } from "./elements";
 import type { CanonizerEngine } from "../engine/CanonizerEngine";
@@ -49,4 +50,6 @@ export type AppContext = {
   // Canonizer instances
   canonizerEngine: CanonizerEngine;
   canonizerPlayer: CanonizerPlayer;
+  canonizerViz: CanonizerViz;
 };
+
