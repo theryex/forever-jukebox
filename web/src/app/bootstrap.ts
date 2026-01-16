@@ -1,5 +1,7 @@
 import { JukeboxEngine } from "../engine";
 import { BufferedAudioPlayer } from "../audio/BufferedAudioPlayer";
+import { CanonizerEngine } from "../engine/CanonizerEngine";
+import { CanonizerPlayer } from "../audio/CanonizerPlayer";
 import type { Edge } from "../engine/types";
 import { getElements } from "./elements";
 import {
@@ -95,6 +97,11 @@ export function bootstrap() {
   const engine = new JukeboxEngine(player, { randomMode: "random" });
   const visualizations = createVisualizations(elements.vizLayer);
   const defaultConfig = engine.getConfig();
+
+  // Initialize canonizer instances
+  const canonizerEngine = new CanonizerEngine();
+  const canonizerPlayer = new CanonizerPlayer();
+
   const state: AppState = {
     activeTabId: "top",
     activeVizIndex: 0,
@@ -128,6 +135,10 @@ export function bootstrap() {
     pollController: null,
     listenTimerId: null,
     wakeLock: null,
+    // Canonizer state
+    canonizerEnabled: false,
+    canonizerBeatIndex: 0,
+    canonizerTimerId: null,
     tuningParams: null,
   };
   const context: AppContext = {
@@ -137,6 +148,8 @@ export function bootstrap() {
     visualizations,
     defaultConfig,
     state,
+    canonizerEngine,
+    canonizerPlayer,
   };
 
   const playbackDeps = createPlaybackDeps();
@@ -1003,12 +1016,141 @@ export function bootstrap() {
   }
 
   function handleCanonizerToggle() {
-    const isActive = elements.canonizerToggle.classList.toggle("active");
+    state.canonizerEnabled = !state.canonizerEnabled;
+    const isActive = state.canonizerEnabled;
+    elements.canonizerToggle.classList.toggle("active", isActive);
     elements.canonizerToggle.textContent = isActive
       ? "Autocanonizer: ON"
       : "Autocanonizer";
-    // TODO: Full canonizer integration with CanonizerEngine and CanonizerPlayer
-    // For now, this is a placeholder that toggles the button state
+
+    if (isActive) {
+      // Stop normal jukebox playback if running
+      if (state.isRunning) {
+        stopPlayback(context);
+      }
+      // Initialize canonizer with current analysis
+      initializeCanonizer();
+    } else {
+      // Stop canonizer playback
+      stopCanonizerPlayback();
+    }
+  }
+
+  function initializeCanonizer() {
+    if (!state.analysisLoaded || !state.audioLoaded) {
+      setAnalysisStatus(context, "Load a track first to use Autocanonizer", false);
+      state.canonizerEnabled = false;
+      elements.canonizerToggle.classList.remove("active");
+      elements.canonizerToggle.textContent = "Autocanonizer";
+      return;
+    }
+
+    // Load the analysis into canonizer engine
+    const graph = engine.getGraphState();
+    if (!graph) {
+      return;
+    }
+
+    // Get the raw analysis data from the engine
+    // The canonizer needs the full analysis result
+    try {
+      // Use the visualization data beats as a proxy for analysis
+      const vizData = state.vizData;
+      if (!vizData) {
+        return;
+      }
+
+      // Create a minimal analysis result for the canonizer
+      const analysisForCanonizer = {
+        beats: vizData.beats.map((b, i) => ({
+          start: b.start,
+          duration: b.duration,
+          which: i,
+        })),
+        sections: [],
+        segments: [],
+        bars: [],
+        track: { duration: player.getDuration() || 0 },
+      };
+
+      canonizerEngine.loadAnalysis(analysisForCanonizer as any);
+
+      // Initialize the canonizer player with the audio URL
+      if (state.lastJobId) {
+        const audioUrl = `/api/audio/${state.lastJobId}`;
+        canonizerPlayer.initialize(audioUrl).then(() => {
+          startCanonizerPlayback();
+        }).catch((err) => {
+          console.warn(`Canonizer audio init failed: ${String(err)}`);
+          setAnalysisStatus(context, "Canonizer audio failed to load", false);
+        });
+      }
+    } catch (err) {
+      console.warn(`Canonizer init failed: ${String(err)}`);
+    }
+  }
+
+  function startCanonizerPlayback() {
+    if (!canonizerEngine.isReady() || !canonizerPlayer.isReady()) {
+      return;
+    }
+
+    const beats = canonizerEngine.getBeats();
+    if (beats.length === 0) {
+      return;
+    }
+
+    state.canonizerBeatIndex = 0;
+    state.lastPlayStamp = performance.now();
+    state.isRunning = true;
+    elements.playButton.textContent = "Stop";
+
+    playNextCanonizerBeat();
+  }
+
+  function playNextCanonizerBeat() {
+    if (!state.canonizerEnabled || !state.isRunning) {
+      return;
+    }
+
+    const beats = canonizerEngine.getBeats();
+    if (state.canonizerBeatIndex >= beats.length) {
+      // Loop back to start
+      state.canonizerBeatIndex = 0;
+    }
+
+    const beat = beats[state.canonizerBeatIndex];
+    const delay = canonizerPlayer.playBeat(beat);
+
+    // Update visualization
+    visualizations[state.activeVizIndex]?.update(
+      state.canonizerBeatIndex,
+      false,
+      state.lastBeatIndex
+    );
+    state.lastBeatIndex = state.canonizerBeatIndex;
+    elements.beatsPlayedEl.textContent = `${state.canonizerBeatIndex}`;
+
+    state.canonizerBeatIndex++;
+
+    // Schedule next beat
+    state.canonizerTimerId = window.setTimeout(() => {
+      playNextCanonizerBeat();
+    }, delay * 1000);
+  }
+
+  function stopCanonizerPlayback() {
+    if (state.canonizerTimerId !== null) {
+      window.clearTimeout(state.canonizerTimerId);
+      state.canonizerTimerId = null;
+    }
+    canonizerPlayer.stop();
+    state.isRunning = false;
+    if (state.lastPlayStamp !== null) {
+      state.playTimerMs += performance.now() - state.lastPlayStamp;
+      state.lastPlayStamp = null;
+    }
+    elements.playButton.textContent = "Play";
   }
 
   function handleTabClick(event: Event) {
@@ -1313,7 +1455,17 @@ export function bootstrap() {
   }
 
   function handlePlayClick() {
-    togglePlayback(context);
+    if (state.canonizerEnabled) {
+      // In canonizer mode, toggle canonizer playback
+      if (state.isRunning) {
+        stopCanonizerPlayback();
+      } else {
+        startCanonizerPlayback();
+      }
+    } else {
+      // Normal jukebox playback
+      togglePlayback(context);
+    }
   }
 
   function handleShortUrlClick() {
