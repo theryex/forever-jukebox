@@ -44,7 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libavcodec-dev \
     libavformat-dev \
     libavutil-dev \
-    libavresample-dev \
+    libswresample-dev \
     libsamplerate0-dev \
     libtag1-dev \
     libchromaprint-dev \
