@@ -22,7 +22,7 @@ services:
       args:
         GPU_MODE: ${GPU_MODE:-cpu}
     ports:
-      - "${PORT:-8000}:8000"
+      - "${PORT:-8675}:8000"
     volumes:
       - storage:/app/api/storage
       # Optional: Mount custom calibration
