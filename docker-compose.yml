@@ -74,6 +74,9 @@ services:
         GPU_MODE: cuda
     environment:
       FOREVER_JUKEBOX_GPU: cuda
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    runtime: nvidia
     deploy:
       resources:
         reservations:
