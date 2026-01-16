@@ -8,6 +8,7 @@ from pydantic import BaseModel
 class JobBase(BaseModel):
     id: str
     youtube_id: str | None = None
+    created_at: str | None = None
 
 
 class JobProgress(JobBase):

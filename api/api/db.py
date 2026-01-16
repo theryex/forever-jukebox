@@ -260,6 +260,7 @@ def get_top_tracks(db_path: Path, limit: int = 10) -> list[dict]:
               AND track_title != ''
               AND track_artist IS NOT NULL
               AND track_artist != ''
+              AND COALESCE(is_user_supplied, 0) = 0
               AND play_count > 0
             ORDER BY play_count DESC, updated_at DESC
             LIMIT ?

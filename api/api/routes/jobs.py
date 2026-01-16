@@ -106,7 +106,7 @@ def _message_for_progress(status: str, progress: int | None) -> str | None:
 
 
 def _job_response(job) -> JSONResponse:
-    base_payload = {"id": job.id, "youtube_id": job.youtube_id}
+    base_payload = {"id": job.id, "youtube_id": job.youtube_id, "created_at": job.created_at}
     if job.status in {"queued", "processing", "downloading"}:
         progress = job.progress if job.status == "processing" else None
         message = _message_for_progress(job.status, progress)
