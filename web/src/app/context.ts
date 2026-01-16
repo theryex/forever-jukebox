@@ -26,7 +26,6 @@ export type AppState = {
   lastJobId: string | null;
   lastYouTubeId: string | null;
   lastPlayCountedJobId: string | null;
-  shortUrlResetTimer: number | null;
   shiftBranching: boolean;
   selectedEdge: Edge | null;
   topSongsRefreshTimer: number | null;

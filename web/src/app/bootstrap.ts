@@ -27,7 +27,7 @@ import {
   updateVizVisibility,
 } from "./playback";
 import { runSearch } from "./search";
-import { SHORT_URL_RESET_MS, TOP_SONGS_LIMIT } from "./constants";
+import { TOP_SONGS_LIMIT } from "./constants";
 import type { AppContext, AppState, TabId } from "./context";
 import {
   addFavorite,
@@ -74,7 +74,6 @@ export function bootstrap() {
     lastJobId: null,
     lastYouTubeId: null,
     lastPlayCountedJobId: null,
-    shortUrlResetTimer: null,
     shiftBranching: false,
     selectedEdge: null,
     topSongsRefreshTimer: null,
@@ -224,6 +223,10 @@ export function bootstrap() {
     elements.tuningApply.addEventListener("click", handleTuningApply);
     elements.playButton.addEventListener("click", handlePlayClick);
     elements.shortUrlButton.addEventListener("click", handleShortUrlClick);
+    syncInfoButton();
+    syncTuneButton();
+    syncCopyButton();
+    updateFullscreenButton(Boolean(document.fullscreenElement));
     elements.vizButtons.forEach((button) => {
       button.addEventListener("click", handleVizButtonClick);
     });
@@ -279,7 +282,8 @@ export function bootstrap() {
       const removeButton = document.createElement("button");
       removeButton.type = "button";
       removeButton.className = "favorite-remove";
-      removeButton.textContent = "×";
+      removeButton.innerHTML =
+        '<span class="material-symbols-outlined favorite-remove-icon" aria-hidden="true">close</span>';
       removeButton.dataset.favoriteId = item.uniqueSongId;
       removeButton.addEventListener("click", handleFavoriteRemove);
       row.append(link, removeButton);
@@ -292,7 +296,9 @@ export function bootstrap() {
     const currentId = state.lastYouTubeId;
     const active = currentId ? isFavorite(state.favorites, currentId) : false;
     elements.favoriteButton.classList.toggle("active", active);
-    elements.favoriteButton.textContent = active ? "Favorited" : "Favorite";
+    const label = active ? "Remove from Favorites" : "Add to Favorites";
+    elements.favoriteButton.setAttribute("aria-label", label);
+    elements.favoriteButton.title = label;
   }
 
   function handleTopSongsTabClick(event: Event) {
@@ -430,13 +436,23 @@ export function bootstrap() {
 
   function handleFullscreenChange() {
     if (document.fullscreenElement) {
-      elements.fullscreenButton.textContent = "Exit Fullscreen";
+      updateFullscreenButton(true);
       requestWakeLock(context);
     } else {
-      elements.fullscreenButton.textContent = "Fullscreen";
+      updateFullscreenButton(false);
       releaseWakeLock(context);
     }
     visualizations[state.activeVizIndex]?.resizeNow();
+  }
+
+  function updateFullscreenButton(isFullscreen: boolean) {
+    const label = isFullscreen ? "Exit Fullscreen" : "Fullscreen";
+    const icon = elements.fullscreenButton.querySelector<HTMLSpanElement>(".fullscreen-icon");
+    if (icon) {
+      icon.textContent = isFullscreen ? "fullscreen_exit" : "fullscreen";
+    }
+    elements.fullscreenButton.title = label;
+    elements.fullscreenButton.setAttribute("aria-label", label);
   }
 
   function handleVisibilityChange() {
@@ -453,6 +469,21 @@ export function bootstrap() {
 
   function handleCloseInfo() {
     closeInfo(context);
+  }
+
+  function syncInfoButton() {
+    elements.infoButton.title = "Info";
+    elements.infoButton.setAttribute("aria-label", "Info");
+  }
+
+  function syncTuneButton() {
+    elements.tuningButton.title = "Tune";
+    elements.tuningButton.setAttribute("aria-label", "Tune");
+  }
+
+  function syncCopyButton() {
+    elements.shortUrlButton.title = "Copy URL";
+    elements.shortUrlButton.setAttribute("aria-label", "Copy URL");
   }
 
   function handleTuningModalClick(event: MouseEvent) {
@@ -627,14 +658,7 @@ export function bootstrap() {
     )}`;
     try {
       await navigator.clipboard.writeText(shortUrl);
-      elements.shortUrlButton.textContent = "Copied";
-      if (state.shortUrlResetTimer !== null) {
-        window.clearTimeout(state.shortUrlResetTimer);
-      }
-      state.shortUrlResetTimer = window.setTimeout(() => {
-        elements.shortUrlButton.textContent = "Copy URL";
-        state.shortUrlResetTimer = null;
-      }, SHORT_URL_RESET_MS);
+      showToast(context, "Link copied to clipboard");
     } catch (err) {
       setAnalysisStatus(context, `Copy failed: ${String(err)}`, false);
     }

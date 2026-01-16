@@ -11,6 +11,10 @@ export function getElements() {
     document.querySelector<HTMLSpanElement>("#beats-played"),
     "#beats-played"
   );
+  const vizNowPlayingEl = requireElement(
+    document.querySelector<HTMLDivElement>("#viz-now-playing"),
+    "#viz-now-playing"
+  );
   const vizPanel = requireElement(
     document.querySelector<HTMLElement>("#viz-panel"),
     "#viz-panel"
@@ -212,6 +216,7 @@ export function getElements() {
   return {
     listenTimeEl,
     beatsPlayedEl,
+    vizNowPlayingEl,
     vizPanel,
     vizLayer,
     vizButtons,

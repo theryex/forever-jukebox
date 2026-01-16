@@ -11,6 +11,10 @@
       href="https://fonts.googleapis.com/css2?family=Tilt+Neon&display=swap"
       rel="stylesheet"
     />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,200..700,0..1,-50..200"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="app">
@@ -32,7 +36,9 @@
             <h1 class="hero-title-neon">THE FOREVER JUKEBOX</h1>
           </div>
           <nav class="tabs" aria-label="Primary">
-            <button class="tab-btn active" data-tab-button="top">Top Songs</button>
+            <button class="tab-btn active" data-tab-button="top">
+              Top Songs
+            </button>
             <button class="tab-btn" data-tab-button="search">Search</button>
             <button class="tab-btn" data-tab-button="play" disabled>Listen</button>
             <button class="tab-btn" data-tab-button="faq">FAQ</button>
@@ -41,9 +47,13 @@
       </header>
       <section class="panel tab-panel" data-tab-panel="top">
         <div class="subtabs" id="top-subtabs">
-          <button class="subtab-btn active" data-top-subtab="top">Top 20</button>
+          <button class="subtab-btn active" data-top-subtab="top">
+            Top 20
+          </button>
           <span class="subtab-spacer" aria-hidden="true"></span>
-          <button class="subtab-btn" data-top-subtab="favorites">Favorites</button>
+          <button class="subtab-btn" data-top-subtab="favorites">
+            Favorites
+          </button>
         </div>
         <div class="panel-title" id="top-list-title">Top 20</div>
         <ol class="top-list" id="top-songs">
@@ -91,20 +101,55 @@
         <div class="play-title" id="play-title"></div>
         <div class="menu-bar hidden" id="play-menu">
           <div class="menu-left">
-            <button id="play" class="hidden">Play</button>
-            <button id="tuning">Tune</button>
-            <button id="track-info">Info</button>
-            <button id="favorite-toggle" class="favorite-toggle">Favorite</button>
-            <button id="short-url">Copy URL</button>
+            <button id="play" class="play-toggle hidden" aria-label="Play">
+              <span
+                class="material-symbols-outlined play-icon"
+                aria-hidden="true"
+                >play_arrow</span
+              >
+              <span class="play-text">Play</span>
+            </button>
+          </div>
+          <div class="menu-right">
+            <button id="tuning" class="tune-toggle" aria-label="Tune">
+              <span
+                class="material-symbols-outlined tune-icon"
+                aria-hidden="true"
+                >tune</span
+              >
+            </button>
+            <button id="track-info" class="info-toggle" aria-label="Info">
+              <span
+                class="material-symbols-outlined info-icon"
+                aria-hidden="true"
+                >info</span
+              >
+            </button>
+            <button id="short-url" class="copy-toggle" aria-label="Copy link">
+              <span
+                class="material-symbols-outlined copy-icon"
+                aria-hidden="true"
+                >share</span
+              >
+            </button>
+            <button
+              id="favorite-toggle"
+              class="favorite-toggle"
+              aria-label="Favorite"
+            >
+              <span
+                class="material-symbols-outlined favorite-icon"
+                aria-hidden="true"
+                >star</span
+              >
+            </button>
           </div>
         </div>
         <div id="viz-panel" class="hidden">
           <div id="jukebox-viz" class="viz">
             <div id="viz-layer" class="viz-layer"></div>
             <div class="viz-top">
-              <div class="viz-actions">
-                <button id="fullscreen">Fullscreen</button>
-              </div>
+              <div class="viz-actions"></div>
               <div class="viz-controls">
                 <span>Visualization:</span>
                 <button class="viz-btn active" data-viz="0">1</button>
@@ -116,13 +161,29 @@
               </div>
             </div>
             <div class="viz-bottom" id="viz-stats">
-              <div>
-                <strong>Listen Time:</strong>
-                <span id="listen-time">00:00:00</span>
+              <div class="viz-info">
+                <div class="viz-title" id="viz-now-playing">
+                  The Forever Jukebox
+                </div>
+                <div class="viz-meta">
+                  <span>Listen Time:</span>
+                  <span id="listen-time">00:00:00</span>
+                  <span class="viz-divider">·</span>
+                  <span>Total Beats:</span>
+                  <span id="beats-played">0</span>
+                </div>
               </div>
-              <div>
-                <strong>Total Beats:</strong> <span id="beats-played">0</span>
-              </div>
+              <button
+                id="fullscreen"
+                class="fullscreen-toggle"
+                aria-label="Fullscreen"
+              >
+                <span
+                  class="material-symbols-outlined fullscreen-icon"
+                  aria-hidden="true"
+                  >fullscreen</span
+                >
+              </button>
             </div>
           </div>
         </div>
@@ -132,21 +193,26 @@
         <div class="faq">
           <h4>What the what?</h4>
           <p>
-            This web app lets you search a song on Spotify, match it to YouTube
-            audio, and generate a forever-changing version of the song.
+            The Forever Jukebox is a fully open source, end-to-end modernization
+            and reimagining of the Infinite Jukebox, a web app created by Paul
+            Lamere in 2012 that lets you search a song on Spotify, match it to
+            YouTube audio, and generate a forever-changing version of the song.
           </p>
 
           <h4>How does it work?</h4>
           <p>
-            The engine analyzes the audio into beats and segments, then plays it
-            beat by beat. At each beat there is a chance to jump to a different
-            part of the song that sounds similar. Similarity uses features like
-            timbre, loudness, duration, and beat position. The visualization
-            shows the possible jump paths for each beat.
+            The app uses the Spotify API for searching track data, and YouTube
+            for the audio. The audio gets analyzed by the Forever Jukebox
+            Analysis Engine, an attempt to approximate Spotify’s legacy
+            analysis, which has since been deprecated. The engine determines beats, segments,
+            and other features and passes them to the frontend, which then plays
+            the audio beat by beat. At each beat there is a chance to jump to a
+            different part of the song that sounds similar. Similarity uses
+            features like timbre, loudness, duration, and beat position. The
+            visualizations show the possible jump paths for each beat.
           </p>
           <p>
-            The backend is written in Python and runs the analysis engine. The
-            web UI is a TypeScript app. The source code is available in the
+            The full source code is available in the
             <a
               href="https://github.com/creightonlinza/forever-jukebox/"
               target="_blank"
@@ -189,17 +255,13 @@
           <ul>
             <li>Original inspiration: Paul Lamere and the Infinite Jukebox.</li>
             <li>EternalJukebox: keeping the dream alive.</li>
-            <li>Remixatron: beat-aligned segmentation concepts.</li>
             <li>madmom: beat and downbeat tracking.</li>
-            <li>
-              librosa, numpy, scipy, soundfile, yt-dlp: DSP and audio I/O +
-              downloads.
-            </li>
+            <li>Essentia: audio features and DSP toolkits.</li>
           </ul>
 
-          <h4>Help! Something broke!</h4>
+          <h4>Help! Something broke! / I have an idea!</h4>
           <p>
-            Please file an issue here:
+            Please file issues and feature requests here:
             <a
               href="https://github.com/creightonlinza/forever-jukebox/issues/new"
               target="_blank"
@@ -213,7 +275,13 @@
         <div class="modal-panel">
           <div class="modal-header">
             <h2>Tuning</h2>
-            <button id="tuning-close">Close</button>
+            <button id="tuning-close" class="modal-close" aria-label="Close">
+              <span
+                class="material-symbols-outlined modal-close-icon"
+                aria-hidden="true"
+                >close</span
+              >
+            </button>
           </div>
           <div class="modal-body">
             <label>
@@ -291,7 +359,13 @@
         <div class="modal-panel">
           <div class="modal-header">
             <h2>Track Info</h2>
-            <button id="info-close">Close</button>
+            <button id="info-close" class="modal-close" aria-label="Close">
+              <span
+                class="material-symbols-outlined modal-close-icon"
+                aria-hidden="true"
+                >close</span
+              >
+            </button>
           </div>
           <div class="modal-body info-body">
             <div class="info-row">
@@ -307,8 +381,8 @@
               <span id="info-branches">0</span>
             </div>
           </div>
+        </div>
       </div>
-    </div>
       <footer class="site-footer">
         <p>
           The Forever Jukebox &amp; Analysis Engine by

@@ -1,5 +1,8 @@
 import type { AppContext } from "./context";
-import { ANALYSIS_POLL_INTERVAL_MS, LISTEN_TIMER_INTERVAL_MS } from "./constants";
+import {
+  ANALYSIS_POLL_INTERVAL_MS,
+  LISTEN_TIMER_INTERVAL_MS,
+} from "./constants";
 import { formatDuration } from "./format";
 import {
   fetchAnalysis,
@@ -22,7 +25,10 @@ export type PlaybackDeps = {
   ) => void;
   updateTrackUrl: (youtubeId: string, replace?: boolean) => void;
   setAnalysisStatus: (message: string, spinning: boolean) => void;
-  setLoadingProgress: (progress: number | null, message?: string | null) => void;
+  setLoadingProgress: (
+    progress: number | null,
+    message?: string | null
+  ) => void;
   onTrackChange?: (youtubeId: string | null) => void;
 };
 
@@ -30,7 +36,8 @@ export function updateListenTimeDisplay(context: AppContext) {
   const { elements, state } = context;
   const now = performance.now();
   const totalMs =
-    state.playTimerMs + (state.lastPlayStamp !== null ? now - state.lastPlayStamp : 0);
+    state.playTimerMs +
+    (state.lastPlayStamp !== null ? now - state.lastPlayStamp : 0);
   elements.listenTimeEl.textContent = formatDuration(totalMs / 1000);
 }
 
@@ -62,6 +69,7 @@ export function updateVizVisibility(context: AppContext) {
     elements.playMenu.classList.remove("hidden");
     elements.vizPanel.classList.remove("hidden");
     elements.playButton.classList.remove("hidden");
+    updatePlayButton(context, state.isRunning);
     elements.playTabButton.disabled = false;
     visualizations[state.activeVizIndex]?.resizeNow();
     elements.vizButtons.forEach((button) => {
@@ -159,7 +167,9 @@ export function applyTuningChanges(context: AppContext) {
   const graph = engine.getGraphState();
   updateTrackInfo(context);
   elements.computedThresholdEl.textContent =
-    state.autoComputedThreshold === null ? "-" : `${state.autoComputedThreshold}`;
+    state.autoComputedThreshold === null
+      ? "-"
+      : `${state.autoComputedThreshold}`;
   if (threshold === 0 && graph) {
     const resolved = Math.max(0, Math.round(graph.currentThreshold));
     state.autoComputedThreshold = resolved;
@@ -190,7 +200,7 @@ export function stopListenTimer(context: AppContext) {
 }
 
 export function stopPlayback(context: AppContext) {
-  const { engine, elements, state } = context;
+  const { engine, state } = context;
   engine.stopJukebox();
   if (state.lastPlayStamp !== null) {
     state.playTimerMs += performance.now() - state.lastPlayStamp;
@@ -199,7 +209,7 @@ export function stopPlayback(context: AppContext) {
   state.isRunning = false;
   stopListenTimer(context);
   updateListenTimeDisplay(context);
-  elements.playButton.textContent = "Play";
+  updatePlayButton(context, false);
 }
 
 export function togglePlayback(context: AppContext) {
@@ -229,7 +239,7 @@ export function togglePlayback(context: AppContext) {
       state.lastPlayStamp = performance.now();
       state.isRunning = true;
       startListenTimer(context);
-      elements.playButton.textContent = "Stop";
+      updatePlayButton(context, true);
       if (document.fullscreenElement) {
         requestWakeLock(context);
       }
@@ -239,6 +249,24 @@ export function togglePlayback(context: AppContext) {
   } else {
     stopPlayback(context);
   }
+}
+
+function updatePlayButton(context: AppContext, isRunning: boolean) {
+  const label = isRunning ? "Stop" : "Play";
+  const icon =
+    context.elements.playButton.querySelector<HTMLSpanElement>(".play-icon");
+  const text =
+    context.elements.playButton.querySelector<HTMLSpanElement>(".play-text");
+  if (icon) {
+    icon.textContent = isRunning ? "stop" : "play_arrow";
+  }
+  if (text) {
+    text.textContent = label;
+  }
+  const shouldPulse = isRunning && context.state.activeTabId !== "play";
+  context.elements.playTabButton.classList.toggle("is-playing", shouldPulse);
+  context.elements.playButton.title = label;
+  context.elements.playButton.setAttribute("aria-label", label);
 }
 
 export function resetForNewTrack(context: AppContext) {
@@ -258,6 +286,7 @@ export function resetForNewTrack(context: AppContext) {
   state.lastBeatIndex = null;
   updateListenTimeDisplay(context);
   elements.beatsPlayedEl.textContent = "0";
+  elements.vizNowPlayingEl.textContent = "The Forever Jukebox";
   if (elements.tuningModal.classList.contains("open")) {
     elements.tuningModal.classList.remove("open");
   }
@@ -318,11 +347,15 @@ export async function loadAudioFromJob(context: AppContext, jobId: string) {
   }
 }
 
-function isAnalysisComplete(response: AnalysisResponse | null): response is AnalysisComplete {
+function isAnalysisComplete(
+  response: AnalysisResponse | null
+): response is AnalysisComplete {
   return response?.status === "complete";
 }
 
-function isAnalysisFailed(response: AnalysisResponse | null): response is AnalysisFailed {
+function isAnalysisFailed(
+  response: AnalysisResponse | null
+): response is AnalysisFailed {
   return response?.status === "failed";
 }
 
@@ -346,7 +379,9 @@ export function applyAnalysisResult(
   const { elements, engine, state, visualizations } = context;
   engine.loadAnalysis(response.result);
   const graph = engine.getGraphState();
-  state.autoComputedThreshold = graph ? Math.round(graph.currentThreshold) : null;
+  state.autoComputedThreshold = graph
+    ? Math.round(graph.currentThreshold)
+    : null;
   state.vizData = engine.getVisualizationData();
   const data = state.vizData;
   if (data) {
@@ -367,11 +402,14 @@ export function applyAnalysisResult(
       ? track.duration
       : null;
   if (title || artist) {
-    elements.playTitle.textContent = artist
+    const displayTitle = artist
       ? `${title ?? "Unknown"} — ${artist}`
       : `${title}`;
+    elements.playTitle.textContent = displayTitle;
+    elements.vizNowPlayingEl.textContent = displayTitle;
   } else {
     elements.playTitle.textContent = "";
+    elements.vizNowPlayingEl.textContent = "The Forever Jukebox";
   }
   updateTrackInfo(context);
   const jobId = response.id || state.lastJobId;
@@ -397,7 +435,11 @@ async function recordPlayOnce(context: AppContext, jobId: string) {
   }
 }
 
-export async function pollAnalysis(context: AppContext, deps: PlaybackDeps, jobId: string) {
+export async function pollAnalysis(
+  context: AppContext,
+  deps: PlaybackDeps,
+  jobId: string
+) {
   const { state } = context;
   const controller = new AbortController();
   state.pollController?.abort();
