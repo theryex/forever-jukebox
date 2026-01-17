@@ -154,6 +154,20 @@ function parseAnalysisResponse(data: unknown): AnalysisResponse | null {
   return null;
 }
 
+async function maybeRepairMissing(response: AnalysisResponse | null) {
+  if (!response || response.status !== "failed") {
+    return response;
+  }
+  if (response.error !== "Analysis missing" || !response.id) {
+    return response;
+  }
+  try {
+    return await repairJob(response.id);
+  } catch {
+    return response;
+  }
+}
+
 export async function fetchAnalysis(jobId: string, signal?: AbortSignal) {
   const response = await fetch(`/api/analysis/${encodeURIComponent(jobId)}`, {
     signal,
@@ -282,7 +296,7 @@ export async function fetchJobByYoutube(
     throw new Error(`Lookup failed (${response.status})`);
   }
   const data = await response.json();
-  return parseAnalysisResponse(data);
+  return maybeRepairMissing(parseAnalysisResponse(data));
 }
 
 export async function fetchJobByTrack(
@@ -298,5 +312,5 @@ export async function fetchJobByTrack(
     throw new Error(`Lookup failed (${response.status})`);
   }
   const data = await response.json();
-  return parseAnalysisResponse(data);
+  return maybeRepairMissing(parseAnalysisResponse(data));
 }
