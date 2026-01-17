@@ -123,6 +123,13 @@ export class CanonizerEngine {
         return this.duration;
     }
 
+    /**
+     * Get the sections for visualization.
+     */
+    getSections(): Section[] {
+        return this.sections;
+    }
+
     private connectBeats(): void {
         for (let i = 0; i < this.beats.length; i++) {
             const beat = this.beats[i];

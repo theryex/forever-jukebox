@@ -1090,9 +1090,11 @@ export function bootstrap() {
 
       // Set up the canonizer visualization with beat data
       const canonizerBeats = canonizerEngine.getBeats();
+      const sections = canonizerEngine.getSections();
       canonizerViz.setData({
         beats: canonizerBeats,
         duration: player.getDuration() || 0,
+        sections: sections,
       });
 
       // Initialize the canonizer player with the audio URL
