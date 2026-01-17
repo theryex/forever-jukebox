@@ -286,8 +286,6 @@ def repair_job(job_id: str, background_tasks: BackgroundTasks) -> JSONResponse:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status in {"downloading", "queued", "processing"}:
         return _job_response(job)
-    if not job.youtube_id:
-        raise HTTPException(status_code=404, detail="Job is missing youtube_id")
 
     audio_path = None
     if job.input_path:
@@ -304,19 +302,21 @@ def repair_job(job_id: str, background_tasks: BackgroundTasks) -> JSONResponse:
     audio_missing = not audio_path or not audio_path.exists()
     analysis_missing = not analysis_path.exists()
 
-    if audio_missing:
-        set_job_progress(DB_PATH, job_id, 0)
-        set_job_status(DB_PATH, job_id, "downloading", None)
-        background_tasks.add_task(_download_youtube_audio, job_id, job.youtube_id)
+    if analysis_missing and not audio_missing:
+        set_job_progress(DB_PATH, job_id, 25)
+        set_job_status(DB_PATH, job_id, "queued", None)
         job = get_job(DB_PATH, job_id)
         return _job_response(job) if job else JSONResponse(
             JobError(status="failed", error="Job not found", id=job_id, youtube_id=None).model_dump(),
             status_code=404,
         )
 
-    if analysis_missing:
-        set_job_progress(DB_PATH, job_id, 25)
-        set_job_status(DB_PATH, job_id, "queued", None)
+    if audio_missing:
+        if not job.youtube_id:
+            raise HTTPException(status_code=404, detail="Job is missing youtube_id")
+        set_job_progress(DB_PATH, job_id, 0)
+        set_job_status(DB_PATH, job_id, "downloading", None)
+        background_tasks.add_task(_download_youtube_audio, job_id, job.youtube_id)
         job = get_job(DB_PATH, job_id)
         return _job_response(job) if job else JSONResponse(
             JobError(status="failed", error="Job not found", id=job_id, youtube_id=None).model_dump(),
