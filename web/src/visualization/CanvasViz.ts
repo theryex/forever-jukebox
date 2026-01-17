@@ -11,6 +11,7 @@ import { distanceToQuadratic, distanceToSegment } from "./geometry";
 interface VisualizationData {
   beats: QuantumBase[];
   edges: Edge[];
+  lastBranchPoint?: number;
 }
 
 interface JumpLine {
@@ -234,7 +235,11 @@ export class CanvasViz {
       if (edge.deleted) {
         continue;
       }
-      this.drawEdge(this.baseCtx, edge, this.theme.edgeStroke, 1);
+      const highlightLast =
+        this.data?.lastBranchPoint !== undefined &&
+        edge.src.which === this.data.lastBranchPoint;
+      const color = highlightLast ? this.theme.beatFill : this.theme.edgeStroke;
+      this.drawEdge(this.baseCtx, edge, color, 1);
     }
 
     this.baseCtx.fillStyle = this.theme.beatFill;
