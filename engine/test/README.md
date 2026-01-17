@@ -28,3 +28,18 @@ Notes:
 - `--benchmark` is required.
 - Pass exactly one of `--audio` or `--compare`.
 - Output always prints similarity; `--dump` prints component scores.
+
+## Batch analysis from id list
+
+`batch_analyze.py` runs the analysis engine for a list of ids. Each id is matched
+to the first file in the audio folder named `{id}.*`, and output is written to
+`{id}.json`.
+
+```bash
+python engine/test/batch_analyze.py \
+  --audio-dir /path/to/audio \
+  --output-dir /path/to/output \
+  --id-list /path/to/ids.txt \
+  --calibration engine/calibration.json \
+  --workers 2
+```
