@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .ytdlp_config import apply_ejs_config
+
 
 YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 YOUTUBE_VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
@@ -119,6 +121,7 @@ def search_youtube_ytdlp(
         "extract_flat": True,
         "nocheckcertificate": True,
     }
+    apply_ejs_config(ydl_opts)
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(f"ytsearch{max_results}:{query}", download=False)
 

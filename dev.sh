@@ -146,7 +146,13 @@ ensure_api_env() {
     "$API_VENV/bin/python" -m pip install -r "$ROOT/api/requirements.txt"
   fi
   if [[ "${FJ_UPDATE_YTDLP:-}" == "1" ]]; then
-    "$API_VENV/bin/python" -m pip install --upgrade yt-dlp
+    "$API_VENV/bin/python" -m pip install --upgrade "yt-dlp[default]"
+  fi
+  if ! command -v deno >/dev/null 2>&1; then
+    echo "Warning: deno not found in PATH (yt-dlp EJS may fail)."
+  fi
+  if ! command -v ffmpeg >/dev/null 2>&1; then
+    echo "Warning: ffmpeg not found in PATH (audio decoding may fail)."
   fi
 }
 

@@ -31,6 +31,11 @@ export ALLOW_USER_YOUTUBE=false
 export WORKER_COUNT=1
 ```
 
+## yt-dlp EJS runtime
+
+yt-dlp requires a JS runtime to solve YouTube challenges. We use Deno (>= 2.6.5)
+and configure EJS scripts in code.
+
 ## Run the API
 
 ```bash

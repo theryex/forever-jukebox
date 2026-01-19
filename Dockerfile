@@ -21,6 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     gfortran \
+    curl \
+    ca-certificates \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -35,6 +38,13 @@ RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install -r /app/api/requirements.txt \
     # Critical: ensure Essentia is installed from a wheel (never source)
     && /opt/venv/bin/pip install --no-build-isolation --only-binary=essentia -r /app/engine/requirements.txt
+
+ARG DENO_VERSION=2.6.5
+RUN curl -fsSL "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip" \
+      -o /tmp/deno.zip \
+    && unzip /tmp/deno.zip -d /usr/local/bin \
+    && rm /tmp/deno.zip \
+    && deno --version
 
 # Now copy the actual source
 COPY api/ ./api/

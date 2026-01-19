@@ -37,6 +37,7 @@ from ..models import (
 )
 from ..paths import DB_PATH, STORAGE_ROOT
 from ..utils import abs_storage_path, get_logger
+from ..ytdlp_config import apply_ejs_config
 
 router = APIRouter()
 logger = get_logger()
@@ -221,6 +222,7 @@ def _download_youtube_audio(job_id: str, youtube_id: str) -> None:
         "extractaudio": True,
         "audioformat": "m4a",
     }
+    apply_ejs_config(ydl_opts)
     url = f"https://www.youtube.com/watch?v={youtube_id}"
     try:
         with YoutubeDL(ydl_opts) as ydl:
@@ -461,7 +463,7 @@ def set_play_count(
         raise HTTPException(status_code=403, detail="ADMIN_KEY is not configured")
     provided_key = key
     if not provided_key or provided_key != expected_key:
-        raise HTTPException(status_code=403, detail="Invalid delete key")
+        raise HTTPException(status_code=403, detail="Invalid admin key")
     play_count = set_job_play_count(DB_PATH, job_id, payload.play_count)
     if play_count is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -527,7 +529,7 @@ def delete_job_by_id(
         if completion_time is not None:
             within_window = within_window or (now - completion_time).total_seconds() <= 1800
         if not within_window:
-            raise HTTPException(status_code=403, detail="Invalid delete key")
+            raise HTTPException(status_code=403, detail="Invalid admin key")
 
     _delete_job_artifacts(job_id, job)
     delete_job(DB_PATH, job_id)
