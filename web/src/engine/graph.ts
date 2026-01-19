@@ -391,6 +391,14 @@ function addAnchorBranch(
   if (!config.addLastEdge) {
     return;
   }
+  const minGap = Math.max(1, config.minLongBranch);
+  const windowStart = Math.max(0, quanta.length - minGap);
+  for (let i = quanta.length - 1; i >= windowStart; i -= 1) {
+    const q = quanta[i];
+    if (q.neighbors.some((neighbor) => i - neighbor.dest.which >= minGap)) {
+      return;
+    }
+  }
   if (longestBackwardBranch(quanta) < 50) {
     insertBestBackwardBranch(quanta, threshold, 65);
   } else {
