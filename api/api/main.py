@@ -8,18 +8,21 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 from .db import init_db
+from .favorites_db import init_favorites_db
 from .http_client import close_client
-from .paths import DB_PATH, STORAGE_ROOT, WEB_DIST
+from .paths import DB_PATH, FAVORITES_DB_PATH, STORAGE_ROOT, WEB_DIST
 
 load_dotenv()
 
 from .routes.config import router as config_router
+from .routes.favorites import router as favorites_router
 from .routes.jobs import router as jobs_router
 from .routes.media import router as media_router
 from .routes.search import router as search_router
 
 app = FastAPI(title="The Forever Jukebox Analysis API")
 app.include_router(config_router)
+app.include_router(favorites_router)
 app.include_router(jobs_router)
 app.include_router(media_router)
 app.include_router(search_router)
@@ -28,6 +31,7 @@ app.include_router(search_router)
 @app.on_event("startup")
 def _startup() -> None:
     init_db(DB_PATH)
+    init_favorites_db(FAVORITES_DB_PATH)
     STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
     (STORAGE_ROOT / "audio").mkdir(parents=True, exist_ok=True)
     (STORAGE_ROOT / "analysis").mkdir(parents=True, exist_ok=True)

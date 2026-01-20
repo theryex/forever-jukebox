@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class JobBase(BaseModel):
@@ -83,3 +83,26 @@ class AppConfigResponse(BaseModel):
     allow_user_youtube: bool
     max_upload_size: int | None = None
     allowed_upload_exts: list[str] | None = None
+
+
+class FavoriteTrack(BaseModel):
+    uniqueSongId: str
+    title: str
+    artist: str
+    duration: float | None = None
+    sourceType: str | None = None
+
+    model_config = ConfigDict(extra="allow")
+
+
+class FavoritesSyncRequest(BaseModel):
+    favorites: list[FavoriteTrack]
+
+
+class FavoritesSyncResponse(BaseModel):
+    code: str
+    count: int
+
+
+class FavoritesSyncPayload(BaseModel):
+    favorites: list[FavoriteTrack]
