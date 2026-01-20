@@ -13,6 +13,7 @@ __pycache__/
 # dirs
 api/storage/
 spotify/
+EternalJukebox/
 
 # Fly.io
 fly.toml
