@@ -66,12 +66,16 @@ body {
   font-optical-sizing: auto;
   font-weight: 400;
   font-style: normal;
-  font-variation-settings: "XROT" 0, "YROT" 0;
+  font-variation-settings:
+    "XROT" 0,
+    "YROT" 0;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: clamp(1.6rem, 2.5vw, 2.4rem);
   color: var(--title-accent);
-  text-shadow: 0 0 12px var(--title-glow), 0 0 28px var(--title-glow);
+  text-shadow:
+    0 0 12px var(--title-glow),
+    0 0 28px var(--title-glow);
   animation: neon-flicker 6s infinite;
 }
 
@@ -79,15 +83,21 @@ body {
   0%,
   100% {
     opacity: 1;
-    text-shadow: 0 0 12px var(--title-glow), 0 0 28px var(--title-glow);
+    text-shadow:
+      0 0 12px var(--title-glow),
+      0 0 28px var(--title-glow);
   }
   2% {
     opacity: 0.95;
-    text-shadow: 0 0 8px var(--title-glow), 0 0 22px var(--title-glow);
+    text-shadow:
+      0 0 8px var(--title-glow),
+      0 0 22px var(--title-glow);
   }
   3% {
     opacity: 0.75;
-    text-shadow: 0 0 6px var(--title-glow), 0 0 14px var(--title-glow);
+    text-shadow:
+      0 0 6px var(--title-glow),
+      0 0 14px var(--title-glow);
   }
   4% {
     opacity: 1;
@@ -112,7 +122,9 @@ body {
   }
   44% {
     opacity: 0.7;
-    text-shadow: 0 0 5px var(--title-glow), 0 0 12px var(--title-glow);
+    text-shadow:
+      0 0 5px var(--title-glow),
+      0 0 12px var(--title-glow);
   }
   46% {
     opacity: 1;
@@ -125,7 +137,9 @@ body {
   }
   76% {
     opacity: 0.8;
-    text-shadow: 0 0 7px var(--title-glow), 0 0 18px var(--title-glow);
+    text-shadow:
+      0 0 7px var(--title-glow),
+      0 0 18px var(--title-glow);
   }
   77% {
     opacity: 1;
@@ -137,7 +151,6 @@ body {
     opacity: 1;
   }
 }
-
 
 .theme-toggle {
   display: inline-flex;
@@ -219,12 +232,15 @@ body {
 }
 
 .favorites-sync-icon {
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 28;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 28;
   color: var(--text);
   font-size: 24px;
   line-height: 1;
 }
-
 
 .favorites-sync-menu {
   position: absolute;
@@ -557,14 +573,22 @@ button:hover {
 }
 
 .favorite-toggle .favorite-icon {
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 30;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 30;
   color: var(--beat-fill);
   font-size: 30px;
   line-height: 1;
 }
 
 .favorite-toggle.active .favorite-icon {
-  font-variation-settings: "FILL" 1, "wght" 300, "GRAD" 0, "opsz" 30;
+  font-variation-settings:
+    "FILL" 1,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 30;
 }
 
 .copy-toggle {
@@ -590,14 +614,22 @@ button:hover {
 }
 
 .delete-toggle .delete-icon {
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 30;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 30;
   color: #e35a5a;
   font-size: 30px;
   line-height: 1;
 }
 
 .copy-toggle .copy-icon {
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 30;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 30;
   color: var(--text);
   font-size: 30px;
   line-height: 1;
@@ -613,7 +645,11 @@ button:hover {
 }
 
 .info-toggle .info-icon {
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 30;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 30;
   color: var(--text);
   font-size: 30px;
   line-height: 1;
@@ -652,7 +688,11 @@ button:hover {
 
 .tune-toggle .tune-icon,
 .play-toggle .play-icon {
-  font-variation-settings: "FILL" 1, "wght" 300, "GRAD" 0, "opsz" 30;
+  font-variation-settings:
+    "FILL" 1,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 30;
   color: var(--text);
   font-size: 30px;
   line-height: 1;
@@ -673,7 +713,11 @@ button:hover {
 }
 
 .fullscreen-toggle .fullscreen-icon {
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 30;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 30;
   color: var(--text);
   font-size: 30px;
   line-height: 1;
@@ -689,7 +733,11 @@ button:hover {
 }
 
 .modal-close .modal-close-icon {
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 30;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 30;
   color: var(--text);
   font-size: 30px;
   line-height: 1;
@@ -701,7 +749,11 @@ button:hover {
 }
 
 .favorite-remove .favorite-remove-icon {
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 20;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 20;
   color: var(--text);
   font-size: 20px;
   line-height: 1;
@@ -780,7 +832,11 @@ button:hover {
 }
 
 .toast-icon {
-  font-variation-settings: "FILL" 1, "wght" 300, "GRAD" 0, "opsz" 20;
+  font-variation-settings:
+    "FILL" 1,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 20;
   color: var(--text);
   font-size: 16px;
   line-height: 1;
@@ -875,7 +931,11 @@ button:hover {
 }
 
 .search-open-icon {
-  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 20;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 300,
+    "GRAD" 0,
+    "opsz" 20;
   font-size: 18px;
   line-height: 1;
 }
@@ -906,7 +966,6 @@ button:hover {
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  box-shadow: inset 0 0 40px var(--viz-shadow);
 }
 
 #viz-panel:fullscreen {
