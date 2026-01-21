@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -68,7 +68,52 @@
             Favorites
           </button>
         </div>
-        <div class="panel-title" id="top-list-title">Top 20</div>
+        <div class="panel-title panel-title-row">
+          <span id="top-list-title">Top 20</span>
+          <div class="favorites-sync">
+            <button
+              id="favorites-sync-button"
+              class="favorites-sync-button hidden"
+              type="button"
+              aria-label="Favorites sync"
+              aria-haspopup="menu"
+              aria-expanded="false"
+            >
+              <span
+                class="material-symbols-outlined favorites-sync-icon"
+                aria-hidden="true"
+                >cloud_upload</span
+              >
+            </button>
+            <div
+              class="favorites-sync-menu hidden"
+              id="favorites-sync-menu"
+              role="menu"
+            >
+              <button
+                type="button"
+                class="favorites-sync-item hidden"
+                data-favorites-sync="refresh"
+              >
+                Refresh favorites
+              </button>
+              <button
+                type="button"
+                class="favorites-sync-item"
+                data-favorites-sync="create"
+              >
+                Create sync code
+              </button>
+              <button
+                type="button"
+                class="favorites-sync-item"
+                data-favorites-sync="enter"
+              >
+                Enter sync code
+              </button>
+            </div>
+          </div>
+        </div>
         <ol class="top-list" id="top-songs">
           Loading top songs…
         </ol>
@@ -82,9 +127,7 @@
             Search
           </button>
           <span class="subtab-spacer" aria-hidden="true"></span>
-          <button class="subtab-btn" data-search-subtab="upload">
-            Upload
-          </button>
+          <button class="subtab-btn" data-search-subtab="upload">Upload</button>
         </div>
         <div class="panel-title" id="search-panel-title">Search</div>
         <div class="search-panel" id="search-panel">
@@ -110,11 +153,7 @@
             <div class="upload-title">Upload by File</div>
             <div class="upload-hint" id="upload-file-hint"></div>
             <div class="search-bar">
-              <input
-                id="upload-file-input"
-                class="search-input"
-                type="file"
-              />
+              <input id="upload-file-input" class="search-input" type="file" />
               <button id="upload-file-button">Load</button>
             </div>
           </div>
@@ -442,6 +481,85 @@
               <span class="info-label">Total branches:</span>
               <span id="info-branches">0</span>
             </div>
+          </div>
+        </div>
+      </div>
+      <div id="favorites-sync-enter-modal" class="modal">
+        <div class="modal-panel">
+          <div class="modal-header">
+            <h2>Favorites Sync</h2>
+            <button
+              id="favorites-sync-enter-close"
+              class="modal-close"
+              aria-label="Close"
+            >
+              <span
+                class="material-symbols-outlined modal-close-icon"
+                aria-hidden="true"
+                >close</span
+              >
+            </button>
+          </div>
+          <div class="modal-body">
+            <p class="modal-hint">
+              Enter the 3-word sync code to pull down your favorites.
+            </p>
+            <input
+              id="favorites-sync-enter-input"
+              class="search-input"
+              type="text"
+              placeholder="the-forever-jukebox"
+              autocomplete="off"
+            />
+            <p
+              id="favorites-sync-enter-status"
+              class="modal-status hidden"
+              role="status"
+              aria-live="polite"
+            ></p>
+          </div>
+          <div class="modal-footer">
+            <button id="favorites-sync-enter-button" type="button">
+              Sync favorites
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="favorites-sync-create-modal" class="modal">
+        <div class="modal-panel">
+          <div class="modal-header">
+            <h2>Favorites Sync</h2>
+            <button
+              id="favorites-sync-create-close"
+              class="modal-close"
+              aria-label="Close"
+            >
+              <span
+                class="material-symbols-outlined modal-close-icon"
+                aria-hidden="true"
+                >close</span
+              >
+            </button>
+          </div>
+          <div class="modal-body">
+            <p class="modal-hint" id="favorites-sync-create-hint">
+              Create a sync code to share your favorites between devices.
+            </p>
+            <div
+              id="favorites-sync-create-output"
+              class="favorites-sync-code hidden"
+            ></div>
+            <p
+              id="favorites-sync-create-status"
+              class="modal-status hidden"
+              role="status"
+              aria-live="polite"
+            ></p>
+          </div>
+          <div class="modal-footer">
+            <button id="favorites-sync-create-button" type="button">
+              Create sync code
+            </button>
           </div>
         </div>
       </div>

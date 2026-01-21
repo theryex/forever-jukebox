@@ -60,6 +60,7 @@ export ADMIN_KEY=...
 export WORKER_COUNT=1
 export ALLOW_USER_UPLOAD=false
 export ALLOW_USER_YOUTUBE=false
+export ALLOW_FAVORITES_SYNC=false
 docker compose up --build
 ```
 

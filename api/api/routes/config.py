@@ -26,6 +26,7 @@ def get_app_config() -> JSONResponse:
     payload = AppConfigResponse(
         allow_user_upload=allow_user_upload,
         allow_user_youtube=_is_enabled("ALLOW_USER_YOUTUBE"),
+        allow_favorites_sync=_is_enabled("ALLOW_FAVORITES_SYNC"),
         max_upload_size=max_upload_size,
         allowed_upload_exts=allowed_upload_exts,
     )

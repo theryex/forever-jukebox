@@ -46,7 +46,7 @@ if [[ "${1:-}" == "--clean" ]]; then
       pkill -9 -f "uvicorn api.main:app" || true
     fi
   fi
-  rm -rf "$ROOT/api/storage/audio" "$ROOT/api/storage/analysis" "$ROOT/api/storage/logs" "$ROOT/api/storage/jobs.db"
+  rm -rf "$ROOT/api/storage/audio" "$ROOT/api/storage/analysis" "$ROOT/api/storage/logs" "$ROOT/api/storage/jobs.db" "$ROOT/api/storage/favorites.db"
   mkdir -p "$ROOT/api/storage/audio" "$ROOT/api/storage/analysis" "$ROOT/api/storage/logs"
   if command -v python3 >/dev/null 2>&1; then
     python3 - <<PY
@@ -56,10 +56,13 @@ import sys
 root = Path("${ROOT}")
 sys.path.insert(0, str(root / "api"))
 from api.db import init_db
+from api.favorites_db import init_favorites_db
 
 init_db(root / "api" / "storage" / "jobs.db")
+init_favorites_db(root / "api" / "storage" / "favorites.db")
 PY
     echo "Recreated job schema."
+    echo "Recreated favorites schema."
   else
     echo "Warning: python3 not found; jobs.db schema not recreated."
   fi

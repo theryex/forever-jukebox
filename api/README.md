@@ -26,9 +26,10 @@ export SPOTIFY_CLIENT_ID=...
 export SPOTIFY_CLIENT_SECRET=...
 export YOUTUBE_API_KEY=...
 export ADMIN_KEY=...
-export ALLOW_USER_UPLOAD=false
-export ALLOW_USER_YOUTUBE=false
 export WORKER_COUNT=1
+export ALLOW_USER_UPLOAD=true
+export ALLOW_USER_YOUTUBE=true
+export ALLOW_FAVORITES_SYNC=true
 ```
 
 ## yt-dlp EJS runtime
@@ -124,6 +125,24 @@ Fetch top tracks (defaults to 20):
 curl "/api/top?limit=20"
 ```
 
+Create a favorites sync code:
+
+```bash
+curl -X POST "/api/favorites/sync" -H "Content-Type: application/json" -d '{"favorites":[{"uniqueSongId":"youtube:dQw4w9WgXcQ","title":"Never Gonna Give You Up","artist":"Rick Astley","duration":213,"sourceType":"youtube"}]}'
+```
+
+Update favorites for an existing sync code:
+
+```bash
+curl -X PUT "/api/favorites/sync/bison-laser-sunset" -H "Content-Type: application/json" -d '{"favorites":[{"uniqueSongId":"youtube:dQw4w9WgXcQ","title":"Never Gonna Give You Up","artist":"Rick Astley","duration":213,"sourceType":"youtube"}]}'
+```
+
+Fetch favorites by sync code:
+
+```bash
+curl "/api/favorites/sync/bison-laser-sunset"
+```
+
 Delete a job and its stored files:
 
 ```bash
@@ -144,3 +163,4 @@ Jobs and analysis outputs are stored under `storage/` in this repo:
 - `storage/analysis/`
 - `storage/logs/` - failure logs (engine output or download errors)
 - `storage/jobs.db`
+- `storage/favorites.db`

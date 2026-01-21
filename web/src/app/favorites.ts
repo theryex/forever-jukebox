@@ -7,6 +7,7 @@ export type FavoriteTrack = {
 };
 
 const FAVORITES_KEY = "fj-favorites";
+const FAVORITES_SYNC_KEY = "fj-favorites-sync";
 const MAX_FAVORITES = 100;
 
 export function loadFavorites(): FavoriteTrack[] {
@@ -74,4 +75,21 @@ export function sortFavorites(items: FavoriteTrack[]) {
 
 export function maxFavorites() {
   return MAX_FAVORITES;
+}
+
+export function loadFavoritesSyncCode(): string | null {
+  const raw = localStorage.getItem(FAVORITES_SYNC_KEY);
+  if (!raw) {
+    return null;
+  }
+  const trimmed = raw.trim().toLowerCase();
+  return trimmed ? trimmed : null;
+}
+
+export function saveFavoritesSyncCode(code: string) {
+  const trimmed = code.trim().toLowerCase();
+  if (!trimmed) {
+    return;
+  }
+  localStorage.setItem(FAVORITES_SYNC_KEY, trimmed);
 }

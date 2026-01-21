@@ -1,4 +1,6 @@
 import type { TrackMeta } from "../engine/types";
+import type { FavoriteTrack } from "./favorites";
+import { maxFavorites } from "./favorites";
 
 type RecordValue = Record<string, unknown>;
 
@@ -70,8 +72,19 @@ export type TopSongItem = {
 export type AppConfig = {
   allow_user_upload: boolean;
   allow_user_youtube: boolean;
+  allow_favorites_sync?: boolean;
   max_upload_size?: number | null;
   allowed_upload_exts?: string[] | null;
+};
+
+export type FavoritesSyncResponse = {
+  code?: string;
+  count?: number;
+  favorites?: FavoriteTrack[];
+};
+
+export type FavoritesSyncPayload = {
+  favorites?: FavoriteTrack[];
 };
 
 async function fetchJson(url: string, options?: RequestInit) {
@@ -313,4 +326,37 @@ export async function fetchJobByTrack(
   }
   const data = await response.json();
   return maybeRepairMissing(parseAnalysisResponse(data));
+}
+
+export async function createFavoritesSync(favorites: FavoriteTrack[]) {
+  const payload = { favorites: favorites.slice(0, maxFavorites()) };
+  const data = await fetchJson("/api/favorites/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return data as FavoritesSyncResponse;
+}
+
+export async function updateFavoritesSync(code: string, favorites: FavoriteTrack[]) {
+  const payload = { favorites: favorites.slice(0, maxFavorites()) };
+  const data = await fetchJson(
+    `/api/favorites/sync/${encodeURIComponent(code)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  return data as FavoritesSyncResponse;
+}
+
+export async function fetchFavoritesSync(code: string) {
+  const data = await fetchJson(
+    `/api/favorites/sync/${encodeURIComponent(code)}`
+  );
+  const payload = data as FavoritesSyncPayload;
+  return Array.isArray(payload.favorites)
+    ? (payload.favorites as FavoriteTrack[])
+    : [];
 }

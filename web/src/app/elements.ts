@@ -127,6 +127,52 @@ export function getElements() {
     document.querySelector<HTMLSpanElement>("#info-branches"),
     "#info-branches"
   );
+  const favoritesSyncEnterModal = requireElement(
+    document.querySelector<HTMLDivElement>("#favorites-sync-enter-modal"),
+    "#favorites-sync-enter-modal"
+  );
+  const favoritesSyncEnterClose = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorites-sync-enter-close"),
+    "#favorites-sync-enter-close"
+  );
+  const favoritesSyncEnterInput = requireElement(
+    document.querySelector<HTMLInputElement>("#favorites-sync-enter-input"),
+    "#favorites-sync-enter-input"
+  );
+  const favoritesSyncEnterButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorites-sync-enter-button"),
+    "#favorites-sync-enter-button"
+  );
+  const favoritesSyncEnterStatus = requireElement(
+    document.querySelector<HTMLParagraphElement>("#favorites-sync-enter-status"),
+    "#favorites-sync-enter-status"
+  );
+  const favoritesSyncCreateModal = requireElement(
+    document.querySelector<HTMLDivElement>("#favorites-sync-create-modal"),
+    "#favorites-sync-create-modal"
+  );
+  const favoritesSyncCreateClose = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorites-sync-create-close"),
+    "#favorites-sync-create-close"
+  );
+  const favoritesSyncCreateButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorites-sync-create-button"),
+    "#favorites-sync-create-button"
+  );
+  const favoritesSyncCreateHint = requireElement(
+    document.querySelector<HTMLParagraphElement>("#favorites-sync-create-hint"),
+    "#favorites-sync-create-hint"
+  );
+  const favoritesSyncCreateOutput = requireElement(
+    document.querySelector<HTMLDivElement>("#favorites-sync-create-output"),
+    "#favorites-sync-create-output"
+  );
+  const favoritesSyncCreateStatus = requireElement(
+    document.querySelector<HTMLParagraphElement>(
+      "#favorites-sync-create-status"
+    ),
+    "#favorites-sync-create-status"
+  );
   const thresholdInput = requireElement(
     document.querySelector<HTMLInputElement>("#threshold"),
     "#threshold"
@@ -256,8 +302,28 @@ export function getElements() {
     "[data-top-subtab]"
   );
   const topListTitle = requireElement(
-    document.querySelector<HTMLDivElement>("#top-list-title"),
+    document.querySelector<HTMLSpanElement>("#top-list-title"),
     "#top-list-title"
+  );
+  const favoritesSyncButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorites-sync-button"),
+    "#favorites-sync-button"
+  );
+  const favoritesSyncIcon = requireElement(
+    favoritesSyncButton.querySelector<HTMLSpanElement>(
+      ".favorites-sync-icon"
+    ),
+    ".favorites-sync-icon"
+  );
+  const favoritesSyncMenu = requireElement(
+    document.querySelector<HTMLDivElement>("#favorites-sync-menu"),
+    "#favorites-sync-menu"
+  );
+  const favoritesSyncItems = requireNonEmpty(
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>("[data-favorites-sync]")
+    ),
+    "[data-favorites-sync]"
   );
   const toast = requireElement(
     document.querySelector<HTMLDivElement>("#toast"),
@@ -294,6 +360,17 @@ export function getElements() {
     tuningClose,
     infoClose,
     tuningApply,
+    favoritesSyncEnterModal,
+    favoritesSyncEnterClose,
+    favoritesSyncEnterInput,
+    favoritesSyncEnterButton,
+    favoritesSyncEnterStatus,
+    favoritesSyncCreateModal,
+    favoritesSyncCreateClose,
+    favoritesSyncCreateButton,
+    favoritesSyncCreateHint,
+    favoritesSyncCreateOutput,
+    favoritesSyncCreateStatus,
     infoDurationEl,
     infoBeatsEl,
     infoBranchesEl,
@@ -330,6 +407,10 @@ export function getElements() {
     favoritesList,
     topSongsTabs,
     topListTitle,
+    favoritesSyncButton,
+    favoritesSyncIcon,
+    favoritesSyncMenu,
+    favoritesSyncItems,
     toast,
     vizStats,
   };

@@ -16,6 +16,7 @@ export type AppState = {
   topSongsTab: "top" | "favorites";
   searchTab: "search" | "upload";
   favorites: FavoriteTrack[];
+  favoritesSyncCode: string | null;
   playTimerMs: number;
   lastPlayStamp: number | null;
   lastBeatIndex: number | null;

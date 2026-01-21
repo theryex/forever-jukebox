@@ -18,7 +18,10 @@ import { handleRouteChange } from "./routing";
 import {
   deleteJob,
   fetchAppConfig,
+  fetchFavoritesSync,
   fetchTopSongs,
+  createFavoritesSync,
+  updateFavoritesSync,
   startYoutubeAnalysis,
   uploadAudio,
   type AnalysisComplete,
@@ -51,9 +54,12 @@ import {
   addFavorite,
   isFavorite,
   loadFavorites,
+  loadFavoritesSyncCode,
   maxFavorites,
   removeFavorite,
+  saveFavoritesSyncCode,
   saveFavorites,
+  sortFavorites,
   type FavoriteTrack,
 } from "./favorites";
 
@@ -62,6 +68,11 @@ const vizStorageKey = "fj-viz";
 type PlaybackDeps = Parameters<typeof pollAnalysis>[1];
 
 type SearchDeps = Parameters<typeof runSearch>[1];
+
+type FavoritesDelta = {
+  added: FavoriteTrack[];
+  removedIds: Set<string>;
+};
 
 export function bootstrap() {
   const elements = getElements();
@@ -80,6 +91,7 @@ export function bootstrap() {
     activeVizIndex: 0,
     topSongsTab: "top",
     favorites: loadFavorites(),
+    favoritesSyncCode: loadFavoritesSyncCode(),
     playTimerMs: 0,
     lastPlayStamp: null,
     lastBeatIndex: null,
@@ -118,6 +130,8 @@ export function bootstrap() {
 
   const playbackDeps = createPlaybackDeps();
   const searchDeps = createSearchDeps();
+  let syncUpdateInFlight = false;
+  let pendingSyncDelta: FavoritesDelta | null = null;
 
   visualizations.forEach((viz, index) => viz.setVisible(index === 0));
   elements.vizButtons.forEach((button) => {
@@ -149,7 +163,7 @@ export function bootstrap() {
       visualizations[state.activeVizIndex]?.update(
         engineState.currentBeatIndex,
         engineState.lastJumped,
-        jumpFrom
+        jumpFrom,
       );
       state.lastBeatIndex = engineState.currentBeatIndex;
     }
@@ -181,6 +195,7 @@ export function bootstrap() {
     });
   renderFavoritesList();
   setTopSongsTab("top");
+  updateFavoritesSyncControls();
 
   resetForNewTrack(context);
   syncFavoriteButton();
@@ -188,7 +203,7 @@ export function bootstrap() {
   handleRouteChange(context, playbackDeps, window.location.pathname).catch(
     (err) => {
       console.warn(`Route load failed: ${String(err)}`);
-    }
+    },
   );
 
   window.addEventListener("popstate", handlePopState);
@@ -199,7 +214,7 @@ export function bootstrap() {
       setActiveTab: (tabId: TabId) => setActiveTabWithRefresh(tabId),
       navigateToTab: (
         tabId: TabId,
-        options?: { replace?: boolean; youtubeId?: string | null }
+        options?: { replace?: boolean; youtubeId?: string | null },
       ) => navigateToTabWithState(tabId, options),
       updateTrackUrl: (youtubeId: string, replace?: boolean) =>
         updateTrackUrl(youtubeId, replace),
@@ -217,7 +232,7 @@ export function bootstrap() {
       setActiveTab: (tabId: TabId) => setActiveTabWithRefresh(tabId),
       navigateToTab: (
         tabId: TabId,
-        options?: { replace?: boolean; youtubeId?: string | null }
+        options?: { replace?: boolean; youtubeId?: string | null },
       ) => navigateToTabWithState(tabId, options),
       updateTrackUrl: (youtubeId: string, replace?: boolean) =>
         updateTrackUrl(youtubeId, replace),
@@ -240,7 +255,7 @@ export function bootstrap() {
     handleRouteChange(context, playbackDeps, window.location.pathname).catch(
       (err) => {
         console.warn(`Route load failed: ${String(err)}`);
-      }
+      },
     );
   }
 
@@ -256,8 +271,38 @@ export function bootstrap() {
     elements.searchSubtabButtons.forEach((button) => {
       button.addEventListener("click", handleSearchSubtabClick);
     });
+    elements.favoritesSyncButton.addEventListener(
+      "click",
+      handleFavoritesSyncToggle,
+    );
+    elements.favoritesSyncItems.forEach((button) => {
+      button.addEventListener("click", handleFavoritesSyncItem);
+    });
+    elements.favoritesSyncEnterClose.addEventListener(
+      "click",
+      handleFavoritesSyncEnterClose,
+    );
+    elements.favoritesSyncCreateClose.addEventListener(
+      "click",
+      handleFavoritesSyncCreateClose,
+    );
+    elements.favoritesSyncEnterButton.addEventListener(
+      "click",
+      handleFavoritesSyncEnterSubmit,
+    );
+    elements.favoritesSyncCreateButton.addEventListener(
+      "click",
+      handleFavoritesSyncCreateSubmit,
+    );
+    elements.favoritesSyncEnterInput.addEventListener(
+      "keydown",
+      handleFavoritesSyncEnterKeydown,
+    );
     elements.uploadFileButton.addEventListener("click", handleUploadFileClick);
-    elements.uploadYoutubeButton.addEventListener("click", handleUploadYoutubeClick);
+    elements.uploadYoutubeButton.addEventListener(
+      "click",
+      handleUploadYoutubeClick,
+    );
     elements.thresholdInput.addEventListener("input", handleThresholdInput);
     elements.minProbInput.addEventListener("input", handleMinProbInput);
     elements.maxProbInput.addEventListener("input", handleMaxProbInput);
@@ -273,6 +318,14 @@ export function bootstrap() {
     elements.infoClose.addEventListener("click", handleCloseInfo);
     elements.tuningModal.addEventListener("click", handleTuningModalClick);
     elements.infoModal.addEventListener("click", handleInfoModalClick);
+    elements.favoritesSyncEnterModal.addEventListener(
+      "click",
+      handleFavoritesSyncEnterModalClick,
+    );
+    elements.favoritesSyncCreateModal.addEventListener(
+      "click",
+      handleFavoritesSyncCreateModalClick,
+    );
     elements.tuningApply.addEventListener("click", handleTuningApply);
     elements.playButton.addEventListener("click", handlePlayClick);
     elements.shortUrlButton.addEventListener("click", handleShortUrlClick);
@@ -286,6 +339,7 @@ export function bootstrap() {
     elements.themeLinks.forEach((link) => {
       link.addEventListener("click", handleThemeClick);
     });
+    document.addEventListener("click", handleFavoritesSyncDocumentClick);
     window.addEventListener("keydown", handleKeydown);
     window.addEventListener("keyup", handleKeyup);
 
@@ -304,6 +358,8 @@ export function bootstrap() {
     elements.favoritesList.classList.toggle("hidden", tabId !== "favorites");
     elements.topListTitle.textContent =
       tabId === "top" ? "Top 20" : "Favorites";
+    closeFavoritesSyncMenu();
+    updateFavoritesSyncControls();
   }
 
   function setSearchTab(tabId: "search" | "upload") {
@@ -313,7 +369,8 @@ export function bootstrap() {
     });
     elements.searchPanel.classList.toggle("hidden", tabId !== "search");
     elements.uploadPanel.classList.toggle("hidden", tabId !== "upload");
-    elements.searchPanelTitle.textContent = tabId === "search" ? "Search" : "Upload";
+    elements.searchPanelTitle.textContent =
+      tabId === "search" ? "Search" : "Upload";
   }
 
   function applyAppConfig(config: AppConfig) {
@@ -330,28 +387,435 @@ export function bootstrap() {
         ? `${Math.round(config.max_upload_size / (1024 * 1024))} MB`
         : "unknown";
       elements.uploadFileHint.textContent = `Max file size: ${maxSize}. Allowed: ${extList}`;
-      elements.uploadFileInput.accept = (config.allowed_upload_exts || []).join(",");
+      elements.uploadFileInput.accept = (config.allowed_upload_exts || []).join(
+        ",",
+      );
     }
     if (!showUpload && state.searchTab === "upload") {
       setSearchTab("search");
     }
     setSearchTab(state.searchTab);
+    updateFavoritesSyncControls();
+    if (config.allow_favorites_sync) {
+      hydrateFavoritesFromSync();
+    }
   }
 
   function handleSearchSubtabClick(event: Event) {
     const button = event.currentTarget as HTMLButtonElement | null;
-    const tabId = button?.dataset.searchSubtab as "search" | "upload" | undefined;
+    const tabId = button?.dataset.searchSubtab as
+      | "search"
+      | "upload"
+      | undefined;
     if (!tabId) {
       return;
     }
     setSearchTab(tabId);
   }
 
-  function updateFavorites(nextFavorites: FavoriteTrack[]) {
+  function handleFavoritesSyncToggle(event: Event) {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleFavoritesSyncMenu();
+  }
+
+  function handleFavoritesSyncItem(event: Event) {
+    event.preventDefault();
+    closeFavoritesSyncMenu();
+    const button = event.currentTarget as HTMLButtonElement | null;
+    const action = button?.dataset.favoritesSync;
+    if (action === "refresh") {
+      void refreshFavoritesFromSync();
+    } else if (action === "create") {
+      openFavoritesSyncCreateModal();
+    } else if (action === "enter") {
+      openFavoritesSyncEnterModal();
+    }
+  }
+
+  function handleFavoritesSyncDocumentClick(event: Event) {
+    if (elements.favoritesSyncMenu.classList.contains("hidden")) {
+      return;
+    }
+    const target = event.target as Node | null;
+    if (!target) {
+      return;
+    }
+    if (
+      elements.favoritesSyncMenu.contains(target) ||
+      elements.favoritesSyncButton.contains(target)
+    ) {
+      return;
+    }
+    closeFavoritesSyncMenu();
+  }
+
+  function toggleFavoritesSyncMenu() {
+    if (elements.favoritesSyncMenu.classList.contains("hidden")) {
+      openFavoritesSyncMenu();
+    } else {
+      closeFavoritesSyncMenu();
+    }
+  }
+
+  function openFavoritesSyncMenu() {
+    elements.favoritesSyncMenu.classList.remove("hidden");
+    elements.favoritesSyncButton.setAttribute("aria-expanded", "true");
+  }
+
+  function closeFavoritesSyncMenu() {
+    elements.favoritesSyncMenu.classList.add("hidden");
+    elements.favoritesSyncButton.setAttribute("aria-expanded", "false");
+  }
+
+  function updateFavoritesSyncControls() {
+    const allowSync = Boolean(state.appConfig?.allow_favorites_sync);
+    const hasCode = Boolean(state.favoritesSyncCode);
+    const showControls = state.topSongsTab === "favorites" && allowSync;
+    elements.favoritesSyncButton.classList.toggle("hidden", !showControls);
+    elements.favoritesSyncIcon.textContent = hasCode ? "cloud" : "cloud_off";
+    const refreshItem = getFavoritesSyncRefreshItem();
+    if (refreshItem) {
+      refreshItem.classList.toggle("hidden", !hasCode || !allowSync);
+    }
+    const createItem = getFavoritesSyncCreateItem();
+    if (createItem) {
+      createItem.textContent = hasCode ? "View sync code" : "Create sync code";
+    }
+  }
+
+  function getFavoritesSyncCreateItem() {
+    return elements.favoritesSyncItems.find(
+      (item) => item.dataset.favoritesSync === "create",
+    );
+  }
+
+  function getFavoritesSyncRefreshItem() {
+    return elements.favoritesSyncItems.find(
+      (item) => item.dataset.favoritesSync === "refresh",
+    );
+  }
+
+  function openFavoritesSyncEnterModal() {
+    closeFavoritesSyncCreateModal();
+    elements.favoritesSyncEnterInput.value = "";
+    clearFavoritesSyncEnterStatus();
+    elements.favoritesSyncEnterModal.classList.add("open");
+    elements.favoritesSyncEnterInput.focus();
+  }
+
+  async function hydrateFavoritesFromSync() {
+    if (!state.appConfig?.allow_favorites_sync) {
+      return;
+    }
+    const code = state.favoritesSyncCode;
+    if (!code) {
+      return;
+    }
+    try {
+      await refreshFavoritesFromSync();
+    } catch (err) {
+      console.warn(`Favorites sync hydrate failed: ${String(err)}`);
+      showToast(context, "Favorites sync failed.");
+    }
+  }
+
+  async function refreshFavoritesFromSync() {
+    if (!state.appConfig?.allow_favorites_sync) {
+      return;
+    }
+    const code = state.favoritesSyncCode;
+    if (!code) {
+      return;
+    }
+    try {
+      const items = await fetchFavoritesSync(code);
+      const favorites = normalizeFavoritesFromSync(items);
+      updateFavorites(favorites, { sync: false });
+      showToast(context, "Favorites refreshed.", { icon: "cloud_done" });
+    } catch (err) {
+      console.warn(`Favorites sync refresh failed: ${String(err)}`);
+      showToast(context, "Favorites sync failed.");
+    }
+  }
+
+  function closeFavoritesSyncEnterModal() {
+    elements.favoritesSyncEnterModal.classList.remove("open");
+  }
+
+  function openFavoritesSyncCreateModal() {
+    closeFavoritesSyncEnterModal();
+    resetFavoritesSyncCreateModal();
+    const existingCode = state.favoritesSyncCode;
+    const hintText = existingCode
+      ? "Enter this code on another device to sync."
+      : "Create a sync code to share your favorites between devices.";
+    elements.favoritesSyncCreateHint.textContent = hintText;
+    if (existingCode) {
+      elements.favoritesSyncCreateOutput.textContent = existingCode;
+      elements.favoritesSyncCreateOutput.classList.remove("hidden");
+      elements.favoritesSyncCreateButton.textContent = "Create new sync code";
+    }
+    elements.favoritesSyncCreateModal.classList.add("open");
+  }
+
+  function closeFavoritesSyncCreateModal() {
+    elements.favoritesSyncCreateModal.classList.remove("open");
+  }
+
+  function resetFavoritesSyncCreateModal() {
+    elements.favoritesSyncCreateButton.classList.remove("hidden");
+    elements.favoritesSyncCreateButton.disabled = false;
+    elements.favoritesSyncCreateButton.textContent = "Create sync code";
+    elements.favoritesSyncCreateOutput.classList.add("hidden");
+    elements.favoritesSyncCreateOutput.textContent = "";
+    elements.favoritesSyncCreateHint.textContent =
+      "Create a sync code to share your favorites between devices.";
+    clearFavoritesSyncCreateStatus();
+  }
+
+  async function handleFavoritesSyncEnterSubmit() {
+    const code = elements.favoritesSyncEnterInput.value.trim();
+    if (!code) {
+      setFavoritesSyncEnterStatus("Enter a sync code first.", true);
+      return;
+    }
+    elements.favoritesSyncEnterButton.disabled = true;
+    elements.favoritesSyncEnterButton.textContent = "Syncing...";
+    setFavoritesSyncEnterStatus("Syncing favorites...");
+    try {
+      const items = await fetchFavoritesSync(code);
+      const favorites = normalizeFavoritesFromSync(items);
+      const confirmed = window.confirm(
+        "Replace your local favorites with the synced list?",
+      );
+      if (confirmed) {
+        const normalizedCode = code.trim().toLowerCase();
+        state.favoritesSyncCode = normalizedCode;
+        saveFavoritesSyncCode(normalizedCode);
+        updateFavoritesSyncControls();
+        updateFavorites(favorites, { sync: false });
+        setFavoritesSyncEnterStatus("Favorites updated.");
+        closeFavoritesSyncEnterModal();
+      } else {
+        clearFavoritesSyncEnterStatus();
+      }
+    } catch {
+      setFavoritesSyncEnterStatus("Unable to sync favorites.", true);
+    } finally {
+      elements.favoritesSyncEnterButton.disabled = false;
+      elements.favoritesSyncEnterButton.textContent = "Sync favorites";
+    }
+  }
+
+  async function handleFavoritesSyncCreateSubmit() {
+    elements.favoritesSyncCreateButton.classList.add("hidden");
+    setFavoritesSyncCreateStatus("Creating sync code...");
+    try {
+      const response = await createFavoritesSync(state.favorites);
+      const code = response.code ?? "";
+      if (!code) {
+        throw new Error("Missing sync code");
+      }
+      state.favoritesSyncCode = code;
+      saveFavoritesSyncCode(code);
+      updateFavoritesSyncControls();
+      if (Array.isArray(response.favorites)) {
+        const normalized = normalizeFavoritesFromSync(response.favorites);
+        updateFavorites(normalized, { sync: false });
+      }
+      elements.favoritesSyncCreateButton.classList.add("hidden");
+      elements.favoritesSyncCreateOutput.textContent = code;
+      elements.favoritesSyncCreateOutput.classList.remove("hidden");
+      elements.favoritesSyncCreateHint.textContent =
+        "Enter this code on another device to sync.";
+      clearFavoritesSyncCreateStatus();
+    } catch {
+      setFavoritesSyncCreateStatus("Unable to create sync code.", true);
+      elements.favoritesSyncCreateButton.classList.remove("hidden");
+      elements.favoritesSyncCreateButton.textContent = "Create sync code";
+    }
+  }
+
+  function handleFavoritesSyncEnterKeydown(event: KeyboardEvent) {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    void handleFavoritesSyncEnterSubmit();
+  }
+
+  function handleFavoritesSyncEnterClose() {
+    closeFavoritesSyncEnterModal();
+  }
+
+  function handleFavoritesSyncCreateClose() {
+    closeFavoritesSyncCreateModal();
+  }
+
+  function handleFavoritesSyncEnterModalClick(event: MouseEvent) {
+    if (event.target === elements.favoritesSyncEnterModal) {
+      closeFavoritesSyncEnterModal();
+    }
+  }
+
+  function handleFavoritesSyncCreateModalClick(event: MouseEvent) {
+    if (event.target === elements.favoritesSyncCreateModal) {
+      closeFavoritesSyncCreateModal();
+    }
+  }
+
+  function normalizeFavoritesFromSync(items: FavoriteTrack[]) {
+    const normalized: FavoriteTrack[] = [];
+    for (const item of items) {
+      if (!item || typeof item.uniqueSongId !== "string") {
+        continue;
+      }
+      const title =
+        typeof item.title === "string" && item.title.trim()
+          ? item.title.trim()
+          : "Untitled";
+      const artist = typeof item.artist === "string" ? item.artist : "";
+      const duration =
+        typeof item.duration === "number" && Number.isFinite(item.duration)
+          ? item.duration
+          : null;
+      const sourceType =
+        item.sourceType === "upload" ? "upload" : ("youtube" as const);
+      normalized.push({
+        uniqueSongId: item.uniqueSongId,
+        title,
+        artist,
+        duration,
+        sourceType,
+      });
+    }
+    return sortFavorites(normalized).slice(0, maxFavorites());
+  }
+
+  function setFavoritesSyncEnterStatus(message: string, isError = false) {
+    elements.favoritesSyncEnterStatus.textContent = message;
+    elements.favoritesSyncEnterStatus.classList.remove("hidden");
+    elements.favoritesSyncEnterStatus.classList.toggle("error", isError);
+  }
+
+  function clearFavoritesSyncEnterStatus() {
+    elements.favoritesSyncEnterStatus.textContent = "";
+    elements.favoritesSyncEnterStatus.classList.add("hidden");
+    elements.favoritesSyncEnterStatus.classList.remove("error");
+  }
+
+  function setFavoritesSyncCreateStatus(message: string, isError = false) {
+    elements.favoritesSyncCreateStatus.textContent = message;
+    elements.favoritesSyncCreateStatus.classList.remove("hidden");
+    elements.favoritesSyncCreateStatus.classList.toggle("error", isError);
+  }
+
+  function clearFavoritesSyncCreateStatus() {
+    elements.favoritesSyncCreateStatus.textContent = "";
+    elements.favoritesSyncCreateStatus.classList.add("hidden");
+    elements.favoritesSyncCreateStatus.classList.remove("error");
+  }
+
+  function updateFavorites(
+    nextFavorites: FavoriteTrack[],
+    options?: { sync?: boolean },
+  ) {
+    const prevFavorites = state.favorites;
     state.favorites = nextFavorites;
     saveFavorites(nextFavorites);
     renderFavoritesList();
     syncFavoriteButton();
+    if (options?.sync === false) {
+      return;
+    }
+    const delta = computeFavoritesDelta(prevFavorites, nextFavorites);
+    if (delta.added.length === 0 && delta.removedIds.size === 0) {
+      return;
+    }
+    scheduleFavoritesSync(delta);
+  }
+
+  function scheduleFavoritesSync(delta: FavoritesDelta) {
+    if (!state.appConfig?.allow_favorites_sync) {
+      return;
+    }
+    if (!state.favoritesSyncCode) {
+      return;
+    }
+    if (syncUpdateInFlight) {
+      pendingSyncDelta = delta;
+      return;
+    }
+    void syncFavoritesToBackend(delta);
+  }
+
+  async function syncFavoritesToBackend(delta: FavoritesDelta) {
+    syncUpdateInFlight = true;
+    try {
+      const code = state.favoritesSyncCode;
+      if (!code) {
+        return;
+      }
+      const remoteItems = await fetchFavoritesSync(code);
+      const serverFavorites = normalizeFavoritesFromSync(remoteItems);
+      const merged = applyFavoritesDelta(serverFavorites, delta);
+      const response = await updateFavoritesSync(code, merged);
+      if (Array.isArray(response.favorites)) {
+        const normalized = normalizeFavoritesFromSync(response.favorites);
+        updateFavorites(normalized, { sync: false });
+      }
+    } catch (err) {
+      console.warn(`Favorites sync update failed: ${String(err)}`);
+      showToast(context, "Favorites sync failed.");
+    } finally {
+      syncUpdateInFlight = false;
+      if (pendingSyncDelta) {
+        const pending = pendingSyncDelta;
+        pendingSyncDelta = null;
+        scheduleFavoritesSync(pending);
+      }
+    }
+  }
+
+  function computeFavoritesDelta(
+    prevFavorites: FavoriteTrack[],
+    nextFavorites: FavoriteTrack[],
+  ): FavoritesDelta {
+    const prevMap = new Map<string, FavoriteTrack>();
+    const nextMap = new Map<string, FavoriteTrack>();
+    prevFavorites.forEach((item) => prevMap.set(item.uniqueSongId, item));
+    nextFavorites.forEach((item) => nextMap.set(item.uniqueSongId, item));
+    const added: FavoriteTrack[] = [];
+    for (const [id, item] of nextMap.entries()) {
+      if (!prevMap.has(id)) {
+        added.push(item);
+      }
+    }
+    const removedIds = new Set<string>();
+    for (const id of prevMap.keys()) {
+      if (!nextMap.has(id)) {
+        removedIds.add(id);
+      }
+    }
+    return { added, removedIds };
+  }
+
+  function applyFavoritesDelta(
+    serverFavorites: FavoriteTrack[],
+    delta: FavoritesDelta,
+  ) {
+    let next = serverFavorites.filter(
+      (item) => !delta.removedIds.has(item.uniqueSongId),
+    );
+    const existingIds = new Set(next.map((item) => item.uniqueSongId));
+    for (const item of delta.added) {
+      if (!existingIds.has(item.uniqueSongId)) {
+        next.push(item);
+      }
+    }
+    next = sortFavorites(next).slice(0, maxFavorites());
+    return next;
   }
 
   function getCurrentFavoriteId() {
@@ -380,8 +844,9 @@ export function bootstrap() {
       const link = document.createElement("a");
       link.href = `/listen/${encodeURIComponent(item.uniqueSongId)}`;
       const titleText = item.title || "Untitled";
-      const hasArtist = Boolean(item.artist);
-      const artistText = hasArtist ? ` — ${item.artist}` : "";
+      const artist = (item.artist || "").trim();
+      const showArtist = artist !== "" && artist !== "Unknown";
+      const artistText = showArtist ? ` — ${artist}` : "";
       link.textContent = `${titleText}${artistText}`;
       link.dataset.favoriteId = item.uniqueSongId;
       link.dataset.sourceType = sourceType;
@@ -465,6 +930,7 @@ export function bootstrap() {
       return;
     }
     updateFavorites(removeFavorite(state.favorites, favoriteId));
+    showFavoriteToast("Removed from Favorites");
   }
 
   function handleFavoriteToggle() {
@@ -474,7 +940,7 @@ export function bootstrap() {
     }
     if (isFavorite(state.favorites, currentId)) {
       updateFavorites(removeFavorite(state.favorites, currentId));
-      showToast(context, "Removed from Favorites");
+      showFavoriteToast("Removed from Favorites");
       return;
     }
     const title = state.trackTitle || "Untitled";
@@ -493,10 +959,18 @@ export function bootstrap() {
     }
     updateFavorites(result.favorites);
     if (result.status === "added") {
-      showToast(context, "Added to Favorites");
+      showFavoriteToast("Added to Favorites");
     } else {
       showToast(context, "Favorited");
     }
+  }
+
+  function showFavoriteToast(message: string) {
+    if (state.favoritesSyncCode) {
+      showToast(context, message, { icon: "cloud_done" });
+      return;
+    }
+    showToast(context, message);
   }
 
   function handleTabClick(event: Event) {
@@ -570,7 +1044,7 @@ export function bootstrap() {
     if (config.max_upload_size && file.size > config.max_upload_size) {
       showToast(
         context,
-        `File is too large. Max ${Math.round(config.max_upload_size / (1024 * 1024))} MB.`
+        `File is too large. Max ${Math.round(config.max_upload_size / (1024 * 1024))} MB.`,
       );
       return;
     }
@@ -733,7 +1207,7 @@ export function bootstrap() {
     const label = isFullscreen ? "Exit Fullscreen" : "Fullscreen";
     const icon =
       elements.fullscreenButton.querySelector<HTMLSpanElement>(
-        ".fullscreen-icon"
+        ".fullscreen-icon",
       );
     if (icon) {
       icon.textContent = isFullscreen ? "fullscreen_exit" : "fullscreen";
@@ -877,7 +1351,7 @@ export function bootstrap() {
 
   function navigateToTabWithState(
     tabId: TabId,
-    options?: { replace?: boolean; youtubeId?: string | null }
+    options?: { replace?: boolean; youtubeId?: string | null },
   ) {
     setActiveTabWithRefresh(tabId);
     navigateToTab(tabId, options, getCurrentTrackId());
@@ -917,7 +1391,7 @@ export function bootstrap() {
       }
     } catch (err) {
       elements.topSongsList.textContent = `Top songs unavailable: ${String(
-        err
+        err,
       )}`;
     }
   }
@@ -938,13 +1412,13 @@ export function bootstrap() {
       setAnalysisStatus(
         context,
         "Select a track to generate a short URL.",
-        false
+        false,
       );
       navigateToTabWithState("search");
       return;
     }
     const shortUrl = `${window.location.origin}/listen/${encodeURIComponent(
-      state.lastYouTubeId
+      state.lastYouTubeId,
     )}`;
     try {
       await navigator.clipboard.writeText(shortUrl);
@@ -972,19 +1446,19 @@ export function bootstrap() {
     visualizations[state.activeVizIndex]?.setSelectedEdge(
       state.selectedEdge && !state.selectedEdge.deleted
         ? state.selectedEdge
-        : null
+        : null,
     );
     if (state.lastBeatIndex !== null) {
       visualizations[state.activeVizIndex]?.update(
         state.lastBeatIndex,
         false,
-        null
+        null,
       );
     }
     elements.vizButtons.forEach((button) => {
       button.classList.toggle(
         "active",
-        Number(button.dataset.viz) === state.activeVizIndex
+        Number(button.dataset.viz) === state.activeVizIndex,
       );
     });
     localStorage.setItem(vizStorageKey, String(state.activeVizIndex));
