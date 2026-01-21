@@ -27,6 +27,10 @@ export function setActiveTab(
   elements.tabButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.tabButton === tabId);
   });
+  elements.playTabButton.classList.toggle(
+    "is-playing",
+    state.isRunning && tabId !== "play"
+  );
   if (tabId === "play") {
     visualizations[state.activeVizIndex]?.resizeNow();
   } else if (tabId === "top") {

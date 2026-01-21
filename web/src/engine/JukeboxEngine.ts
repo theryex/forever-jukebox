@@ -24,6 +24,13 @@ const DEFAULT_CONFIG: JukeboxConfig = {
   minLongBranch: 0,
 };
 
+const TICK_INTERVAL_MS = 50;
+const RESYNC_TOLERANCE_SECONDS = 0.05;
+const JUMP_OFFSET_FRACTION = 0.06;
+const MIN_JUMP_OFFSET_SECONDS = 0.015;
+const MAX_JUMP_OFFSET_SECONDS = 0.05;
+const JUMP_OFFSET_EPSILON = 0.001;
+
 type UpdateListener = (state: JukeboxState) => void;
 
 export interface JukeboxEngineOptions {
@@ -57,6 +64,7 @@ export class JukeboxEngine {
   private lastJumped = false;
   private lastJumpTime: number | null = null;
   private lastJumpFromIndex: number | null = null;
+  private lastTickTime: number | null = null;
   private forceBranch = false;
   private deletedEdgeKeys = new Set<string>();
   private rng: () => number;
@@ -219,26 +227,31 @@ export class JukeboxEngine {
     this.lastJumped = false;
     this.lastJumpTime = null;
     this.lastJumpFromIndex = null;
+    this.lastTickTime = null;
   }
 
   private tick() {
     if (!this.ticking || !this.analysis) {
       return;
     }
-    this.timerId = window.setTimeout(() => this.tick(), 50);
+    this.timerId = window.setTimeout(() => this.tick(), TICK_INTERVAL_MS);
     if (!this.player.isPlaying()) {
       this.emitState(false);
+      this.lastTickTime = null;
       return;
     }
 
     const currentTime = this.player.getCurrentTime();
+    const lastTickTime = this.lastTickTime;
+    this.lastTickTime = currentTime;
     if (
       this.currentBeatIndex < 0 ||
-      currentTime < this.beats[this.currentBeatIndex].start ||
+      currentTime <
+        this.beats[this.currentBeatIndex].start - RESYNC_TOLERANCE_SECONDS ||
       currentTime >
         this.beats[this.currentBeatIndex].start +
           this.beats[this.currentBeatIndex].duration +
-          0.2
+          RESYNC_TOLERANCE_SECONDS
     ) {
       this.currentBeatIndex = this.findBeatIndexByTime(currentTime);
       if (this.currentBeatIndex >= 0) {
@@ -250,7 +263,9 @@ export class JukeboxEngine {
 
     if (
       this.currentBeatIndex >= 0 &&
-      currentTime >= this.nextTransitionTime - 0.02
+      lastTickTime !== null &&
+      lastTickTime < this.nextTransitionTime &&
+      currentTime >= this.nextTransitionTime
     ) {
       this.advanceBeat();
     }
@@ -263,9 +278,11 @@ export class JukeboxEngine {
     if (!this.analysis || !this.graph) {
       return;
     }
-    const nextIndex = this.currentBeatIndex + 1;
+    const currentIndex = this.currentBeatIndex;
+    const nextIndex = currentIndex + 1;
     const wrappedIndex = nextIndex >= this.beats.length ? 0 : nextIndex;
-    const seed = this.beats[wrappedIndex];
+    const enforceLastBranch = currentIndex === this.graph.lastBranchPoint;
+    const seed = enforceLastBranch ? this.beats[currentIndex] : this.beats[wrappedIndex];
     const branchState = { curRandomBranchChance: this.curRandomBranchChance };
     const selection = selectNextBeatIndex(
       seed,
@@ -273,16 +290,24 @@ export class JukeboxEngine {
       this.config,
       this.rng,
       branchState,
-      this.forceBranch
+      this.forceBranch || enforceLastBranch
     );
     this.curRandomBranchChance = branchState.curRandomBranchChance;
-    const chosenIndex = selection.index;
-    if (chosenIndex !== wrappedIndex) {
-      const targetTime = this.beats[chosenIndex].start;
+    const chosenIndex = selection.jumped ? selection.index : wrappedIndex;
+    const wrappedToStart = wrappedIndex === 0 && currentIndex === this.beats.length - 1;
+    if (selection.jumped || wrappedToStart) {
+      const targetBeat = this.beats[chosenIndex];
+      const unclampedOffset = targetBeat.duration * JUMP_OFFSET_FRACTION;
+      const offset = Math.min(
+        Math.max(unclampedOffset, MIN_JUMP_OFFSET_SECONDS),
+        MAX_JUMP_OFFSET_SECONDS
+      );
+      const maxOffset = Math.max(0, targetBeat.duration - JUMP_OFFSET_EPSILON);
+      const targetTime = targetBeat.start + Math.min(offset, maxOffset);
       this.player.scheduleJump(targetTime, this.nextTransitionTime);
       this.lastJumped = true;
       this.lastJumpTime = targetTime;
-      this.lastJumpFromIndex = wrappedIndex;
+      this.lastJumpFromIndex = selection.jumped ? seed.which : currentIndex;
     } else {
       this.lastJumpFromIndex = null;
     }

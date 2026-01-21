@@ -31,7 +31,7 @@ import kotlin.math.sqrt
 private const val EDGE_SAMPLE_LIMIT = 300
 private const val EDGE_AVOID_RADIUS = 6f
 private const val EDGE_SELECT_THRESHOLD = 8f
-private const val BEAT_SELECT_THRESHOLD = 8f
+private const val BEAT_SELECT_THRESHOLD = 16f
 
 class JumpLine(val from: Int, val to: Int, val startedAt: Long)
 
@@ -108,7 +108,7 @@ fun JukeboxVisualization(
 
             if (currentIndex >= 0 && currentIndex < positions.size) {
                 val p = positions[currentIndex]
-                drawCircle(beatHighlight, radius = 6f, center = Offset(p.x, p.y))
+                drawCircle(beatHighlight, radius = 10f, center = Offset(p.x, p.y))
             }
 
             if (jumpLine != null) {

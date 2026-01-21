@@ -45,9 +45,21 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-export function showToast(context: AppContext, message: string) {
+export function showToast(
+  context: AppContext,
+  message: string,
+  options?: { icon?: string }
+) {
   const { elements, state } = context;
-  elements.toast.textContent = message;
+  if (options?.icon) {
+    elements.toast.classList.add("has-icon");
+    elements.toast.innerHTML =
+      `<span class="material-symbols-outlined toast-icon" aria-hidden="true">` +
+      `${options.icon}</span><span>${message}</span>`;
+  } else {
+    elements.toast.classList.remove("has-icon");
+    elements.toast.textContent = message;
+  }
   elements.toast.classList.remove("hidden");
   if (state.toastTimer !== null) {
     window.clearTimeout(state.toastTimer);

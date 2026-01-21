@@ -4,6 +4,7 @@ import type { CanvasViz } from "../visualization/CanvasViz";
 import type { Edge } from "../engine/types";
 import type { getElements } from "./elements";
 import type { FavoriteTrack } from "./favorites";
+import type { AppConfig } from "./api";
 
 export type TabId = "top" | "search" | "play" | "faq";
 
@@ -13,7 +14,9 @@ export type AppState = {
   activeTabId: TabId;
   activeVizIndex: number;
   topSongsTab: "top" | "favorites";
+  searchTab: "search" | "upload";
   favorites: FavoriteTrack[];
+  favoritesSyncCode: string | null;
   playTimerMs: number;
   lastPlayStamp: number | null;
   lastBeatIndex: number | null;
@@ -25,8 +28,8 @@ export type AppState = {
   autoComputedThreshold: number | null;
   lastJobId: string | null;
   lastYouTubeId: string | null;
+  pendingAutoFavoriteId: string | null;
   lastPlayCountedJobId: string | null;
-  shortUrlResetTimer: number | null;
   shiftBranching: boolean;
   selectedEdge: Edge | null;
   topSongsRefreshTimer: number | null;
@@ -34,6 +37,9 @@ export type AppState = {
   trackTitle: string | null;
   trackArtist: string | null;
   toastTimer: number | null;
+  deleteEligible: boolean;
+  deleteEligibilityJobId: string | null;
+  appConfig: AppConfig | null;
   pollController: AbortController | null;
   listenTimerId: number | null;
   wakeLock: WakeLockSentinel | null;

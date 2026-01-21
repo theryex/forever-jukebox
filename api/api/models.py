@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class JobBase(BaseModel):
     id: str
     youtube_id: str | None = None
+    created_at: str | None = None
+    is_user_supplied: bool | None = None
 
 
 class JobProgress(JobBase):
@@ -65,9 +67,44 @@ class PlayCountResponse(BaseModel):
     play_count: int
 
 
+class PlayCountUpdate(BaseModel):
+    play_count: int
+
+
 class AnalysisStartResponse(BaseModel):
     id: str
     status: str
     progress: int | None = None
     message: str | None = None
-    message: str | None = None
+
+
+class AppConfigResponse(BaseModel):
+    allow_user_upload: bool
+    allow_user_youtube: bool
+    allow_favorites_sync: bool = False
+    max_upload_size: int | None = None
+    allowed_upload_exts: list[str] | None = None
+
+
+class FavoriteTrack(BaseModel):
+    uniqueSongId: str
+    title: str
+    artist: str
+    duration: float | None = None
+    sourceType: str | None = None
+
+    model_config = ConfigDict(extra="allow")
+
+
+class FavoritesSyncRequest(BaseModel):
+    favorites: list[FavoriteTrack]
+
+
+class FavoritesSyncResponse(BaseModel):
+    code: str
+    count: int
+    favorites: list[FavoriteTrack] | None = None
+
+
+class FavoritesSyncPayload(BaseModel):
+    favorites: list[FavoriteTrack]

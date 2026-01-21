@@ -263,7 +263,7 @@ export class CanvasViz {
     if (current) {
       this.overlayCtx.fillStyle = this.theme.beatHighlight;
       this.overlayCtx.beginPath();
-      this.overlayCtx.arc(current.x, current.y, 6, 0, Math.PI * 2);
+      this.overlayCtx.arc(current.x, current.y, 10, 0, Math.PI * 2);
       this.overlayCtx.fill();
     }
     if (this.jumpLine) {

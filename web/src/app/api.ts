@@ -1,4 +1,6 @@
 import type { TrackMeta } from "../engine/types";
+import type { FavoriteTrack } from "./favorites";
+import { maxFavorites } from "./favorites";
 
 type RecordValue = Record<string, unknown>;
 
@@ -15,6 +17,8 @@ export type AnalysisStatus =
 
 type AnalysisBase = {
   youtube_id?: string;
+  created_at?: string;
+  is_user_supplied?: boolean;
 };
 
 export type AnalysisInProgress = AnalysisBase & {
@@ -65,6 +69,24 @@ export type TopSongItem = {
   youtube_id?: string;
 };
 
+export type AppConfig = {
+  allow_user_upload: boolean;
+  allow_user_youtube: boolean;
+  allow_favorites_sync?: boolean;
+  max_upload_size?: number | null;
+  allowed_upload_exts?: string[] | null;
+};
+
+export type FavoritesSyncResponse = {
+  code?: string;
+  count?: number;
+  favorites?: FavoriteTrack[];
+};
+
+export type FavoritesSyncPayload = {
+  favorites?: FavoriteTrack[];
+};
+
 async function fetchJson(url: string, options?: RequestInit) {
   const response = await fetch(url, options);
   if (!response.ok) {
@@ -83,19 +105,37 @@ function parseAnalysisResponse(data: unknown): AnalysisResponse | null {
   const id = typeof data.id === "string" ? data.id : undefined;
   const youtubeId =
     typeof data.youtube_id === "string" ? data.youtube_id : undefined;
+  const createdAt =
+    typeof data.created_at === "string" ? data.created_at : undefined;
   const progress = typeof data.progress === "number" ? data.progress : undefined;
   const message = typeof data.message === "string" ? data.message : undefined;
+  let isUserSupplied: boolean | undefined;
+  if (typeof data.is_user_supplied === "boolean") {
+    isUserSupplied = data.is_user_supplied;
+  } else if (typeof data.is_user_supplied === "number") {
+    isUserSupplied = data.is_user_supplied !== 0;
+  }
   if (status === "downloading" || status === "queued" || status === "processing") {
     if (!id) {
       return null;
     }
-    return { status, id, progress, message, youtube_id: youtubeId };
+    return {
+      status,
+      id,
+      progress,
+      message,
+      youtube_id: youtubeId,
+      created_at: createdAt,
+      is_user_supplied: isUserSupplied,
+    };
   }
   if (status === "failed") {
     return {
       status,
       id,
       youtube_id: youtubeId,
+      created_at: createdAt,
+      is_user_supplied: isUserSupplied,
       error: typeof data.error === "string" ? data.error : undefined,
     };
   }
@@ -108,6 +148,8 @@ function parseAnalysisResponse(data: unknown): AnalysisResponse | null {
       id,
       result: data.result as AnalysisResult,
       youtube_id: youtubeId,
+      created_at: createdAt,
+      is_user_supplied: isUserSupplied,
       track: isRecord(data.track) ? (data.track as TrackMeta) : undefined,
     };
   }
@@ -117,10 +159,26 @@ function parseAnalysisResponse(data: unknown): AnalysisResponse | null {
       id,
       result: data.result as AnalysisResult,
       youtube_id: youtubeId,
+      created_at: createdAt,
+      is_user_supplied: isUserSupplied,
       track: isRecord(data.track) ? (data.track as TrackMeta) : undefined,
     };
   }
   return null;
+}
+
+async function maybeRepairMissing(response: AnalysisResponse | null) {
+  if (!response || response.status !== "failed") {
+    return response;
+  }
+  if (response.error !== "Analysis missing" || !response.id) {
+    return response;
+  }
+  try {
+    return await repairJob(response.id);
+  } catch {
+    return response;
+  }
 }
 
 export async function fetchAnalysis(jobId: string, signal?: AbortSignal) {
@@ -167,14 +225,28 @@ export async function repairJob(jobId: string, signal?: AbortSignal) {
 
 export async function startYoutubeAnalysis(payload: {
   youtube_id: string;
-  title: string;
-  artist: string;
+  title?: string;
+  artist?: string;
+  is_user_supplied?: boolean;
 }) {
   const data = await fetchJson("/api/analysis/youtube", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+  return parseAnalysisResponse(data);
+}
+
+export async function uploadAudio(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch("/api/upload", { method: "POST", body });
+  if (!response.ok) {
+    const error = new Error(`Upload failed (${response.status})`);
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
+  }
+  const data = await response.json();
   return parseAnalysisResponse(data);
 }
 
@@ -199,12 +271,28 @@ export async function fetchTopSongs(limit: number) {
   return Array.isArray(data?.items) ? (data.items as TopSongItem[]) : [];
 }
 
+export async function fetchAppConfig(): Promise<AppConfig> {
+  const data = await fetchJson("/api/app-config");
+  return data as AppConfig;
+}
+
 export async function recordPlay(jobId: string) {
   const response = await fetch(`/api/plays/${encodeURIComponent(jobId)}`, {
     method: "POST",
   });
   if (!response.ok) {
     throw new Error(`Play count failed (${response.status})`);
+  }
+}
+
+export async function deleteJob(jobId: string) {
+  const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const error = new Error(`Delete failed (${response.status})`);
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
   }
 }
 
@@ -221,7 +309,7 @@ export async function fetchJobByYoutube(
     throw new Error(`Lookup failed (${response.status})`);
   }
   const data = await response.json();
-  return parseAnalysisResponse(data);
+  return maybeRepairMissing(parseAnalysisResponse(data));
 }
 
 export async function fetchJobByTrack(
@@ -237,5 +325,38 @@ export async function fetchJobByTrack(
     throw new Error(`Lookup failed (${response.status})`);
   }
   const data = await response.json();
-  return parseAnalysisResponse(data);
+  return maybeRepairMissing(parseAnalysisResponse(data));
+}
+
+export async function createFavoritesSync(favorites: FavoriteTrack[]) {
+  const payload = { favorites: favorites.slice(0, maxFavorites()) };
+  const data = await fetchJson("/api/favorites/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return data as FavoritesSyncResponse;
+}
+
+export async function updateFavoritesSync(code: string, favorites: FavoriteTrack[]) {
+  const payload = { favorites: favorites.slice(0, maxFavorites()) };
+  const data = await fetchJson(
+    `/api/favorites/sync/${encodeURIComponent(code)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  return data as FavoritesSyncResponse;
+}
+
+export async function fetchFavoritesSync(code: string) {
+  const data = await fetchJson(
+    `/api/favorites/sync/${encodeURIComponent(code)}`
+  );
+  const payload = data as FavoritesSyncPayload;
+  return Array.isArray(payload.favorites)
+    ? (payload.favorites as FavoriteTrack[])
+    : [];
 }

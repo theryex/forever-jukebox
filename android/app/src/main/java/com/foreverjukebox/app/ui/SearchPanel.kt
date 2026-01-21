@@ -6,25 +6,28 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +44,7 @@ fun SearchPanel(
     onYoutubeSelect: (String) -> Unit
 ) {
     val searchState = state.search
+    var query by remember(searchState.query) { mutableStateOf(searchState.query) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -55,36 +59,40 @@ fun SearchPanel(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("Search", style = MaterialTheme.typography.labelLarge)
-            var query by remember { mutableStateOf("") }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    label = { Text("Search by artist or track") },
-                    textStyle = MaterialTheme.typography.bodySmall,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { onSearch(query) }),
-                    shape = RoundedCornerShape(999.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = SmallFieldMinHeight)
-                )
-                Button(
-                    onClick = { onSearch(query) },
-                    colors = pillButtonColors(),
-                    border = pillButtonBorder(),
-                    shape = PillShape,
-                    contentPadding = SmallButtonPadding,
-                    modifier = Modifier.heightIn(min = SmallFieldMinHeight)
-                ) {
-                    Text("Search", style = MaterialTheme.typography.bodySmall)
-                }
-            }
+            val trimmedQuery = query.trim()
+            val keyboardController = LocalSoftwareKeyboardController.current
+            val focusManager = LocalFocusManager.current
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Search by artist or track") },
+                textStyle = MaterialTheme.typography.bodySmall,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {
+                    if (trimmedQuery.isBlank()) return@KeyboardActions
+                    onSearch(trimmedQuery)
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                }),
+                trailingIcon = {
+                    IconButton(
+                        onClick = {
+                            onSearch(trimmedQuery)
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
+                        },
+                        enabled = trimmedQuery.isNotBlank()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = "Search"
+                        )
+                    }
+                },
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
 
             if (searchState.spotifyLoading) {
                 Text("Searching Spotify…", style = MaterialTheme.typography.bodySmall)

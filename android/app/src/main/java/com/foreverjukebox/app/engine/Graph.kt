@@ -1,5 +1,7 @@
 package com.foreverjukebox.app.engine
 
+import kotlin.math.max
+
 private const val TIMBRE_WEIGHT = 1.0
 private const val PITCH_WEIGHT = 10.0
 private const val LOUD_START_WEIGHT = 1.0
@@ -231,9 +233,26 @@ private fun calculateReachability(quanta: List<QuantumBase>) {
     }
 }
 
-private fun findBestLastBeat(quanta: List<QuantumBase>): Pair<Int, Double> {
+private fun maxBackwardEdge(q: QuantumBase): Int {
+    var maxBackward = 0
+    for (neighbor in q.neighbors) {
+        val delta = q.which - neighbor.dest.which
+        if (delta > maxBackward) {
+            maxBackward = delta
+        }
+    }
+    return maxBackward
+}
+
+private fun findBestLastBeat(
+    quanta: List<QuantumBase>,
+    config: JukeboxConfig
+): Pair<Int, Double> {
     var longest = 0
     var longestReach = 0.0
+    var bestLongIndex = -1
+    var bestLongBack = 0
+    var bestLongReach = 0.0
     for (i in quanta.size - 1 downTo 0) {
         val q = quanta[i]
         val distanceToEnd = quanta.size - i
@@ -241,10 +260,26 @@ private fun findBestLastBeat(quanta: List<QuantumBase>): Pair<Int, Double> {
         if (reach > longestReach && q.neighbors.isNotEmpty()) {
             longestReach = reach
             longest = i
-            if (reach >= REACH_THRESHOLD) break
+        }
+        val maxBackward = maxBackwardEdge(q)
+        if (q.neighbors.isNotEmpty() && maxBackward >= config.minLongBranch) {
+            if (i > bestLongIndex) {
+                bestLongIndex = i
+                bestLongBack = maxBackward
+                bestLongReach = reach
+            } else if (i == bestLongIndex) {
+                if (maxBackward > bestLongBack || (maxBackward == bestLongBack && reach > bestLongReach)) {
+                    bestLongBack = maxBackward
+                    bestLongReach = reach
+                }
+            }
         }
     }
-    return longest to longestReach
+    return if (bestLongIndex >= 0) {
+        bestLongIndex to bestLongReach
+    } else {
+        longest to longestReach
+    }
 }
 
 private fun filterOutBadBranches(quanta: List<QuantumBase>, lastIndex: Int) {
@@ -305,7 +340,7 @@ fun buildJumpGraph(analysis: TrackAnalysis, config: JukeboxConfig): JukeboxGraph
     }
 
     calculateReachability(quanta)
-    val (lastBranchPoint, longestReach) = findBestLastBeat(quanta)
+    val (lastBranchPoint, longestReach) = findBestLastBeat(quanta, config)
     filterOutBadBranches(quanta, lastBranchPoint)
     if (config.removeSequentialBranches) {
         filterOutSequentialBranches(quanta, lastBranchPoint)

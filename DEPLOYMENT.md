@@ -17,6 +17,9 @@ docker run \
   -e SPOTIFY_CLIENT_ID=... \
   -e SPOTIFY_CLIENT_SECRET=... \
   -e YOUTUBE_API_KEY=... \
+  -e ADMIN_KEY=... \
+  -e ALLOW_USER_UPLOAD=false \
+  -e ALLOW_USER_YOUTUBE=false \
   forever-jukebox
 ```
 
@@ -25,3 +28,6 @@ Notes:
 - The API serves the UI at `/` and JSON at `/api/*`.
 - Persist `api/storage/` with a volume (EBS/EFS on AWS); container storage is ephemeral.
 - Optional: set `PORT` to change the internal listen port (defaults to 8000).
+- Optional: set `WORKER_COUNT` (default `1`) to control worker concurrency.
+- `ADMIN_KEY` is optional unless you need admin-only endpoints (delete outside 30 minutes, play count adjustments).
+- `ALLOW_USER_UPLOAD` and `ALLOW_USER_YOUTUBE` default to false; set them to `true` to enable user uploads or user-supplied YouTube jobs.

@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.foreverjukebox.app.data.ApiClient
 import com.foreverjukebox.app.data.AppPreferences
+import com.foreverjukebox.app.data.AnalysisResponse
 import com.foreverjukebox.app.data.FavoriteSourceType
 import com.foreverjukebox.app.data.FavoriteTrack
 import com.foreverjukebox.app.data.SpotifySearchItem
@@ -25,11 +26,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import java.io.File
 import java.io.IOException
+import java.time.Duration
+import java.time.OffsetDateTime
 import kotlin.math.roundToInt
 import kotlin.coroutines.coroutineContext
 
@@ -50,6 +53,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var audioLoadInFlight = false
     private var lastJobId: String? = null
     private var lastPlayCountedJobId: String? = null
+    private var deleteEligibilityJobId: String? = null
+    private var topSongsLoaded = false
+    private var appConfigLoaded = false
+    private var favoritesSyncHydratedFor: String? = null
+    private var syncUpdateInFlight = false
+    private var pendingSyncDelta: FavoritesDelta? = null
+    private val tabHistory = ArrayDeque<TabId>()
 
     init {
         viewModelScope.launch {
@@ -60,8 +70,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         showBaseUrlPrompt = url.isNullOrBlank()
                     )
                 }
-                if (!url.isNullOrBlank() && state.value.activeTab == TabId.Top) {
-                    refreshTopSongs()
+                if (!url.isNullOrBlank()) {
+                    if (!appConfigLoaded) {
+                        appConfigLoaded = true
+                        viewModelScope.launch {
+                            runCatching { api.getAppConfig(url).also { preferences.setAppConfig(it) } }
+                        }
+                    }
+                    if (state.value.activeTab == TabId.Top && !topSongsLoaded) {
+                        refreshTopSongs()
+                    }
+                    maybeHydrateFavoritesFromSync()
                 }
             }
         }
@@ -69,9 +88,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             preferences.favorites.collect { favorites ->
                 val sorted = sortFavorites(favorites).take(MAX_FAVORITES)
                 if (sorted.size != favorites.size) {
-                    updateFavorites(sorted)
+                    updateFavorites(sorted, sync = false)
                 } else {
                     _state.update { it.copy(favorites = sorted) }
+                }
+            }
+        }
+        viewModelScope.launch {
+            preferences.favoritesSyncCode.collect { code ->
+                _state.update { it.copy(favoritesSyncCode = code) }
+                maybeHydrateFavoritesFromSync()
+            }
+        }
+        viewModelScope.launch {
+            preferences.appConfig.collect { config ->
+                if (config != null) {
+                    _state.update { it.copy(allowFavoritesSync = config.allowFavoritesSync) }
+                    maybeHydrateFavoritesFromSync()
                 }
             }
         }
@@ -133,7 +166,96 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setActiveTab(tabId: TabId) {
-        _state.update { it.copy(activeTab = tabId) }
+        if (tabId == TabId.Top && state.value.activeTab == TabId.Top) {
+            setTopSongsTab(TopSongsTab.TopSongs)
+            return
+        }
+        applyActiveTab(tabId, recordHistory = true)
+    }
+
+    fun canNavigateBack(): Boolean = tabHistory.isNotEmpty()
+
+    fun navigateBack(): Boolean {
+        if (tabHistory.isEmpty()) return false
+        val previous = tabHistory.removeLast()
+        applyActiveTab(previous, recordHistory = false)
+        return true
+    }
+
+    fun setTopSongsTab(tab: TopSongsTab) {
+        _state.update { it.copy(topSongsTab = tab) }
+    }
+
+    fun refreshFavoritesFromSync() {
+        viewModelScope.launch {
+            if (!state.value.allowFavoritesSync) {
+                return@launch
+            }
+            val result = fetchFavoritesFromSync()
+            if (result == null) {
+                showToast("Favorites sync failed.")
+            } else {
+                updateFavorites(result, sync = false)
+                favoritesSyncHydratedFor = state.value.favoritesSyncCode
+                showToast("Favorites refreshed.")
+            }
+        }
+    }
+
+    fun createFavoritesSyncCode() {
+        viewModelScope.launch {
+            if (!state.value.allowFavoritesSync) {
+                return@launch
+            }
+            val baseUrl = state.value.baseUrl
+            if (baseUrl.isBlank()) {
+                showToast("API base URL is required.")
+                return@launch
+            }
+            val favorites = state.value.favorites
+            try {
+                val response = api.createFavoritesSync(baseUrl, favorites)
+                val code = response.code?.trim()?.lowercase()
+                if (code.isNullOrBlank()) {
+                    throw IOException("Missing sync code")
+                }
+                preferences.setFavoritesSyncCode(code)
+                favoritesSyncHydratedFor = code
+                val normalized = normalizeFavorites(response.favorites)
+                if (normalized.isNotEmpty()) {
+                    updateFavorites(normalized, sync = false)
+                }
+            } catch (_: Exception) {
+                showToast("Unable to create sync code.")
+            }
+        }
+    }
+
+    suspend fun fetchFavoritesPreview(code: String): List<FavoriteTrack>? {
+        return fetchFavoritesFromSync(code)
+    }
+
+    fun applyFavoritesSync(code: String, favorites: List<FavoriteTrack>) {
+        viewModelScope.launch {
+            if (!state.value.allowFavoritesSync) {
+                return@launch
+            }
+            preferences.setFavoritesSyncCode(code)
+            favoritesSyncHydratedFor = code
+            updateFavorites(normalizeFavorites(favorites), sync = false)
+        }
+    }
+
+    private fun applyActiveTab(tabId: TabId, recordHistory: Boolean) {
+        val current = state.value.activeTab
+        if (tabId == current) return
+        if (recordHistory && tabHistory.lastOrNull() != current) {
+            tabHistory.addLast(current)
+        }
+        _state.update {
+            val nextTopTab = if (tabId == TabId.Top) TopSongsTab.TopSongs else it.topSongsTab
+            it.copy(activeTab = tabId, topSongsTab = nextTopTab)
+        }
         if (tabId == TabId.Top) {
             scheduleTopSongsRefresh()
         }
@@ -142,13 +264,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setTopSongsTab(tab: TopSongsTab) {
-        _state.update { it.copy(topSongsTab = tab) }
-    }
-
     private fun scheduleTopSongsRefresh() {
         val baseUrl = state.value.baseUrl
-        if (baseUrl.isBlank()) return
+        if (baseUrl.isBlank() || topSongsLoaded) return
         refreshTopSongsJob?.cancel()
         refreshTopSongsJob = viewModelScope.launch {
             delay(250)
@@ -160,8 +278,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(search = transform(it.search)) }
     }
 
+    private fun setSearchQuery(value: String) {
+        updateSearchState { it.copy(query = value) }
+    }
+
     private fun updatePlaybackState(transform: (PlaybackState) -> PlaybackState) {
         _state.update { it.copy(playback = transform(it.playback)) }
+    }
+
+    private fun setLastJobId(jobId: String?) {
+        lastJobId = jobId
+        updatePlaybackState { it.copy(lastJobId = jobId) }
+    }
+
+    private suspend fun maybeRepairMissing(
+        baseUrl: String,
+        response: AnalysisResponse
+    ): AnalysisResponse {
+        if (response.status != "failed") {
+            return response
+        }
+        if (response.error != "Analysis missing" || response.id == null) {
+            return response
+        }
+        return try {
+            api.repairJob(baseUrl, response.id)
+        } catch (_: Exception) {
+            response
+        }
     }
 
     fun toggleFavoriteForCurrent(): Boolean {
@@ -183,7 +327,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     title = title,
                     artist = artist,
                     duration = playback.trackDurationSeconds,
-                    artworkUrl = null,
                     sourceType = FavoriteSourceType.Youtube
                 )
                 updateFavorites(favorites + newFavorite)
@@ -260,7 +403,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun setAnalysisProgress(progress: Int?, message: String? = null) {
-        applyLoadingEvent(LoadingEvent.AnalysisProgress(progress, message))
+        val normalized = if (progress == 0 && message != "Loading audio") null else progress
+        applyLoadingEvent(LoadingEvent.AnalysisProgress(normalized, message))
+    }
+
+    private fun setDecodeProgress(percent: Int) {
+        val current = state.value.playback
+        if (
+            current.analysisInFlight &&
+            !current.analysisMessage.isNullOrBlank() &&
+            current.analysisMessage != "Loading audio"
+        ) {
+            return
+        }
+        setAnalysisProgress(percent, "Loading audio")
     }
 
     private fun setAnalysisCalculating() {
@@ -312,6 +468,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshTopSongs() {
         val baseUrl = state.value.baseUrl
         if (baseUrl.isBlank()) return
+        topSongsLoaded = true
         viewModelScope.launch {
             updateSearchState { it.copy(topSongsLoading = true) }
             try {
@@ -328,6 +485,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun runSpotifySearch(query: String) {
         val baseUrl = state.value.baseUrl
         if (baseUrl.isBlank()) return
+        setSearchQuery(query)
         _state.update {
             it.copy(
                 search = it.search.copy(
@@ -358,7 +516,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (artist.isNotBlank()) {
                 try {
-                    val response = api.getJobByTrack(baseUrl, name, artist)
+                    val response = maybeRepairMissing(
+                        baseUrl,
+                        api.getJobByTrack(baseUrl, name, artist)
+                    )
                     val jobId = response.id
                     val youtubeId = response.youtubeId
                     if (jobId != null && youtubeId != null && response.status != "failed") {
@@ -409,16 +570,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update {
             it.copy(
                 search = it.search.copy(
+                    query = "",
                     spotifyResults = emptyList(),
-                    youtubeMatches = emptyList()
+                    youtubeMatches = emptyList(),
+                    youtubeLoading = false,
+                    pendingTrackName = null,
+                    pendingTrackArtist = null
                 ),
                 playback = it.playback.copy(
                     audioLoading = false,
                     lastYouTubeId = youtubeId
-                ),
-                activeTab = TabId.Play
+                )
             )
         }
+        applyActiveTab(TabId.Play, recordHistory = true)
         viewModelScope.launch {
             if (tryLoadCachedTrack(youtubeId)) {
                 return@launch
@@ -435,7 +600,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     throw IllegalStateException("Invalid job response")
                 }
                 setAnalysisQueued(response.progress?.roundToInt(), response.message)
-                lastJobId = response.id
+                setLastJobId(response.id)
                 startPoll(response.id)
             } catch (err: Exception) {
                 setAnalysisError("Loading failed.")
@@ -452,22 +617,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 playback = it.playback.copy(
                     audioLoading = false,
                     lastYouTubeId = youtubeId
-                ),
-                activeTab = TabId.Play
+                )
             )
         }
+        applyActiveTab(TabId.Play, recordHistory = true)
         viewModelScope.launch {
             if (tryLoadCachedTrack(youtubeId)) {
                 return@launch
             }
             setAnalysisQueued(null, "Fetching audio...")
             try {
-                val response = api.getJobByYoutube(baseUrl, youtubeId)
+                val response = maybeRepairMissing(baseUrl, api.getJobByYoutube(baseUrl, youtubeId))
                 if (response.id == null) {
                     setAnalysisError("Loading failed.")
                     return@launch
                 }
-                lastJobId = response.id
+                updateDeleteEligibility(response)
+                setLastJobId(response.id)
                 if (response.status == "complete" && response.result != null) {
                     if (!state.value.playback.audioLoaded) {
                         val loaded = loadAudioFromJob(response.id)
@@ -491,21 +657,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun loadExistingJob(
         jobId: String,
         youtubeId: String,
-        response: com.foreverjukebox.app.data.AnalysisResponse
+        response: AnalysisResponse
     ) {
         resetForNewTrack()
         _state.update {
             it.copy(
                 search = it.search.copy(
+                    query = "",
                     spotifyResults = emptyList(),
-                    youtubeMatches = emptyList()
+                    youtubeMatches = emptyList(),
+                    youtubeLoading = false,
+                    pendingTrackName = null,
+                    pendingTrackArtist = null
                 ),
-                playback = it.playback.copy(lastYouTubeId = youtubeId),
-                activeTab = TabId.Play
+                playback = it.playback.copy(lastYouTubeId = youtubeId)
             )
         }
+        applyActiveTab(TabId.Play, recordHistory = true)
         setAnalysisQueued(null, response.message)
-        lastJobId = jobId
+        setLastJobId(jobId)
+        updateDeleteEligibility(response)
         try {
             if (response.status == "complete" && response.result != null) {
                 if (!state.value.playback.audioLoaded) {
@@ -539,62 +710,102 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun audioFile(youtubeId: String): File = File(cacheDir(), "$youtubeId.audio")
 
-    private fun jobFile(youtubeId: String): File = File(cacheDir(), "$youtubeId.job")
-
     private suspend fun tryLoadCachedTrack(youtubeId: String): Boolean {
-        setAnalysisCalculating()
-        setAudioLoading(true)
-        return withContext(Dispatchers.IO) {
+        val cached = withContext(Dispatchers.IO) {
             val analysisPath = analysisFile(youtubeId)
             val audioPath = audioFile(youtubeId)
             if (!analysisPath.exists() || !audioPath.exists()) {
-                return@withContext false
+                return@withContext null
             }
             val analysisText = analysisPath.readText()
-            val analysis = json.parseToJsonElement(analysisText)
+            val response = json.decodeFromString<AnalysisResponse>(analysisText)
             val audioBytes = audioPath.readBytes()
-            val cachedJobId = jobFile(youtubeId).takeIf { it.exists() }?.readText()
-            try {
-                withContext(Dispatchers.Default) {
-                    controller.player.loadBytes(audioBytes, cachedJobId ?: youtubeId)
-                }
-            } catch (err: OutOfMemoryError) {
-                audioPath.delete()
-                return@withContext false
-            }
-            audioLoadInFlight = false
-            updatePlaybackState { it.copy(audioLoaded = true, audioLoading = false) }
-            lastJobId = cachedJobId
-            val response = com.foreverjukebox.app.data.AnalysisResponse(
-                id = cachedJobId,
-                status = "complete",
-                result = analysis
-            )
-            applyAnalysisResult(response)
+            response to audioBytes
         }
+        if (cached == null) {
+            return false
+        }
+        val (response, audioBytes) = cached
+        setAnalysisProgress(0, "Loading audio")
+        try {
+            withContext(Dispatchers.Default) {
+                controller.player.loadBytes(
+                    audioBytes,
+                    response.id ?: youtubeId
+                ) { percent ->
+                    viewModelScope.launch(Dispatchers.Main) {
+                        setAnalysisProgress(percent, "Loading audio")
+                    }
+                }
+            }
+        } catch (err: OutOfMemoryError) {
+            withContext(Dispatchers.IO) {
+                audioFile(youtubeId).delete()
+            }
+            return false
+        }
+        audioLoadInFlight = false
+        updatePlaybackState {
+            it.copy(
+                audioLoaded = true,
+                audioLoading = false,
+                analysisProgress = null,
+                analysisMessage = null,
+                analysisInFlight = false,
+                analysisCalculating = false
+            )
+        }
+        setLastJobId(response.id)
+        applyAnalysisResult(response)
+        return true
     }
 
-    private fun cacheAudio(youtubeId: String, jobId: String?, bytes: ByteArray) {
+    private fun cacheAudio(youtubeId: String, bytes: ByteArray) {
         viewModelScope.launch(Dispatchers.IO) {
             ignoreFailures {
                 audioFile(youtubeId).writeBytes(bytes)
-                if (!jobId.isNullOrBlank()) {
-                    jobFile(youtubeId).writeText(jobId)
-                }
             }
         }
     }
 
-    private fun cacheAnalysis(youtubeId: String, jobId: String?, analysis: JsonElement) {
+    private fun cacheAnalysis(
+        youtubeId: String,
+        response: AnalysisResponse
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             ignoreFailures {
-                val payload = json.encodeToString(JsonElement.serializer(), analysis)
+                val payload = json.encodeToString(response)
                 analysisFile(youtubeId).writeText(payload)
-                if (!jobId.isNullOrBlank()) {
-                    jobFile(youtubeId).writeText(jobId)
-                }
             }
         }
+    }
+
+    private suspend fun clearCachedTrack(youtubeId: String) {
+        withContext(Dispatchers.IO) {
+            ignoreFailures { analysisFile(youtubeId).delete() }
+            ignoreFailures { audioFile(youtubeId).delete() }
+        }
+    }
+
+    private fun updateDeleteEligibility(response: AnalysisResponse) {
+        val jobId = response.id ?: lastJobId ?: return
+        if (deleteEligibilityJobId == jobId) {
+            return
+        }
+        val createdAt = response.createdAt
+        if (createdAt.isNullOrBlank()) {
+            updatePlaybackState { it.copy(deleteEligible = false) }
+            deleteEligibilityJobId = null
+            return
+        }
+        deleteEligibilityJobId = jobId
+        val parsed = runCatching { OffsetDateTime.parse(createdAt).toInstant() }.getOrNull()
+        val eligible = if (parsed == null) {
+            false
+        } else {
+            Duration.between(parsed, OffsetDateTime.now().toInstant()).seconds <= 1800
+        }
+        updatePlaybackState { it.copy(deleteEligible = eligible) }
     }
 
     fun togglePlayback() {
@@ -629,7 +840,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    suspend fun deleteCurrentJob(): Boolean {
+        val jobId = lastJobId ?: return false
+        val baseUrl = state.value.baseUrl
+        val youtubeId = state.value.playback.lastYouTubeId
+        if (baseUrl.isBlank()) return false
+        return try {
+            api.deleteJob(baseUrl, jobId)
+            if (youtubeId != null) {
+                clearCachedTrack(youtubeId)
+                updateFavorites(state.value.favorites.filterNot { it.uniqueSongId == youtubeId })
+            }
+            resetForNewTrack()
+            _state.update { it.copy(activeTab = TabId.Top, topSongsTab = TopSongsTab.TopSongs) }
+            tabHistory.removeLastOrNull()?.let { last ->
+                if (last != TabId.Play) {
+                    tabHistory.addLast(last)
+                }
+            }
+            true
+        } catch (_: Exception) {
+            updatePlaybackState { it.copy(deleteEligible = false) }
+            deleteEligibilityJobId = jobId
+            false
+        }
+    }
+
     fun deleteSelectedEdge() = Unit
+
+    fun prepareForExit() {
+        resetForNewTrack()
+        engine.clearAnalysis()
+        controller.player.clear()
+        controller.setTrackMeta(null, null)
+        _state.update { it.copy(activeTab = TabId.Top, topSongsTab = TopSongsTab.TopSongs) }
+    }
 
     fun selectBeat(index: Int) {
         val data = state.value.playback.vizData ?: return
@@ -680,8 +925,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun handleDeepLink(uri: Uri?) {
         if (uri == null) return
-        if (uri.scheme == "foreverjukebox" && uri.host == "listen") {
-            val id = uri.pathSegments.firstOrNull() ?: return
+        if (uri.scheme != "https" || uri.host != "foreverjukebox.com") return
+        val segments = uri.pathSegments
+        if (segments.size >= 2 && segments.firstOrNull() == "listen") {
+            val id = segments[1]
             loadTrackByYoutubeId(id)
         }
     }
@@ -707,7 +954,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openListenTab() {
-        _state.update { it.copy(activeTab = TabId.Play) }
+        applyActiveTab(TabId.Play, recordHistory = true)
     }
 
     private suspend fun pollAnalysis(jobId: String) {
@@ -715,6 +962,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val intervalMs = 2000L
         while (coroutineContext.isActive) {
             val response = api.getAnalysis(baseUrl, jobId)
+            updateDeleteEligibility(response)
             when (response.status) {
                 "failed" -> {
                     if (response.error == "Analysis missing") {
@@ -766,16 +1014,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun loadAudioFromJob(jobId: String): Boolean {
         val baseUrl = state.value.baseUrl
         setAudioLoading(true)
+        setAnalysisProgress(0, "Loading audio")
         try {
             val bytes = api.fetchAudioBytes(baseUrl, jobId)
             withContext(Dispatchers.Default) {
-                controller.player.loadBytes(bytes, jobId)
+                controller.player.loadBytes(bytes, jobId) { percent ->
+                    viewModelScope.launch(Dispatchers.Main) {
+                        setDecodeProgress(percent)
+                    }
+                }
             }
-            audioLoadInFlight = false
-            updatePlaybackState { it.copy(audioLoaded = true, audioLoading = false) }
-            val youtubeId = state.value.playback.lastYouTubeId
+        audioLoadInFlight = false
+        updatePlaybackState { it.copy(audioLoaded = true, audioLoading = false) }
+        val youtubeId = state.value.playback.lastYouTubeId
             if (youtubeId != null) {
-                cacheAudio(youtubeId, jobId, bytes)
+                cacheAudio(youtubeId, bytes)
             }
             return true
         } catch (err: IOException) {
@@ -793,8 +1046,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun applyAnalysisResult(response: com.foreverjukebox.app.data.AnalysisResponse): Boolean {
+    private suspend fun applyAnalysisResult(response: AnalysisResponse): Boolean {
         val result = response.result ?: return false
+        updateDeleteEligibility(response)
         setAnalysisCalculating()
         val vizData = withContext(Dispatchers.Default) {
             engine.loadAnalysis(result)
@@ -828,17 +1082,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     analysisInFlight = false,
                     analysisCalculating = false,
                     audioLoading = false
-                ),
-                activeTab = TabId.Play
+                )
             )
         }
+        applyActiveTab(TabId.Play, recordHistory = true)
         val jobId = response.id ?: lastJobId
         if (jobId != null) {
             recordPlay(jobId)
         }
         val youtubeId = state.value.playback.lastYouTubeId
         if (youtubeId != null) {
-            cacheAnalysis(youtubeId, jobId, result)
+            cacheAnalysis(youtubeId, response)
         }
         ForegroundPlaybackService.update(getApplication())
         return true
@@ -881,6 +1135,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     jumpLine = null,
                     playTitle = "",
                     lastYouTubeId = null,
+                    lastJobId = null,
+                    deleteEligible = false,
                     analysisProgress = null,
                     analysisMessage = null,
                     analysisErrorMessage = null,
@@ -899,8 +1155,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         engine.stopJukebox()
         val emptyViz = VisualizationData(beats = emptyList(), edges = mutableListOf())
         _state.update { it.copy(playback = it.playback.copy(vizData = emptyViz)) }
-        lastJobId = null
+        setLastJobId(null)
         lastPlayCountedJobId = null
+        deleteEligibilityJobId = null
         pollJob?.cancel()
         pollJob = null
         syncTuningState()
@@ -984,11 +1241,152 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun updateFavorites(favorites: List<FavoriteTrack>) {
+    private fun updateFavorites(favorites: List<FavoriteTrack>, sync: Boolean = true) {
+        val previous = state.value.favorites
         val sorted = sortFavorites(favorites).take(MAX_FAVORITES)
         _state.update { it.copy(favorites = sorted) }
         viewModelScope.launch {
             preferences.setFavorites(sorted)
+        }
+        if (!sync) {
+            return
+        }
+        val delta = computeFavoritesDelta(previous, sorted)
+        if (delta.added.isEmpty() && delta.removedIds.isEmpty()) {
+            return
+        }
+        scheduleFavoritesSync(delta)
+    }
+
+    private fun scheduleFavoritesSync(delta: FavoritesDelta) {
+        if (!state.value.allowFavoritesSync) {
+            return
+        }
+        val code = state.value.favoritesSyncCode
+        if (code.isNullOrBlank()) {
+            return
+        }
+        if (syncUpdateInFlight) {
+            pendingSyncDelta = delta
+            return
+        }
+        viewModelScope.launch {
+            syncFavoritesToBackend(delta)
+        }
+    }
+
+    private suspend fun syncFavoritesToBackend(delta: FavoritesDelta) {
+        syncUpdateInFlight = true
+        try {
+            if (!state.value.allowFavoritesSync) {
+                return
+            }
+            val baseUrl = state.value.baseUrl
+            val code = state.value.favoritesSyncCode
+            if (baseUrl.isBlank() || code.isNullOrBlank()) {
+                return
+            }
+            val serverFavorites = fetchFavoritesFromSync(code) ?: return
+            val merged = applyFavoritesDelta(serverFavorites, delta)
+            val response = api.updateFavoritesSync(baseUrl, code, merged)
+            val normalized = normalizeFavorites(response.favorites)
+            if (normalized.isNotEmpty()) {
+                updateFavorites(normalized, sync = false)
+            }
+        } catch (_: Exception) {
+            showToast("Favorites sync failed.")
+        } finally {
+            syncUpdateInFlight = false
+            pendingSyncDelta?.let {
+                pendingSyncDelta = null
+                scheduleFavoritesSync(it)
+            }
+        }
+    }
+
+    private fun computeFavoritesDelta(
+        previous: List<FavoriteTrack>,
+        next: List<FavoriteTrack>
+    ): FavoritesDelta {
+        val prevMap = previous.associateBy { it.uniqueSongId }
+        val nextMap = next.associateBy { it.uniqueSongId }
+        val added = nextMap.filterKeys { it !in prevMap }.values.toList()
+        val removedIds = prevMap.keys.filter { it !in nextMap }.toSet()
+        return FavoritesDelta(added = added, removedIds = removedIds)
+    }
+
+    private fun applyFavoritesDelta(
+        serverFavorites: List<FavoriteTrack>,
+        delta: FavoritesDelta
+    ): List<FavoriteTrack> {
+        val filtered = serverFavorites.filter { it.uniqueSongId !in delta.removedIds }
+        val existing = filtered.map { it.uniqueSongId }.toHashSet()
+        val merged = filtered.toMutableList()
+        delta.added.forEach { favorite ->
+            if (existing.add(favorite.uniqueSongId)) {
+                merged.add(favorite)
+            }
+        }
+        return sortFavorites(merged).take(MAX_FAVORITES)
+    }
+
+    private fun normalizeFavorites(items: List<FavoriteTrack>): List<FavoriteTrack> {
+        val normalized = items.mapNotNull { item ->
+            val id = item.uniqueSongId
+            if (id.isBlank()) return@mapNotNull null
+            val title = item.title.ifBlank { "Untitled" }
+            val artist = item.artist
+            FavoriteTrack(
+                uniqueSongId = id,
+                title = title,
+                artist = artist,
+                duration = item.duration,
+                sourceType = item.sourceType
+            )
+        }
+        return sortFavorites(normalized).take(MAX_FAVORITES)
+    }
+
+    private suspend fun fetchFavoritesFromSync(codeOverride: String? = null): List<FavoriteTrack>? {
+        if (!state.value.allowFavoritesSync) {
+            return null
+        }
+        val baseUrl = state.value.baseUrl
+        val code = codeOverride ?: state.value.favoritesSyncCode
+        if (baseUrl.isBlank() || code.isNullOrBlank()) {
+            return null
+        }
+        return try {
+            api.fetchFavoritesSync(baseUrl, code.trim())
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun maybeHydrateFavoritesFromSync() {
+        val code = state.value.favoritesSyncCode
+        val baseUrl = state.value.baseUrl
+        if (code.isNullOrBlank() || baseUrl.isBlank() || !state.value.allowFavoritesSync) {
+            return
+        }
+        if (favoritesSyncHydratedFor == code) {
+            return
+        }
+        favoritesSyncHydratedFor = code
+        viewModelScope.launch {
+            val favorites = fetchFavoritesFromSync(code)
+            if (favorites == null) {
+                favoritesSyncHydratedFor = null
+                showToast("Favorites sync failed.")
+                return@launch
+            }
+            updateFavorites(favorites, sync = false)
+        }
+    }
+
+    private suspend fun showToast(message: String) {
+        withContext(Dispatchers.Main) {
+            android.widget.Toast.makeText(getApplication(), message, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1004,5 +1402,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private const val MAX_FAVORITES = 100
     }
 }
+
+private data class FavoritesDelta(
+    val added: List<FavoriteTrack>,
+    val removedIds: Set<String>
+)
 
 private const val END_EPSILON_SECONDS = 0.02

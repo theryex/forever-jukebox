@@ -118,7 +118,27 @@ export async function showYoutubeMatches(
       titleSpan.textContent = title;
       const durationSpan = document.createElement("span");
       durationSpan.textContent = formatTrackDuration(ytDuration);
-      li.append(titleSpan, durationSpan);
+      const metaWrap = document.createElement("span");
+      metaWrap.className = "search-meta";
+      metaWrap.append(durationSpan);
+      if (item.id) {
+        const openLink = document.createElement("a");
+        openLink.className = "search-open";
+        openLink.href = `https://www.youtube.com/watch?v=${encodeURIComponent(String(item.id))}`;
+        openLink.target = "_blank";
+        openLink.rel = "noreferrer";
+        openLink.title = "Open on YouTube";
+        openLink.addEventListener("click", (event) => {
+          event.stopPropagation();
+        });
+        const openIcon = document.createElement("span");
+        openIcon.className = "material-symbols-outlined search-open-icon";
+        openIcon.setAttribute("aria-hidden", "true");
+        openIcon.textContent = "open_in_new";
+        openLink.append(openIcon);
+        metaWrap.append(openLink);
+      }
+      li.append(titleSpan, metaWrap);
       function handleClick(event: Event) {
         handleYoutubeMatchClick(context, deps, event);
       }

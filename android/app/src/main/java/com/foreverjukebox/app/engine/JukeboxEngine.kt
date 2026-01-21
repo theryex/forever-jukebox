@@ -7,6 +7,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import android.os.SystemClock
+import kotlin.math.min
 
 interface JukeboxPlayer {
     fun play()
@@ -36,6 +37,7 @@ class JukeboxEngine(
     private var lastJumped = false
     private var lastJumpTime: Double? = null
     private var lastJumpFromIndex: Int? = null
+    private var lastTickTime: Double? = null
     private var forceBranch = false
     private var ignoreResyncUntilMs: Long = 0
     private val deletedEdgeKeys = mutableSetOf<String>()
@@ -67,6 +69,14 @@ class JukeboxEngine(
         graph = analysis?.let { buildJumpGraph(it, config) }
         applyDeletedEdges()
         beats = analysis?.beats ?: mutableListOf()
+        resetState()
+    }
+
+    fun clearAnalysis() {
+        deletedEdgeKeys.clear()
+        analysis = null
+        graph = null
+        beats = mutableListOf()
         resetState()
     }
 
@@ -161,6 +171,7 @@ class JukeboxEngine(
         lastJumped = false
         lastJumpTime = null
         lastJumpFromIndex = null
+        lastTickTime = null
         ignoreResyncUntilMs = 0
     }
 
@@ -168,16 +179,19 @@ class JukeboxEngine(
         if (!ticking || analysis == null) return
         if (!player.isPlaying()) {
             emitState(false)
+            lastTickTime = null
             return
         }
 
         val currentTime = player.getCurrentTime()
+        val previousTickTime = lastTickTime
+        lastTickTime = currentTime
         val nowMs = SystemClock.elapsedRealtime()
         if (nowMs >= ignoreResyncUntilMs) {
             if (
                 currentBeatIndex < 0 ||
-                currentTime < beats[currentBeatIndex].start ||
-                currentTime > beats[currentBeatIndex].start + beats[currentBeatIndex].duration + RESYNC_WINDOW_SECONDS
+                currentTime < beats[currentBeatIndex].start - RESYNC_TOLERANCE_SECONDS ||
+                currentTime > beats[currentBeatIndex].start + beats[currentBeatIndex].duration + RESYNC_TOLERANCE_SECONDS
             ) {
                 currentBeatIndex = findBeatIndexByTime(currentTime)
                 if (currentBeatIndex >= 0) {
@@ -186,7 +200,12 @@ class JukeboxEngine(
             }
         }
 
-        if (currentBeatIndex >= 0 && currentTime >= nextTransitionTime - RESYNC_EPSILON_SECONDS) {
+        if (
+            currentBeatIndex >= 0 &&
+            previousTickTime != null &&
+            previousTickTime < nextTransitionTime &&
+            currentTime >= nextTransitionTime
+        ) {
             advanceBeat()
         }
 
@@ -196,9 +215,11 @@ class JukeboxEngine(
 
     private fun advanceBeat() {
         val currentGraph = graph ?: return
-        val nextIndex = currentBeatIndex + 1
+        val currentIndex = currentBeatIndex
+        val nextIndex = currentIndex + 1
         val wrappedIndex = if (nextIndex >= beats.size) 0 else nextIndex
-        val seed = beats[wrappedIndex]
+        val enforceLastBranch = currentIndex == currentGraph.lastBranchPoint
+        val seed = if (enforceLastBranch) beats[currentIndex] else beats[wrappedIndex]
         val branchState = BranchState(curRandomBranchChance)
         val selection = selectNextBeatIndex(
             seed,
@@ -206,16 +227,21 @@ class JukeboxEngine(
             config,
             rng,
             branchState,
-            forceBranch
+            forceBranch || enforceLastBranch
         )
         curRandomBranchChance = branchState.curRandomBranchChance
-        val chosenIndex = selection.first
-        if (chosenIndex != wrappedIndex) {
-            val targetTime = beats[chosenIndex].start
+        val chosenIndex = if (selection.second) selection.first else wrappedIndex
+        val wrappedToStart = wrappedIndex == 0 && currentIndex == beats.lastIndex
+        if (selection.second || wrappedToStart) {
+            val targetBeat = beats[chosenIndex]
+            val unclampedOffset = targetBeat.duration * JUMP_OFFSET_FRACTION
+            val offset = unclampedOffset.coerceIn(MIN_JUMP_OFFSET_SECONDS, MAX_JUMP_OFFSET_SECONDS)
+            val maxOffset = (targetBeat.duration - JUMP_OFFSET_EPSILON).coerceAtLeast(0.0)
+            val targetTime = targetBeat.start + min(offset, maxOffset)
             player.scheduleJump(targetTime, nextTransitionTime)
             lastJumped = true
             lastJumpTime = targetTime
-            lastJumpFromIndex = wrappedIndex
+            lastJumpFromIndex = if (selection.second) seed.which else currentIndex
             val holdMs = (beats[chosenIndex].duration * 1000.0)
                 .toLong()
                 .coerceAtLeast(MIN_JUMP_HOLD_MS)
@@ -288,6 +314,9 @@ data class VisualizationData(
 )
 
 private const val TICK_INTERVAL_MS = 50L
-private const val RESYNC_WINDOW_SECONDS = 0.2
-private const val RESYNC_EPSILON_SECONDS = 0.02
+private const val RESYNC_TOLERANCE_SECONDS = 0.05
 private const val MIN_JUMP_HOLD_MS = 200L
+private const val JUMP_OFFSET_FRACTION = 0.06
+private const val MIN_JUMP_OFFSET_SECONDS = 0.015
+private const val MAX_JUMP_OFFSET_SECONDS = 0.05
+private const val JUMP_OFFSET_EPSILON = 0.001

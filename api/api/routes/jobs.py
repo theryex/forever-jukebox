@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Body, Header, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, File, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
 
 from ..db import (
@@ -20,16 +20,48 @@ from ..db import (
     get_job_by_youtube_id,
     get_top_tracks,
     increment_job_plays,
+    set_job_play_count,
     set_job_progress,
     set_job_status,
     update_job_input_path,
+    update_job_track_metadata,
 )
-from ..models import AnalysisStartResponse, JobComplete, JobError, JobProgress, PlayCountResponse, TopSongsResponse
+from ..models import (
+    AnalysisStartResponse,
+    JobComplete,
+    JobError,
+    JobProgress,
+    PlayCountResponse,
+    PlayCountUpdate,
+    TopSongsResponse,
+)
 from ..paths import DB_PATH, STORAGE_ROOT
 from ..utils import abs_storage_path, get_logger
+from ..ytdlp_config import apply_ejs_config
 
 router = APIRouter()
 logger = get_logger()
+
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+ALLOWED_UPLOAD_EXTS = {".m4a", ".webm", ".mp3", ".wav", ".flac", ".ogg", ".aac"}
+
+
+def _sanitize_title(filename: str | None) -> str:
+    if not filename:
+        return "Untitled"
+    name = Path(filename).name
+    stem = Path(name).stem
+    stem = stem.replace("_", " ").replace("-", " ")
+    cleaned = "".join(ch for ch in stem if ch.isprintable())
+    cleaned = " ".join(cleaned.split()).strip()
+    if not cleaned:
+        return "Untitled"
+    return cleaned[:200]
+
+
+def _is_enabled(env_key: str) -> bool:
+    value = os.environ.get(env_key, "")
+    return value.lower() in {"1", "true", "yes", "on"}
 
 
 def _parse_timestamp(value: str | None) -> datetime | None:
@@ -70,13 +102,18 @@ def _message_for_progress(status: str, progress: int | None) -> str | None:
         return None
     if progress is None or progress < 10:
         return "Processing"
-    if progress < 80:
+    if progress < 90:
         return "Analyzing"
     return "Wrapping up"
 
 
 def _job_response(job) -> JSONResponse:
-    base_payload = {"id": job.id, "youtube_id": job.youtube_id}
+    base_payload = {
+        "id": job.id,
+        "youtube_id": job.youtube_id,
+        "created_at": job.created_at,
+        "is_user_supplied": bool(job.is_user_supplied),
+    }
     if job.status in {"queued", "processing", "downloading"}:
         progress = job.progress if job.status == "processing" else None
         message = _message_for_progress(job.status, progress)
@@ -185,6 +222,7 @@ def _download_youtube_audio(job_id: str, youtube_id: str) -> None:
         "extractaudio": True,
         "audioformat": "m4a",
     }
+    apply_ejs_config(ydl_opts)
     url = f"https://www.youtube.com/watch?v={youtube_id}"
     try:
         with YoutubeDL(ydl_opts) as ydl:
@@ -192,6 +230,15 @@ def _download_youtube_audio(job_id: str, youtube_id: str) -> None:
     except Exception as exc:  # pragma: no cover - network call
         _cleanup_failure(job_id, str(exc))
         return
+
+    job = get_job(DB_PATH, job_id)
+    if job and job.is_user_supplied and (not job.track_title or not job.track_title.strip()):
+        if isinstance(info, dict):
+            info_title = info.get("title")
+            if isinstance(info_title, str) and info_title.strip():
+                update_job_track_metadata(
+                    DB_PATH, job_id, _sanitize_title(info_title), ""
+                )
 
     input_path = None
     if isinstance(info, dict):
@@ -241,8 +288,6 @@ def repair_job(job_id: str, background_tasks: BackgroundTasks) -> JSONResponse:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status in {"downloading", "queued", "processing"}:
         return _job_response(job)
-    if not job.youtube_id:
-        raise HTTPException(status_code=404, detail="Job is missing youtube_id")
 
     audio_path = None
     if job.input_path:
@@ -259,19 +304,21 @@ def repair_job(job_id: str, background_tasks: BackgroundTasks) -> JSONResponse:
     audio_missing = not audio_path or not audio_path.exists()
     analysis_missing = not analysis_path.exists()
 
-    if audio_missing:
-        set_job_progress(DB_PATH, job_id, 0)
-        set_job_status(DB_PATH, job_id, "downloading", None)
-        background_tasks.add_task(_download_youtube_audio, job_id, job.youtube_id)
+    if analysis_missing and not audio_missing:
+        set_job_progress(DB_PATH, job_id, 25)
+        set_job_status(DB_PATH, job_id, "queued", None)
         job = get_job(DB_PATH, job_id)
         return _job_response(job) if job else JSONResponse(
             JobError(status="failed", error="Job not found", id=job_id, youtube_id=None).model_dump(),
             status_code=404,
         )
 
-    if analysis_missing:
-        set_job_progress(DB_PATH, job_id, 25)
-        set_job_status(DB_PATH, job_id, "queued", None)
+    if audio_missing:
+        if not job.youtube_id:
+            raise HTTPException(status_code=404, detail="Job is missing youtube_id")
+        set_job_progress(DB_PATH, job_id, 0)
+        set_job_status(DB_PATH, job_id, "downloading", None)
+        background_tasks.add_task(_download_youtube_audio, job_id, job.youtube_id)
         job = get_job(DB_PATH, job_id)
         return _job_response(job) if job else JSONResponse(
             JobError(status="failed", error="Job not found", id=job_id, youtube_id=None).model_dump(),
@@ -290,10 +337,14 @@ def create_analysis_youtube(
         raise HTTPException(status_code=400, detail="youtube_id is required")
     track_title = payload.get("title")
     track_artist = payload.get("artist")
+    is_user_supplied = bool(payload.get("is_user_supplied"))
     if track_title is not None and not isinstance(track_title, str):
         raise HTTPException(status_code=400, detail="title must be a string")
     if track_artist is not None and not isinstance(track_artist, str):
         raise HTTPException(status_code=400, detail="artist must be a string")
+
+    if is_user_supplied and not _is_enabled("ALLOW_USER_YOUTUBE"):
+        raise HTTPException(status_code=403, detail="User-supplied YouTube jobs are disabled")
 
     if track_title and track_artist:
         existing_by_track = get_job_by_track(DB_PATH, track_title, track_artist)
@@ -323,6 +374,7 @@ def create_analysis_youtube(
         track_artist=track_artist,
         youtube_id=youtube_id,
         progress=0,
+        is_user_supplied=int(is_user_supplied),
     )
     background_tasks.add_task(_download_youtube_audio, job_id, youtube_id)
     payload = AnalysisStartResponse(
@@ -334,6 +386,63 @@ def create_analysis_youtube(
     return JSONResponse(payload.model_dump(), status_code=202)
 
 
+@router.post("/api/upload")
+async def upload_audio(file: UploadFile = File(...)) -> JSONResponse:
+    if not _is_enabled("ALLOW_USER_UPLOAD"):
+        raise HTTPException(status_code=403, detail="User uploads are disabled")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Missing filename")
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_UPLOAD_EXTS:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    job_id = uuid.uuid4().hex
+    audio_dir = STORAGE_ROOT / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    relative_path = Path("audio") / f"{job_id}{ext}"
+    target_path = (STORAGE_ROOT / relative_path).resolve()
+
+    total = 0
+    try:
+        with target_path.open("wb") as handle:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="File too large")
+                handle.write(chunk)
+    except HTTPException:
+        if target_path.exists():
+            target_path.unlink()
+        raise
+    finally:
+        await file.close()
+
+    title = _sanitize_title(file.filename)
+    output_path = Path("analysis") / f"{job_id}.json"
+    create_job(
+        DB_PATH,
+        job_id,
+        str(relative_path),
+        str(output_path),
+        status="queued",
+        track_title=title,
+        track_artist="",
+        youtube_id=None,
+        progress=0,
+        is_user_supplied=1,
+    )
+    payload = AnalysisStartResponse(
+        id=job_id,
+        status="queued",
+        progress=None,
+        message=_message_for_progress("queued", None),
+    )
+    return JSONResponse(payload.model_dump(), status_code=202)
+
+
 @router.post("/api/plays/{job_id}")
 def increment_play_count(job_id: str) -> JSONResponse:
     play_count = increment_job_plays(DB_PATH, job_id)
@@ -341,6 +450,25 @@ def increment_play_count(job_id: str) -> JSONResponse:
         raise HTTPException(status_code=404, detail="Job not found")
     payload = PlayCountResponse(id=job_id, play_count=play_count)
     return JSONResponse(payload.model_dump(), status_code=200)
+
+
+@router.patch("/api/plays/{job_id}")
+def set_play_count(
+    job_id: str,
+    payload: PlayCountUpdate = Body(...),
+    key: str | None = Query(None),
+) -> JSONResponse:
+    expected_key = os.environ.get("ADMIN_KEY")
+    if not expected_key:
+        raise HTTPException(status_code=403, detail="ADMIN_KEY is not configured")
+    provided_key = key
+    if not provided_key or provided_key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid admin key")
+    play_count = set_job_play_count(DB_PATH, job_id, payload.play_count)
+    if play_count is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    response = PlayCountResponse(id=job_id, play_count=play_count)
+    return JSONResponse(response.model_dump(), status_code=200)
 
 
 @router.get("/api/top")
@@ -378,18 +506,30 @@ def get_job_by_track_match(
 def delete_job_by_id(
     job_id: str,
     key: str | None = Query(None),
-    delete_key_header: str | None = Header(None, alias="X-Delete-Track-Key"),
 ) -> JSONResponse:
-    expected_key = os.environ.get("DELETE_JOB_KEY")
-    if not expected_key:
-        raise HTTPException(status_code=403, detail="DELETE_JOB_KEY is not configured")
-    provided_key = delete_key_header or key
-    if not provided_key or provided_key != expected_key:
-        raise HTTPException(status_code=403, detail="Invalid delete key")
-
     job = get_job(DB_PATH, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    expected_key = os.environ.get("ADMIN_KEY")
+    provided_key = key
+    has_admin_key = bool(expected_key and provided_key == expected_key)
+    if not has_admin_key:
+        created_at = _parse_timestamp(job.created_at)
+        completion_time = None
+        if job.status == "complete" and job.output_path:
+            result_path = abs_storage_path(STORAGE_ROOT, job.output_path)
+            if result_path.exists():
+                completion_time = datetime.fromtimestamp(result_path.stat().st_mtime, tz=timezone.utc)
+        now = datetime.now(timezone.utc)
+        within_window = False
+        if created_at is not None:
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            within_window = within_window or (now - created_at).total_seconds() <= 1800
+        if completion_time is not None:
+            within_window = within_window or (now - completion_time).total_seconds() <= 1800
+        if not within_window:
+            raise HTTPException(status_code=403, detail="Invalid admin key")
 
     _delete_job_artifacts(job_id, job)
     delete_job(DB_PATH, job_id)

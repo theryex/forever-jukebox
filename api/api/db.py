@@ -21,6 +21,7 @@ class Job:
     youtube_id: Optional[str]
     progress: int
     play_count: int
+    is_user_supplied: int
     created_at: str
     updated_at: str
 
@@ -45,6 +46,7 @@ def init_db(db_path: Path) -> None:
                 youtube_id TEXT,
                 progress INTEGER NOT NULL DEFAULT 0,
                 play_count INTEGER NOT NULL DEFAULT 0,
+                is_user_supplied INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -65,6 +67,10 @@ def init_db(db_path: Path) -> None:
             conn.execute(
                 "ALTER TABLE jobs ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0"
             )
+        if "is_user_supplied" not in columns:
+            conn.execute(
+                "ALTER TABLE jobs ADD COLUMN is_user_supplied INTEGER NOT NULL DEFAULT 0"
+            )
         conn.commit()
 
 
@@ -79,6 +85,7 @@ def create_job(
     youtube_id: Optional[str] = None,
     progress: int = 0,
     play_count: int = 0,
+    is_user_supplied: int = 0,
 ) -> None:
     now = _utc_now()
     with sqlite3.connect(db_path) as conn:
@@ -86,9 +93,9 @@ def create_job(
             """
             INSERT INTO jobs (
                 id, status, input_path, output_path, error,
-                track_title, track_artist, youtube_id, progress, play_count, created_at, updated_at
+                track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job_id,
@@ -100,6 +107,7 @@ def create_job(
                 youtube_id,
                 progress,
                 play_count,
+                is_user_supplied,
                 now,
                 now,
             ),
@@ -111,7 +119,7 @@ def get_job(db_path: Path, job_id: str) -> Optional[Job]:
     with sqlite3.connect(db_path) as conn:
         row = conn.execute(
             "SELECT id, status, input_path, output_path, error, "
-            "track_title, track_artist, youtube_id, progress, play_count, created_at, updated_at "
+            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at "
             "FROM jobs WHERE id = ?",
             (job_id,),
         ).fetchone()
@@ -142,7 +150,7 @@ def claim_next_job(db_path: Path) -> Optional[Job]:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
             "SELECT id, status, input_path, output_path, error, "
-            "track_title, track_artist, youtube_id, progress, play_count, created_at, updated_at "
+            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at "
             "FROM jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1"
         ).fetchone()
         if not row:
@@ -160,7 +168,7 @@ def get_job_by_youtube_id(db_path: Path, youtube_id: str) -> Optional[Job]:
     with sqlite3.connect(db_path) as conn:
         row = conn.execute(
             "SELECT id, status, input_path, output_path, error, "
-            "track_title, track_artist, youtube_id, progress, play_count, created_at, updated_at "
+            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at "
             "FROM jobs WHERE youtube_id = ? ORDER BY created_at DESC LIMIT 1",
             (youtube_id,),
         ).fetchone()
@@ -173,7 +181,7 @@ def get_job_by_track(db_path: Path, title: str, artist: str) -> Optional[Job]:
     with sqlite3.connect(db_path) as conn:
         row = conn.execute(
             "SELECT id, status, input_path, output_path, error, "
-            "track_title, track_artist, youtube_id, progress, play_count, created_at, updated_at "
+            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at "
             "FROM jobs WHERE track_title = ? AND track_artist = ? ORDER BY created_at DESC LIMIT 1",
             (title, artist),
         ).fetchone()
@@ -188,6 +196,27 @@ def increment_job_plays(db_path: Path, job_id: str) -> Optional[int]:
         cur = conn.execute(
             "UPDATE jobs SET play_count = play_count + 1, updated_at = ? WHERE id = ?",
             (now, job_id),
+        )
+        if cur.rowcount == 0:
+            conn.commit()
+            return None
+        row = conn.execute(
+            "SELECT play_count FROM jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        conn.commit()
+    if not row:
+        return None
+    return row[0]
+
+
+def set_job_play_count(db_path: Path, job_id: str, play_count: int) -> Optional[int]:
+    now = _utc_now()
+    clamped = max(0, int(play_count))
+    with sqlite3.connect(db_path) as conn:
+        cur = conn.execute(
+            "UPDATE jobs SET play_count = ?, updated_at = ? WHERE id = ?",
+            (clamped, now, job_id),
         )
         if cur.rowcount == 0:
             conn.commit()
@@ -221,6 +250,17 @@ def update_job_input_path(db_path: Path, job_id: str, input_path: str) -> None:
         conn.commit()
 
 
+def update_job_track_metadata(
+    db_path: Path, job_id: str, track_title: Optional[str], track_artist: Optional[str]
+) -> None:
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE jobs SET track_title = ?, track_artist = ?, updated_at = ? WHERE id = ?",
+            (track_title, track_artist, _utc_now(), job_id),
+        )
+        conn.commit()
+
+
 def get_top_tracks(db_path: Path, limit: int = 10) -> list[dict]:
     with sqlite3.connect(db_path) as conn:
         rows = conn.execute(
@@ -231,6 +271,7 @@ def get_top_tracks(db_path: Path, limit: int = 10) -> list[dict]:
               AND track_title != ''
               AND track_artist IS NOT NULL
               AND track_artist != ''
+              AND COALESCE(is_user_supplied, 0) = 0
               AND play_count > 0
             ORDER BY play_count DESC, updated_at DESC
             LIMIT ?

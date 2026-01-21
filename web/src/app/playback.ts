@@ -1,5 +1,8 @@
 import type { AppContext } from "./context";
-import { ANALYSIS_POLL_INTERVAL_MS, LISTEN_TIMER_INTERVAL_MS } from "./constants";
+import {
+  ANALYSIS_POLL_INTERVAL_MS,
+  LISTEN_TIMER_INTERVAL_MS,
+} from "./constants";
 import { formatDuration } from "./format";
 import {
   fetchAnalysis,
@@ -22,16 +25,54 @@ export type PlaybackDeps = {
   ) => void;
   updateTrackUrl: (youtubeId: string, replace?: boolean) => void;
   setAnalysisStatus: (message: string, spinning: boolean) => void;
-  setLoadingProgress: (progress: number | null, message?: string | null) => void;
+  setLoadingProgress: (
+    progress: number | null,
+    message?: string | null
+  ) => void;
   onTrackChange?: (youtubeId: string | null) => void;
+  onAnalysisLoaded?: (response: AnalysisComplete) => void;
 };
 
 export function updateListenTimeDisplay(context: AppContext) {
   const { elements, state } = context;
   const now = performance.now();
   const totalMs =
-    state.playTimerMs + (state.lastPlayStamp !== null ? now - state.lastPlayStamp : 0);
+    state.playTimerMs +
+    (state.lastPlayStamp !== null ? now - state.lastPlayStamp : 0);
   elements.listenTimeEl.textContent = formatDuration(totalMs / 1000);
+}
+
+function maybeUpdateDeleteEligibility(
+  context: AppContext,
+  response: AnalysisResponse | null,
+  jobIdOverride?: string | null
+) {
+  if (!response) {
+    return;
+  }
+  const { state, elements } = context;
+  const jobId = jobIdOverride ?? ("id" in response ? response.id : undefined);
+  if (!jobId || state.deleteEligibilityJobId === jobId) {
+    return;
+  }
+  let eligible = false;
+  const createdAt =
+    "created_at" in response ? response.created_at : undefined;
+  if (typeof createdAt === "string") {
+    const createdMs = Date.parse(createdAt);
+    if (!Number.isNaN(createdMs)) {
+      const ageMs = Date.now() - createdMs;
+      eligible = ageMs <= 30 * 60 * 1000;
+    }
+  } else {
+    state.deleteEligible = false;
+    elements.deleteButton.classList.add("hidden");
+    state.deleteEligibilityJobId = null;
+    return;
+  }
+  state.deleteEligibilityJobId = jobId;
+  state.deleteEligible = eligible;
+  elements.deleteButton.classList.toggle("hidden", !eligible);
 }
 
 export function updateTrackInfo(context: AppContext) {
@@ -57,11 +98,13 @@ export function updateTrackInfo(context: AppContext) {
 
 export function updateVizVisibility(context: AppContext) {
   const { elements, visualizations, state } = context;
+  const hasTrack = Boolean(state.lastYouTubeId || state.lastJobId);
   if (state.audioLoaded && state.analysisLoaded) {
     elements.playStatusPanel.classList.add("hidden");
     elements.playMenu.classList.remove("hidden");
     elements.vizPanel.classList.remove("hidden");
     elements.playButton.classList.remove("hidden");
+    updatePlayButton(context, state.isRunning);
     elements.playTabButton.disabled = false;
     visualizations[state.activeVizIndex]?.resizeNow();
     elements.vizButtons.forEach((button) => {
@@ -72,7 +115,7 @@ export function updateVizVisibility(context: AppContext) {
     elements.playMenu.classList.add("hidden");
     elements.vizPanel.classList.add("hidden");
     elements.playButton.classList.add("hidden");
-    elements.playTabButton.disabled = true;
+    elements.playTabButton.disabled = !hasTrack;
     elements.vizButtons.forEach((button) => {
       button.disabled = true;
     });
@@ -159,7 +202,9 @@ export function applyTuningChanges(context: AppContext) {
   const graph = engine.getGraphState();
   updateTrackInfo(context);
   elements.computedThresholdEl.textContent =
-    state.autoComputedThreshold === null ? "-" : `${state.autoComputedThreshold}`;
+    state.autoComputedThreshold === null
+      ? "-"
+      : `${state.autoComputedThreshold}`;
   if (threshold === 0 && graph) {
     const resolved = Math.max(0, Math.round(graph.currentThreshold));
     state.autoComputedThreshold = resolved;
@@ -190,7 +235,7 @@ export function stopListenTimer(context: AppContext) {
 }
 
 export function stopPlayback(context: AppContext) {
-  const { engine, elements, state } = context;
+  const { engine, state } = context;
   engine.stopJukebox();
   if (state.lastPlayStamp !== null) {
     state.playTimerMs += performance.now() - state.lastPlayStamp;
@@ -199,7 +244,7 @@ export function stopPlayback(context: AppContext) {
   state.isRunning = false;
   stopListenTimer(context);
   updateListenTimeDisplay(context);
-  elements.playButton.textContent = "Play";
+  updatePlayButton(context, false);
 }
 
 export function togglePlayback(context: AppContext) {
@@ -229,7 +274,7 @@ export function togglePlayback(context: AppContext) {
       state.lastPlayStamp = performance.now();
       state.isRunning = true;
       startListenTimer(context);
-      elements.playButton.textContent = "Stop";
+      updatePlayButton(context, true);
       if (document.fullscreenElement) {
         requestWakeLock(context);
       }
@@ -239,6 +284,24 @@ export function togglePlayback(context: AppContext) {
   } else {
     stopPlayback(context);
   }
+}
+
+function updatePlayButton(context: AppContext, isRunning: boolean) {
+  const label = isRunning ? "Stop" : "Play";
+  const icon =
+    context.elements.playButton.querySelector<HTMLSpanElement>(".play-icon");
+  const text =
+    context.elements.playButton.querySelector<HTMLSpanElement>(".play-text");
+  if (icon) {
+    icon.textContent = isRunning ? "stop" : "play_arrow";
+  }
+  if (text) {
+    text.textContent = label;
+  }
+  const shouldPulse = isRunning && context.state.activeTabId !== "play";
+  context.elements.playTabButton.classList.toggle("is-playing", shouldPulse);
+  context.elements.playButton.title = label;
+  context.elements.playButton.setAttribute("aria-label", label);
 }
 
 export function resetForNewTrack(context: AppContext) {
@@ -252,12 +315,16 @@ export function resetForNewTrack(context: AppContext) {
   state.audioLoaded = false;
   state.analysisLoaded = false;
   state.audioLoadInFlight = false;
+  state.lastJobId = null;
+  state.lastYouTubeId = null;
+  state.lastPlayCountedJobId = null;
   updateVizVisibility(context);
   state.playTimerMs = 0;
   state.lastPlayStamp = null;
   state.lastBeatIndex = null;
   updateListenTimeDisplay(context);
   elements.beatsPlayedEl.textContent = "0";
+  elements.vizNowPlayingEl.textContent = "The Forever Jukebox";
   if (elements.tuningModal.classList.contains("open")) {
     elements.tuningModal.classList.remove("open");
   }
@@ -271,13 +338,13 @@ export function resetForNewTrack(context: AppContext) {
   elements.computedThresholdEl.textContent = "-";
   engine.updateConfig({ ...defaultConfig });
   syncTuningUI(context);
-  state.lastJobId = null;
-  state.lastYouTubeId = null;
-  state.lastPlayCountedJobId = null;
   elements.playTitle.textContent = "";
   state.trackDurationSec = null;
   state.trackTitle = null;
   state.trackArtist = null;
+  state.deleteEligible = false;
+  state.deleteEligibilityJobId = null;
+  elements.deleteButton.classList.add("hidden");
   state.vizData = null;
   updateTrackInfo(context);
   const emptyVizData = { beats: [], edges: [] };
@@ -296,12 +363,11 @@ export async function loadAudioFromJob(context: AppContext, jobId: string) {
     state.audioLoadInFlight = false;
     updateVizVisibility(context);
     updateTrackInfo(context);
-    if (state.lastYouTubeId) {
-      updateCachedTrack(state.lastYouTubeId, { audio: buffer, jobId }).catch(
-        (err) => {
-          console.warn(`Cache save failed: ${String(err)}`);
-        }
-      );
+    const cacheId = state.lastYouTubeId ?? state.lastJobId;
+    if (cacheId) {
+      updateCachedTrack(cacheId, { audio: buffer, jobId }).catch((err) => {
+        console.warn(`Cache save failed: ${String(err)}`);
+      });
     }
     return true;
   } catch (err) {
@@ -318,11 +384,15 @@ export async function loadAudioFromJob(context: AppContext, jobId: string) {
   }
 }
 
-function isAnalysisComplete(response: AnalysisResponse | null): response is AnalysisComplete {
+function isAnalysisComplete(
+  response: AnalysisResponse | null
+): response is AnalysisComplete {
   return response?.status === "complete";
 }
 
-function isAnalysisFailed(response: AnalysisResponse | null): response is AnalysisFailed {
+function isAnalysisFailed(
+  response: AnalysisResponse | null
+): response is AnalysisFailed {
   return response?.status === "failed";
 }
 
@@ -338,15 +408,19 @@ function isAnalysisInProgress(
 
 export function applyAnalysisResult(
   context: AppContext,
-  response: AnalysisComplete
+  response: AnalysisComplete,
+  onAnalysisLoaded?: (response: AnalysisComplete) => void
 ): boolean {
   if (!response || response.status !== "complete" || !response.result) {
     return false;
   }
+  maybeUpdateDeleteEligibility(context, response, response.id);
   const { elements, engine, state, visualizations } = context;
   engine.loadAnalysis(response.result);
   const graph = engine.getGraphState();
-  state.autoComputedThreshold = graph ? Math.round(graph.currentThreshold) : null;
+  state.autoComputedThreshold = graph
+    ? Math.round(graph.currentThreshold)
+    : null;
   state.vizData = engine.getVisualizationData();
   const data = state.vizData;
   if (data) {
@@ -367,13 +441,17 @@ export function applyAnalysisResult(
       ? track.duration
       : null;
   if (title || artist) {
-    elements.playTitle.textContent = artist
+    const displayTitle = artist
       ? `${title ?? "Unknown"} — ${artist}`
       : `${title}`;
+    elements.playTitle.textContent = displayTitle;
+    elements.vizNowPlayingEl.textContent = displayTitle;
   } else {
     elements.playTitle.textContent = "";
+    elements.vizNowPlayingEl.textContent = "The Forever Jukebox";
   }
   updateTrackInfo(context);
+  onAnalysisLoaded?.(response);
   const jobId = response.id || state.lastJobId;
   if (jobId) {
     recordPlayOnce(context, jobId).catch((err) => {
@@ -397,7 +475,11 @@ async function recordPlayOnce(context: AppContext, jobId: string) {
   }
 }
 
-export async function pollAnalysis(context: AppContext, deps: PlaybackDeps, jobId: string) {
+export async function pollAnalysis(
+  context: AppContext,
+  deps: PlaybackDeps,
+  jobId: string
+) {
   const { state } = context;
   const controller = new AbortController();
   state.pollController?.abort();
@@ -413,6 +495,7 @@ export async function pollAnalysis(context: AppContext, deps: PlaybackDeps, jobI
         deps.navigateToTab("top", { replace: true });
         return;
       }
+      maybeUpdateDeleteEligibility(context, response, jobId);
       if (isAnalysisInProgress(response)) {
         const progress =
           typeof response.progress === "number" ? response.progress : null;
@@ -445,7 +528,7 @@ export async function pollAnalysis(context: AppContext, deps: PlaybackDeps, jobI
           }
         }
         deps.setLoadingProgress(100, "Calculating pathways");
-        if (applyAnalysisResult(context, response)) {
+        if (applyAnalysisResult(context, response, deps.onAnalysisLoaded)) {
           deps.setActiveTab("play");
           return;
         }
@@ -480,6 +563,7 @@ export async function loadTrackByYouTubeId(
       deps.navigateToTab("top", { replace: true });
       return;
     }
+    maybeUpdateDeleteEligibility(context, response, response.id);
     context.state.lastJobId = response.id;
     if (isAnalysisInProgress(response)) {
       await pollAnalysis(context, deps, response.id);
@@ -493,7 +577,53 @@ export async function loadTrackByYouTubeId(
           return;
         }
       }
-      applyAnalysisResult(context, response);
+      applyAnalysisResult(context, response, deps.onAnalysisLoaded);
+      deps.setActiveTab("play");
+      return;
+    }
+    if (response.id) {
+      await pollAnalysis(context, deps, response.id);
+      return;
+    }
+    deps.setAnalysisStatus("Track unavailable. Try again.", false);
+  } catch (err) {
+    deps.setAnalysisStatus(`Load failed: ${String(err)}`, false);
+  }
+}
+
+export async function loadTrackByJobId(
+  context: AppContext,
+  deps: PlaybackDeps,
+  jobId: string
+) {
+  resetForNewTrack(context);
+  deps.setActiveTab("play");
+  deps.setLoadingProgress(null, "Fetching audio");
+  context.state.lastJobId = jobId;
+  context.state.lastYouTubeId = null;
+  deps.onTrackChange?.(null);
+  await tryLoadCachedAudio(context, jobId);
+  try {
+    const response = await fetchAnalysis(jobId);
+    if (!response || !response.id) {
+      deps.setAnalysisStatus("Track unavailable. Try again.", false);
+      deps.navigateToTab("top", { replace: true });
+      return;
+    }
+    maybeUpdateDeleteEligibility(context, response, response.id);
+    if (isAnalysisInProgress(response)) {
+      await pollAnalysis(context, deps, response.id);
+      return;
+    }
+    if (isAnalysisComplete(response)) {
+      if (!context.state.audioLoaded) {
+        const audioLoaded = await loadAudioFromJob(context, response.id);
+        if (!audioLoaded) {
+          await pollAnalysis(context, deps, response.id);
+          return;
+        }
+      }
+      applyAnalysisResult(context, response, deps.onAnalysisLoaded);
       deps.setActiveTab("play");
       return;
     }

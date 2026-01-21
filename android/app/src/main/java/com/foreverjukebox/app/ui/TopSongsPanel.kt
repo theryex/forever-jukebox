@@ -15,18 +15,37 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardOptions
+import android.widget.Toast
+import kotlinx.coroutines.launch
 import com.foreverjukebox.app.data.FavoriteTrack
 import com.foreverjukebox.app.data.TopSongItem
 
@@ -38,8 +57,40 @@ fun TopSongsPanel(
     activeTab: TopSongsTab,
     onTabSelected: (TopSongsTab) -> Unit,
     onSelect: (String) -> Unit,
-    onRemoveFavorite: (String) -> Unit
+    onRemoveFavorite: (String) -> Unit,
+    favoritesSyncCode: String?,
+    allowFavoritesSync: Boolean,
+    onRefreshSync: () -> Unit,
+    onCreateSync: () -> Unit,
+    onFetchSync: suspend (String) -> List<FavoriteTrack>?,
+    onApplySync: (String, List<FavoriteTrack>) -> Unit
 ) {
+    val context = LocalContext.current
+    val appContext = context.applicationContext
+    val scope = rememberCoroutineScope()
+    val hasSyncCode = allowFavoritesSync && !favoritesSyncCode.isNullOrBlank()
+    var showSyncMenu by remember { mutableStateOf(false) }
+    var showEnterDialog by remember { mutableStateOf(false) }
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var syncInput by remember { mutableStateOf("") }
+    var pendingFavorites by remember { mutableStateOf<List<FavoriteTrack>>(emptyList()) }
+    var pendingCode by remember { mutableStateOf("") }
+    var showCreateButton by remember { mutableStateOf(true) }
+    var createHint by remember {
+        mutableStateOf("Create a sync code to share your favorites between devices.")
+    }
+
+    LaunchedEffect(showCreateDialog) {
+        if (showCreateDialog) {
+            showCreateButton = true
+            createHint = if (hasSyncCode) {
+                "Enter this code on another device to sync."
+            } else {
+                "Create a sync code to share your favorites between devices."
+            }
+        }
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -92,14 +143,62 @@ fun TopSongsPanel(
                     }
                 }
             } else {
-                Text("Favorites", style = MaterialTheme.typography.labelLarge)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("Favorites", style = MaterialTheme.typography.labelLarge)
+                    if (allowFavoritesSync) {
+                        IconButton(onClick = { showSyncMenu = true }, modifier = Modifier.size(24.dp)) {
+                            Icon(
+                                imageVector = if (hasSyncCode) Icons.Outlined.Cloud else Icons.Outlined.CloudOff,
+                                contentDescription = "Favorites sync",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showSyncMenu,
+                            onDismissRequest = { showSyncMenu = false }
+                        ) {
+                            if (hasSyncCode) {
+                                DropdownMenuItem(
+                                    text = { Text("Refresh favorites") },
+                                    onClick = {
+                                        showSyncMenu = false
+                                        onRefreshSync()
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(if (hasSyncCode) "View sync code" else "Create sync code") },
+                                onClick = {
+                                    showSyncMenu = false
+                                    showCreateDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Enter sync code") },
+                                onClick = {
+                                    showSyncMenu = false
+                                    showEnterDialog = true
+                                }
+                            )
+                        }
+                    }
+                }
                 if (favorites.isEmpty()) {
                     Text("No favorites yet.", style = MaterialTheme.typography.bodySmall)
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(favorites) { item ->
                             val title = item.title.ifBlank { "Untitled" }
-                            val artist = item.artist.ifBlank { "Unknown" }
+                            val artist = item.artist.ifBlank { "" }
+                            val display = if (artist.isNotBlank() && artist != "Unknown") {
+                                "$title — $artist"
+                            } else {
+                                title
+                            }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -107,7 +206,7 @@ fun TopSongsPanel(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "$title — $artist",
+                                    text = display,
                                     modifier = Modifier
                                         .weight(1f)
                                         .alignByBaseline(),
@@ -118,12 +217,12 @@ fun TopSongsPanel(
                                     onClick = { onRemoveFavorite(item.uniqueSongId) },
                                     modifier = Modifier.size(24.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Default.Close,
-                                        contentDescription = "Remove favorite",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(14.dp)
-                                    )
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Remove favorite",
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.size(12.dp)
+                                        )
                                 }
                             }
                         }
@@ -131,6 +230,142 @@ fun TopSongsPanel(
                 }
             }
         }
+    }
+
+    if (showEnterDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showEnterDialog = false
+                syncInput = ""
+            },
+            title = { Text("Favorites Sync") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Enter the 3-word sync code to pull down your favorites.")
+                    OutlinedTextField(
+                        value = syncInput,
+                        onValueChange = { syncInput = it },
+                        placeholder = { Text("the-forever-jukebox") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            imeAction = ImeAction.Done
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val code = syncInput.trim()
+                        if (code.isBlank()) {
+                            Toast.makeText(appContext, "Enter a sync code first.", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        scope.launch {
+                            val result = onFetchSync(code)
+                            if (result == null) {
+                                Toast.makeText(appContext, "Favorites sync failed.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                pendingFavorites = result
+                                pendingCode = code.lowercase()
+                                showEnterDialog = false
+                                syncInput = ""
+                                showConfirmDialog = true
+                            }
+                        }
+                    }
+                ) {
+                    Text("Sync favorites")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = {
+                    showEnterDialog = false
+                    syncInput = ""
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showCreateDialog = false
+                syncInput = ""
+            },
+            title = { Text("Favorites Sync") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(createHint)
+                    if (hasSyncCode) {
+                        OutlinedTextField(
+                            value = favoritesSyncCode ?: "",
+                            onValueChange = {},
+                            readOnly = true,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                imeAction = ImeAction.Done
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (showCreateButton) {
+                    Button(
+                        onClick = {
+                            showCreateButton = false
+                            createHint = "Enter this code on another device to sync."
+                            onCreateSync()
+                        }
+                    ) {
+                        Text(if (hasSyncCode) "Create new sync code" else "Create sync code")
+                    }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = {
+                    showCreateDialog = false
+                    syncInput = ""
+                }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showConfirmDialog = false
+                syncInput = ""
+            },
+            title = { Text("Replace favorites?") },
+            text = { Text("Replace your local favorites with the synced list?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onApplySync(pendingCode, pendingFavorites)
+                        showConfirmDialog = false
+                        Toast.makeText(appContext, "Favorites updated.", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = {
+                    showConfirmDialog = false
+                    syncInput = ""
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

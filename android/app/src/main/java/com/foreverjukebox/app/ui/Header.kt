@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -25,6 +27,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,8 +39,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.foreverjukebox.app.BuildConfig
 import com.foreverjukebox.app.data.ThemeMode
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -151,45 +157,62 @@ private fun SettingsDialog(
     var urlInput by remember(state.baseUrl) { mutableStateOf(state.baseUrl) }
     val cacheLabel = formatCacheSize(state.cacheSizeBytes)
     val cacheEnabled = state.cacheSizeBytes > 0
+    val versionLabel = "v${BuildConfig.VERSION_NAME}"
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            Button(
-                onClick = {
-                    onEditBaseUrl(urlInput)
-                    onDismiss()
-                },
-                colors = pillButtonColors(),
-                border = pillButtonBorder(),
-                shape = PillShape,
-                contentPadding = SmallButtonPadding,
-                modifier = Modifier.height(SmallButtonHeight)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Save", style = MaterialTheme.typography.labelSmall)
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                colors = pillOutlinedButtonColors(),
-                border = pillButtonBorder(),
-                shape = PillShape,
-                contentPadding = SmallButtonPadding,
-                modifier = Modifier.height(SmallButtonHeight)
-            ) {
-                Text("Close", style = MaterialTheme.typography.labelSmall)
+                Text(
+                    versionLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                OutlinedButton(
+                    onClick = onDismiss,
+                    colors = pillOutlinedButtonColors(),
+                    border = pillButtonBorder(),
+                    shape = PillShape,
+                    contentPadding = SmallButtonPadding,
+                    modifier = Modifier.height(SmallButtonHeight)
+                ) {
+                    Text("Close", style = MaterialTheme.typography.labelSmall)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        onEditBaseUrl(urlInput)
+                        onDismiss()
+                    },
+                    colors = pillButtonColors(),
+                    border = pillButtonBorder(),
+                    shape = PillShape,
+                    contentPadding = SmallButtonPadding,
+                    modifier = Modifier.height(SmallButtonHeight)
+                ) {
+                    Text("Save", style = MaterialTheme.typography.labelSmall)
+                }
             }
         },
         title = { Text("Settings") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("API Base URL")
-                androidx.compose.material3.OutlinedTextField(
+                OutlinedTextField(
                     value = urlInput,
                     onValueChange = { urlInput = it },
                     label = { Text("Example: http://10.0.2.2:8000") },
                     textStyle = MaterialTheme.typography.bodySmall,
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Done
+                    ),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.heightIn(min = SmallFieldMinHeight)
                 )
                 Text("Theme")

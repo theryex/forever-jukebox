@@ -11,6 +11,10 @@ export function getElements() {
     document.querySelector<HTMLSpanElement>("#beats-played"),
     "#beats-played"
   );
+  const vizNowPlayingEl = requireElement(
+    document.querySelector<HTMLDivElement>("#viz-now-playing"),
+    "#viz-now-playing"
+  );
   const vizPanel = requireElement(
     document.querySelector<HTMLElement>("#viz-panel"),
     "#viz-panel"
@@ -75,6 +79,10 @@ export function getElements() {
     document.querySelector<HTMLButtonElement>("#favorite-toggle"),
     "#favorite-toggle"
   );
+  const deleteButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#delete-job"),
+    "#delete-job"
+  );
   const playTitle = requireElement(
     document.querySelector<HTMLDivElement>("#play-title"),
     "#play-title"
@@ -118,6 +126,52 @@ export function getElements() {
   const infoBranchesEl = requireElement(
     document.querySelector<HTMLSpanElement>("#info-branches"),
     "#info-branches"
+  );
+  const favoritesSyncEnterModal = requireElement(
+    document.querySelector<HTMLDivElement>("#favorites-sync-enter-modal"),
+    "#favorites-sync-enter-modal"
+  );
+  const favoritesSyncEnterClose = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorites-sync-enter-close"),
+    "#favorites-sync-enter-close"
+  );
+  const favoritesSyncEnterInput = requireElement(
+    document.querySelector<HTMLInputElement>("#favorites-sync-enter-input"),
+    "#favorites-sync-enter-input"
+  );
+  const favoritesSyncEnterButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorites-sync-enter-button"),
+    "#favorites-sync-enter-button"
+  );
+  const favoritesSyncEnterStatus = requireElement(
+    document.querySelector<HTMLParagraphElement>("#favorites-sync-enter-status"),
+    "#favorites-sync-enter-status"
+  );
+  const favoritesSyncCreateModal = requireElement(
+    document.querySelector<HTMLDivElement>("#favorites-sync-create-modal"),
+    "#favorites-sync-create-modal"
+  );
+  const favoritesSyncCreateClose = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorites-sync-create-close"),
+    "#favorites-sync-create-close"
+  );
+  const favoritesSyncCreateButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorites-sync-create-button"),
+    "#favorites-sync-create-button"
+  );
+  const favoritesSyncCreateHint = requireElement(
+    document.querySelector<HTMLParagraphElement>("#favorites-sync-create-hint"),
+    "#favorites-sync-create-hint"
+  );
+  const favoritesSyncCreateOutput = requireElement(
+    document.querySelector<HTMLDivElement>("#favorites-sync-create-output"),
+    "#favorites-sync-create-output"
+  );
+  const favoritesSyncCreateStatus = requireElement(
+    document.querySelector<HTMLParagraphElement>(
+      "#favorites-sync-create-status"
+    ),
+    "#favorites-sync-create-status"
   );
   const thresholdInput = requireElement(
     document.querySelector<HTMLInputElement>("#threshold"),
@@ -179,6 +233,54 @@ export function getElements() {
     document.querySelector<HTMLButtonElement>("#search-button"),
     "#search-button"
   );
+  const searchSubtabs = requireElement(
+    document.querySelector<HTMLDivElement>("#search-subtabs"),
+    "#search-subtabs"
+  );
+  const searchSubtabButtons = requireNonEmpty(
+    Array.from(document.querySelectorAll<HTMLButtonElement>("[data-search-subtab]")),
+    "[data-search-subtab]"
+  );
+  const searchPanelTitle = requireElement(
+    document.querySelector<HTMLDivElement>("#search-panel-title"),
+    "#search-panel-title"
+  );
+  const searchPanel = requireElement(
+    document.querySelector<HTMLDivElement>("#search-panel"),
+    "#search-panel"
+  );
+  const uploadPanel = requireElement(
+    document.querySelector<HTMLDivElement>("#upload-panel"),
+    "#upload-panel"
+  );
+  const uploadFileSection = requireElement(
+    document.querySelector<HTMLDivElement>("#upload-file-section"),
+    "#upload-file-section"
+  );
+  const uploadFileHint = requireElement(
+    document.querySelector<HTMLDivElement>("#upload-file-hint"),
+    "#upload-file-hint"
+  );
+  const uploadFileInput = requireElement(
+    document.querySelector<HTMLInputElement>("#upload-file-input"),
+    "#upload-file-input"
+  );
+  const uploadFileButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#upload-file-button"),
+    "#upload-file-button"
+  );
+  const uploadYoutubeSection = requireElement(
+    document.querySelector<HTMLDivElement>("#upload-youtube-section"),
+    "#upload-youtube-section"
+  );
+  const uploadYoutubeInput = requireElement(
+    document.querySelector<HTMLInputElement>("#upload-youtube-input"),
+    "#upload-youtube-input"
+  );
+  const uploadYoutubeButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#upload-youtube-button"),
+    "#upload-youtube-button"
+  );
   const searchResults = requireElement(
     document.querySelector<HTMLDivElement>("#search-results"),
     "#search-results"
@@ -200,8 +302,28 @@ export function getElements() {
     "[data-top-subtab]"
   );
   const topListTitle = requireElement(
-    document.querySelector<HTMLDivElement>("#top-list-title"),
+    document.querySelector<HTMLSpanElement>("#top-list-title"),
     "#top-list-title"
+  );
+  const favoritesSyncButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#favorites-sync-button"),
+    "#favorites-sync-button"
+  );
+  const favoritesSyncIcon = requireElement(
+    favoritesSyncButton.querySelector<HTMLSpanElement>(
+      ".favorites-sync-icon"
+    ),
+    ".favorites-sync-icon"
+  );
+  const favoritesSyncMenu = requireElement(
+    document.querySelector<HTMLDivElement>("#favorites-sync-menu"),
+    "#favorites-sync-menu"
+  );
+  const favoritesSyncItems = requireNonEmpty(
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>("[data-favorites-sync]")
+    ),
+    "[data-favorites-sync]"
   );
   const toast = requireElement(
     document.querySelector<HTMLDivElement>("#toast"),
@@ -212,6 +334,7 @@ export function getElements() {
   return {
     listenTimeEl,
     beatsPlayedEl,
+    vizNowPlayingEl,
     vizPanel,
     vizLayer,
     vizButtons,
@@ -228,6 +351,7 @@ export function getElements() {
     tuningButton,
     infoButton,
     favoriteButton,
+    deleteButton,
     playTitle,
     themeLinks,
     fullscreenButton,
@@ -236,6 +360,17 @@ export function getElements() {
     tuningClose,
     infoClose,
     tuningApply,
+    favoritesSyncEnterModal,
+    favoritesSyncEnterClose,
+    favoritesSyncEnterInput,
+    favoritesSyncEnterButton,
+    favoritesSyncEnterStatus,
+    favoritesSyncCreateModal,
+    favoritesSyncCreateClose,
+    favoritesSyncCreateButton,
+    favoritesSyncCreateHint,
+    favoritesSyncCreateOutput,
+    favoritesSyncCreateStatus,
     infoDurationEl,
     infoBeatsEl,
     infoBranchesEl,
@@ -254,12 +389,28 @@ export function getElements() {
     removeSeqInput,
     searchInput,
     searchButton,
+    searchSubtabs,
+    searchSubtabButtons,
+    searchPanelTitle,
+    searchPanel,
+    uploadPanel,
+    uploadFileSection,
+    uploadFileHint,
+    uploadFileInput,
+    uploadFileButton,
+    uploadYoutubeSection,
+    uploadYoutubeInput,
+    uploadYoutubeButton,
     searchResults,
     searchHint,
     topSongsList,
     favoritesList,
     topSongsTabs,
     topListTitle,
+    favoritesSyncButton,
+    favoritesSyncIcon,
+    favoritesSyncMenu,
+    favoritesSyncItems,
     toast,
     vizStats,
   };

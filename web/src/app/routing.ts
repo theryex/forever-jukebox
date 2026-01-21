@@ -1,6 +1,10 @@
 import type { AppContext } from "./context";
 import type { PlaybackDeps } from "./playback";
-import { loadTrackByYouTubeId } from "./playback";
+import { loadTrackByJobId, loadTrackByYouTubeId } from "./playback";
+
+function isLikelyYoutubeId(value: string) {
+  return /^[a-zA-Z0-9_-]{11}$/.test(value);
+}
 
 export async function handleRouteChange(
   context: AppContext,
@@ -19,21 +23,26 @@ export async function handleRouteChange(
   }
   if (pathname.startsWith("/listen")) {
     const parts = pathname.split("/").filter(Boolean);
-    const youtubeId = parts.length >= 2 ? parts[1] : null;
-    if (youtubeId) {
+    const trackId = parts.length >= 2 ? parts[1] : null;
+    if (trackId) {
       const { state } = context;
-      if (
-        youtubeId === state.lastYouTubeId &&
-        (state.audioLoaded ||
-          state.analysisLoaded ||
-          state.audioLoadInFlight ||
-          state.isRunning)
-      ) {
-        deps.navigateToTab("play", { replace: true, youtubeId });
+      if (isLikelyYoutubeId(trackId)) {
+        if (
+          trackId === state.lastYouTubeId &&
+          (state.audioLoaded ||
+            state.analysisLoaded ||
+            state.audioLoadInFlight ||
+            state.isRunning)
+        ) {
+          deps.navigateToTab("play", { replace: true, youtubeId: trackId });
+          return;
+        }
+        deps.navigateToTab("play", { replace: true, youtubeId: trackId });
+        await loadTrackByYouTubeId(context, deps, trackId);
         return;
       }
-      deps.navigateToTab("play", { replace: true, youtubeId });
-      await loadTrackByYouTubeId(context, deps, youtubeId);
+      deps.navigateToTab("play", { replace: true, youtubeId: trackId });
+      await loadTrackByJobId(context, deps, trackId);
       return;
     }
     deps.navigateToTab("top", { replace: true });

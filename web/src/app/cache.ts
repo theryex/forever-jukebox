@@ -1,5 +1,6 @@
 const trackCacheDbName = "forever-jukebox-cache";
 const trackCacheStore = "tracks";
+const appConfigStore = "app-config";
 
 export type CachedTrack = {
   youtubeId: string;
@@ -18,11 +19,14 @@ function openTrackCacheDb(): Promise<IDBDatabase> {
     return trackCacheDbPromise;
   }
   trackCacheDbPromise = new Promise((resolve, reject) => {
-    const request = window.indexedDB.open(trackCacheDbName, 1);
+    const request = window.indexedDB.open(trackCacheDbName, 2);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(trackCacheStore)) {
         db.createObjectStore(trackCacheStore, { keyPath: "youtubeId" });
+      }
+      if (!db.objectStoreNames.contains(appConfigStore)) {
+        db.createObjectStore(appConfigStore, { keyPath: "key" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -68,5 +72,44 @@ export async function updateCachedTrack(
     request.onsuccess = () => resolve();
     request.onerror = () =>
       reject(request.error ?? new Error("IndexedDB write failed"));
+  });
+}
+
+export async function deleteCachedTrack(youtubeId: string) {
+  const db = await openTrackCacheDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(trackCacheStore, "readwrite");
+    const store = tx.objectStore(trackCacheStore);
+    const request = store.delete(youtubeId);
+    request.onsuccess = () => resolve();
+    request.onerror = () =>
+      reject(request.error ?? new Error("IndexedDB delete failed"));
+  });
+}
+
+export async function saveAppConfig(value: unknown) {
+  const db = await openTrackCacheDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(appConfigStore, "readwrite");
+    const store = tx.objectStore(appConfigStore);
+    const request = store.put({ key: "app-config", value, updatedAt: Date.now() });
+    request.onsuccess = () => resolve();
+    request.onerror = () =>
+      reject(request.error ?? new Error("IndexedDB write failed"));
+  });
+}
+
+export async function loadAppConfig(): Promise<unknown | null> {
+  const db = await openTrackCacheDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(appConfigStore, "readonly");
+    const store = tx.objectStore(appConfigStore);
+    const request = store.get("app-config");
+    request.onsuccess = () => {
+      const value = request.result?.value ?? null;
+      resolve(value);
+    };
+    request.onerror = () =>
+      reject(request.error ?? new Error("IndexedDB read failed"));
   });
 }

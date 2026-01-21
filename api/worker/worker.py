@@ -20,8 +20,18 @@ DB_PATH = STORAGE_ROOT / "jobs.db"
 GENERATOR_REPO = Path(os.environ.get("GENERATOR_REPO", ""))
 GENERATOR_CONFIG = Path(os.environ.get("GENERATOR_CONFIG", ""))
 
-POLL_INTERVAL_S = float(os.environ.get("POLL_INTERVAL_S", "1.0"))
-WORKER_COUNT = int(os.environ.get("WORKER_COUNT", "1"))
+
+def _env_int(key: str, default: int) -> int:
+    value = os.environ.get(key)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+WORKER_COUNT = _env_int("WORKER_COUNT", 1)
 
 API_PROGRESS_END = 100
 logger = get_logger("foreverjukebox.worker")
@@ -147,7 +157,7 @@ def run_worker_loop() -> None:
     while True:
         job = claim_next_job(DB_PATH)
         if not job:
-            time.sleep(POLL_INTERVAL_S)
+            time.sleep(1.0)
             continue
         try:
             run_job(job.id, job.input_path, job.output_path)

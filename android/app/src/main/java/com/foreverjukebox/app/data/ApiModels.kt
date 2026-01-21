@@ -46,8 +46,18 @@ data class AnalysisResponse(
     val progress: Double? = null,
     val message: String? = null,
     @SerialName("youtube_id") val youtubeId: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
     val result: JsonElement? = null,
     val error: String? = null
+)
+
+@Serializable
+data class AppConfigResponse(
+    @SerialName("allow_user_upload") val allowUserUpload: Boolean = false,
+    @SerialName("allow_user_youtube") val allowUserYoutube: Boolean = false,
+    @SerialName("allow_favorites_sync") val allowFavoritesSync: Boolean = false,
+    @SerialName("max_upload_size") val maxUploadSize: Int? = null,
+    @SerialName("allowed_upload_exts") val allowedUploadExts: List<String>? = null
 )
 
 @Serializable
@@ -62,4 +72,21 @@ data class TopSongItem(
 @Serializable
 data class TopSongsResponse(
     val items: List<TopSongItem> = emptyList()
+)
+
+@Serializable
+data class FavoritesSyncRequest(
+    val favorites: List<FavoriteTrack> = emptyList()
+)
+
+@Serializable
+data class FavoritesSyncResponse(
+    val code: String? = null,
+    val count: Int? = null,
+    val favorites: List<FavoriteTrack> = emptyList()
+)
+
+@Serializable
+data class FavoritesSyncPayload(
+    val favorites: List<FavoriteTrack> = emptyList()
 )

@@ -15,7 +15,7 @@ class SegmentationConfig:
 
 @dataclass
 class FeatureConfig:
-    sample_rate: int = 44100
+    sample_rate: int = 22050
     frame_size: int = 2048
     hop_size: int = 512
 

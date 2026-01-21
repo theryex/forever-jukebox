@@ -29,12 +29,15 @@ data class UiState(
     val topSongsTab: TopSongsTab = TopSongsTab.TopSongs,
     val cacheSizeBytes: Long = 0,
     val favorites: List<FavoriteTrack> = emptyList(),
+    val favoritesSyncCode: String? = null,
+    val allowFavoritesSync: Boolean = false,
     val search: SearchState = SearchState(),
     val playback: PlaybackState = PlaybackState(),
     val tuning: TuningState = TuningState()
 )
 
 data class SearchState(
+    val query: String = "",
     val topSongs: List<TopSongItem> = emptyList(),
     val topSongsLoading: Boolean = false,
     val spotifyResults: List<SpotifySearchItem> = emptyList(),
@@ -66,7 +69,9 @@ data class PlaybackState(
     val currentBeatIndex: Int = -1,
     val lastJumpFromIndex: Int? = null,
     val jumpLine: JumpLine? = null,
-    val lastYouTubeId: String? = null
+    val lastJobId: String? = null,
+    val lastYouTubeId: String? = null,
+    val deleteEligible: Boolean = false
 )
 
 data class TuningState(

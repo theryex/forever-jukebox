@@ -25,8 +25,17 @@ Set API keys:
 export SPOTIFY_CLIENT_ID=...
 export SPOTIFY_CLIENT_SECRET=...
 export YOUTUBE_API_KEY=...
-export DELETE_JOB_KEY=...
+export ADMIN_KEY=...
+export WORKER_COUNT=1
+export ALLOW_USER_UPLOAD=true
+export ALLOW_USER_YOUTUBE=true
+export ALLOW_FAVORITES_SYNC=true
 ```
+
+## yt-dlp EJS runtime
+
+yt-dlp requires a JS runtime to solve YouTube challenges. We use Deno (>= 2.6.5)
+and configure EJS scripts in code.
 
 ## Run the API
 
@@ -66,11 +75,25 @@ Search YouTube (closest matches by duration):
 curl "/api/search/youtube?q=daft%20punk&target_duration=210"
 ```
 
-Create analysis from YouTube:
+Create analysis from YouTube (requires `ALLOW_USER_YOUTUBE=true` for user-supplied jobs):
 
 ```bash
-curl -X POST "/api/analysis/youtube" -H "Content-Type: application/json" -d '{"youtube_id":"dQw4w9WgXcQ"}'
+curl -X POST "/api/analysis/youtube" -H "Content-Type: application/json" -d '{"youtube_id":"dQw4w9WgXcQ","is_user_supplied":true}'
 ```
+
+Upload audio (requires `ALLOW_USER_UPLOAD=true`, max 15MB, m4a/webm/mp3/wav/flac/ogg/aac):
+
+```bash
+curl -X POST "/api/upload" -F "file=@/path/to/audio.m4a"
+```
+
+Get app configuration flags:
+
+```bash
+curl "/api/app-config"
+```
+
+Response fields include `allow_user_upload`, `allow_user_youtube`, `max_upload_size` (bytes, only when uploads enabled), and `allowed_upload_exts` (only when uploads enabled).
 
 Fetch audio for a job:
 
@@ -102,13 +125,35 @@ Fetch top tracks (defaults to 20):
 curl "/api/top?limit=20"
 ```
 
+Create a favorites sync code:
+
+```bash
+curl -X POST "/api/favorites/sync" -H "Content-Type: application/json" -d '{"favorites":[{"uniqueSongId":"youtube:dQw4w9WgXcQ","title":"Never Gonna Give You Up","artist":"Rick Astley","duration":213,"sourceType":"youtube"}]}'
+```
+
+Update favorites for an existing sync code:
+
+```bash
+curl -X PUT "/api/favorites/sync/bison-laser-sunset" -H "Content-Type: application/json" -d '{"favorites":[{"uniqueSongId":"youtube:dQw4w9WgXcQ","title":"Never Gonna Give You Up","artist":"Rick Astley","duration":213,"sourceType":"youtube"}]}'
+```
+
+Fetch favorites by sync code:
+
+```bash
+curl "/api/favorites/sync/bison-laser-sunset"
+```
+
 Delete a job and its stored files:
 
 ```bash
-curl -X DELETE "/api/jobs/<id>?key=$DELETE_JOB_KEY"
+curl -X DELETE "/api/jobs/<id>?key=$ADMIN_KEY"
 ```
 
-You can also pass the key as an `X-Delete-Track-Key` header instead of the query string.
+Within 30 minutes of creation/completion, the delete key is not required:
+
+```bash
+curl -X DELETE "/api/jobs/<id>"
+```
 
 ## Storage
 
@@ -118,3 +163,4 @@ Jobs and analysis outputs are stored under `storage/` in this repo:
 - `storage/analysis/`
 - `storage/logs/` - failure logs (engine output or download errors)
 - `storage/jobs.db`
+- `storage/favorites.db`

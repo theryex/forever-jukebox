@@ -1,6 +1,6 @@
 fastapi
 uvicorn
 python-multipart
-yt-dlp
+yt-dlp[default]
 httpx
 python-dotenv

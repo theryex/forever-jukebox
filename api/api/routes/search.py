@@ -10,7 +10,7 @@ from ..http_client import get_client
 from ..models import SearchResponse, SpotifyItem, SpotifySearchResponse
 from ..settings import load_settings
 from ..spotify import search_spotify_tracks
-from ..youtube import search_youtube_api, search_youtube_fallback
+from ..youtube import search_youtube_api, search_youtube_ytdlp
 
 router = APIRouter()
 settings = load_settings()
@@ -22,7 +22,7 @@ def search_youtube(
     target_duration: float | None = Query(None, ge=0),
 ) -> JSONResponse:
     try:
-        items = search_youtube_fallback(q, settings.youtube_search_limit, target_duration)
+        items = search_youtube_ytdlp(q, settings.youtube_search_limit, target_duration)
         payload = SearchResponse(items=items)
         return JSONResponse(payload.model_dump(), status_code=200)
     except RuntimeError as exc:

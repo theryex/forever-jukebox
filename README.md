@@ -1,10 +1,12 @@
 # The Forever Jukebox
 
+![The Forever Jukebox logo](./tfj-logo.png)
+
 The Forever Jukebox is a self-hosted, end-to-end system that analyzes audio,
 serves the results via a lightweight API, and powers a refreshed Infinite
 Jukebox-style web UI with branching playback and multiple visualizations. It
 also includes a native Android app for on-device playback. It replaces reliance
-on the deprecated Spotify Audio Analysis endpoint by generating
+on the deprecated Spotify Audio Analysis engine by generating similar
 beat/segment/section data locally.
 
 ## Credits
@@ -54,6 +56,11 @@ Build and run the container with Docker Compose (serves UI + API):
 export SPOTIFY_CLIENT_ID=...
 export SPOTIFY_CLIENT_SECRET=...
 export YOUTUBE_API_KEY=...
+export ADMIN_KEY=...
+export WORKER_COUNT=1
+export ALLOW_USER_UPLOAD=false
+export ALLOW_USER_YOUTUBE=false
+export ALLOW_FAVORITES_SYNC=false
 docker compose up --build
 ```
 
