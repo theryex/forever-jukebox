@@ -193,7 +193,6 @@ export function bootstrap() {
     .catch((err) => {
       console.warn(`App config fetch failed: ${String(err)}`);
     });
-  hydrateFavoritesFromSync();
   renderFavoritesList();
   setTopSongsTab("top");
   updateFavoritesSyncControls();
@@ -390,6 +389,10 @@ export function bootstrap() {
       setSearchTab("search");
     }
     setSearchTab(state.searchTab);
+    updateFavoritesSyncControls();
+    if (config.allow_favorites_sync) {
+      hydrateFavoritesFromSync();
+    }
   }
 
   function handleSearchSubtabClick(event: Event) {
@@ -457,13 +460,14 @@ export function bootstrap() {
   }
 
   function updateFavoritesSyncControls() {
+    const allowSync = Boolean(state.appConfig?.allow_favorites_sync);
     const hasCode = Boolean(state.favoritesSyncCode);
-    const showControls = state.topSongsTab === "favorites";
+    const showControls = state.topSongsTab === "favorites" && allowSync;
     elements.favoritesSyncButton.classList.toggle("hidden", !showControls);
     elements.favoritesSyncIcon.textContent = hasCode ? "cloud" : "cloud_off";
     const refreshItem = getFavoritesSyncRefreshItem();
     if (refreshItem) {
-      refreshItem.classList.toggle("hidden", !hasCode);
+      refreshItem.classList.toggle("hidden", !hasCode || !allowSync);
     }
     const createItem = getFavoritesSyncCreateItem();
     if (createItem) {
@@ -492,6 +496,9 @@ export function bootstrap() {
   }
 
   async function hydrateFavoritesFromSync() {
+    if (!state.appConfig?.allow_favorites_sync) {
+      return;
+    }
     const code = state.favoritesSyncCode;
     if (!code) {
       return;
@@ -505,6 +512,9 @@ export function bootstrap() {
   }
 
   async function refreshFavoritesFromSync() {
+    if (!state.appConfig?.allow_favorites_sync) {
+      return;
+    }
     const code = state.favoritesSyncCode;
     if (!code) {
       return;
@@ -711,6 +721,9 @@ export function bootstrap() {
   }
 
   function scheduleFavoritesSync(delta: FavoritesDelta) {
+    if (!state.appConfig?.allow_favorites_sync) {
+      return;
+    }
     if (!state.favoritesSyncCode) {
       return;
     }

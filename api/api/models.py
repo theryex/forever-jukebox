@@ -81,6 +81,7 @@ class AnalysisStartResponse(BaseModel):
 class AppConfigResponse(BaseModel):
     allow_user_upload: bool
     allow_user_youtube: bool
+    allow_favorites_sync: bool = False
     max_upload_size: int | None = None
     allowed_upload_exts: list[str] | None = None
 

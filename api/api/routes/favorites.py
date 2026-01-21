@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -21,8 +23,19 @@ logger = get_logger()
 MAX_FAVORITES = 100
 
 
+def _is_enabled(env_key: str) -> bool:
+    value = os.environ.get(env_key, "")
+    return value.lower() in {"1", "true", "yes", "on"}
+
+
+def _ensure_sync_enabled() -> None:
+    if not _is_enabled("ALLOW_FAVORITES_SYNC"):
+        raise HTTPException(status_code=403, detail="Favorites sync disabled.")
+
+
 @router.post("/api/favorites/sync", response_model=FavoritesSyncResponse)
 def create_favorites_sync(payload: FavoritesSyncRequest) -> JSONResponse:
+    _ensure_sync_enabled()
     favorites = [item.model_dump() for item in payload.favorites]
     if len(favorites) > MAX_FAVORITES:
         raise HTTPException(
@@ -43,6 +56,7 @@ def create_favorites_sync(payload: FavoritesSyncRequest) -> JSONResponse:
 
 @router.get("/api/favorites/sync/{code}", response_model=FavoritesSyncPayload)
 def get_favorites_sync(code: str) -> JSONResponse:
+    _ensure_sync_enabled()
     normalized = code.strip().lower()
     if not normalized:
         raise HTTPException(status_code=400, detail="Sync code is required.")
@@ -55,6 +69,7 @@ def get_favorites_sync(code: str) -> JSONResponse:
 
 @router.put("/api/favorites/sync/{code}", response_model=FavoritesSyncResponse)
 def update_favorites_sync(code: str, payload: FavoritesSyncRequest) -> JSONResponse:
+    _ensure_sync_enabled()
     normalized = code.strip().lower()
     if not normalized:
         raise HTTPException(status_code=400, detail="Sync code is required.")

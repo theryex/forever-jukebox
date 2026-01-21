@@ -72,6 +72,7 @@ export type TopSongItem = {
 export type AppConfig = {
   allow_user_upload: boolean;
   allow_user_youtube: boolean;
+  allow_favorites_sync?: boolean;
   max_upload_size?: number | null;
   allowed_upload_exts?: string[] | null;
 };
