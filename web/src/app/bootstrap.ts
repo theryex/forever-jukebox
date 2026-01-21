@@ -103,6 +103,7 @@ export function bootstrap() {
     autoComputedThreshold: null,
     lastJobId: null,
     lastYouTubeId: null,
+    pendingAutoFavoriteId: null,
     lastPlayCountedJobId: null,
     shiftBranching: false,
     selectedEdge: null,
@@ -878,7 +879,11 @@ export function bootstrap() {
       return;
     }
     const favoriteId = response.youtube_id ?? response.id;
-    if (!favoriteId || isFavorite(state.favorites, favoriteId)) {
+    if (!favoriteId || state.pendingAutoFavoriteId !== favoriteId) {
+      return;
+    }
+    state.pendingAutoFavoriteId = null;
+    if (isFavorite(state.favorites, favoriteId)) {
       return;
     }
     const title = state.trackTitle || "Untitled";
@@ -1058,6 +1063,7 @@ export function bootstrap() {
       }
       resetForNewTrack(context);
       state.lastJobId = response.id;
+      state.pendingAutoFavoriteId = response.id;
       state.lastYouTubeId = null;
       state.audioLoaded = false;
       state.analysisLoaded = false;
@@ -1104,6 +1110,7 @@ export function bootstrap() {
       resetForNewTrack(context);
       state.lastYouTubeId = youtubeId;
       state.lastJobId = response.id;
+      state.pendingAutoFavoriteId = youtubeId;
       elements.uploadYoutubeInput.value = "";
       updateTrackUrl(youtubeId, true);
       setActiveTabWithRefresh("play");
