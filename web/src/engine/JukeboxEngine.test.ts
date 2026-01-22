@@ -1,4 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../shared/backgroundTimer", () => ({
+  backgroundSetTimeout: (
+    callback: (...args: unknown[]) => void,
+    delay?: number,
+    ...args: unknown[]
+  ) => globalThis.setTimeout(callback, delay, ...args),
+  backgroundClearTimeout: (id: number) => globalThis.clearTimeout(id),
+}));
 import { JukeboxEngine, type JukeboxPlayer } from "./JukeboxEngine";
 import type {
   Edge,
@@ -117,7 +126,7 @@ describe("JukeboxEngine branching", () => {
       nextTransitionTime: number;
       curRandomBranchChance: number;
       lastJumpFromIndex: number | null;
-      advanceBeat: () => void;
+      advanceBeat: (currentTime: number) => void;
     };
     engineAny.analysis = makeAnalysis(beats);
     engineAny.graph = graph;
@@ -126,7 +135,7 @@ describe("JukeboxEngine branching", () => {
     engineAny.nextTransitionTime = beats[1].start + beats[1].duration;
     engineAny.curRandomBranchChance = engine.getConfig().minRandomBranchChance;
 
-    engineAny.advanceBeat();
+    engineAny.advanceBeat(engineAny.nextTransitionTime);
 
     expect(engineAny.currentBeatIndex).toBe(0);
     expect(player.scheduleJump).toHaveBeenCalledTimes(1);
@@ -155,7 +164,7 @@ describe("JukeboxEngine branching", () => {
       nextTransitionTime: number;
       curRandomBranchChance: number;
       lastJumpFromIndex: number | null;
-      advanceBeat: () => void;
+      advanceBeat: (currentTime: number) => void;
     };
     engineAny.analysis = makeAnalysis(beats);
     engineAny.graph = graph;
@@ -164,7 +173,7 @@ describe("JukeboxEngine branching", () => {
     engineAny.nextTransitionTime = beats[1].start + beats[1].duration;
     engineAny.curRandomBranchChance = engine.getConfig().minRandomBranchChance;
 
-    engineAny.advanceBeat();
+    engineAny.advanceBeat(engineAny.nextTransitionTime);
 
     expect(engineAny.currentBeatIndex).toBe(0);
     expect(player.scheduleJump).toHaveBeenCalledTimes(1);
@@ -279,7 +288,7 @@ describe("JukeboxEngine branching controls", () => {
       nextTransitionTime: number;
       curRandomBranchChance: number;
       lastJumpFromIndex: number | null;
-      advanceBeat: () => void;
+      advanceBeat: (currentTime: number) => void;
     };
     engineAny.analysis = makeAnalysis(beats);
     engineAny.graph = graph;
@@ -289,7 +298,7 @@ describe("JukeboxEngine branching controls", () => {
     engineAny.curRandomBranchChance = engine.getConfig().minRandomBranchChance;
 
     engine.setForceBranch(true);
-    engineAny.advanceBeat();
+    engineAny.advanceBeat(engineAny.nextTransitionTime);
 
     expect(engineAny.currentBeatIndex).toBe(0);
     expect(player.scheduleJump).toHaveBeenCalledTimes(1);

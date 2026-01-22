@@ -4,6 +4,15 @@ vi.mock("./graph", () => ({
   buildJumpGraph: vi.fn(),
 }));
 
+vi.mock("../shared/backgroundTimer", () => ({
+  backgroundSetTimeout: (
+    callback: (...args: unknown[]) => void,
+    delay?: number,
+    ...args: unknown[]
+  ) => globalThis.setTimeout(callback, delay, ...args),
+  backgroundClearTimeout: (id: number) => globalThis.clearTimeout(id),
+}));
+
 import { JukeboxEngine, type JukeboxPlayer } from "./JukeboxEngine";
 import { buildJumpGraph } from "./graph";
 import type { Edge, JukeboxGraphState, TrackAnalysis } from "./types";
