@@ -69,11 +69,13 @@ export class JukeboxEngine {
   private deletedEdgeKeys = new Set<string>();
   private rng: () => number;
   private listener: UpdateListener | null = null;
+  private branchState = { curRandomBranchChance: 0 };
 
   constructor(player: JukeboxPlayer, options: JukeboxEngineOptions = {}) {
     this.player = player;
     this.config = { ...DEFAULT_CONFIG, ...options.config };
     this.rng = createRng(options.randomMode ?? "random", options.seed);
+    this.branchState.curRandomBranchChance = this.config.minRandomBranchChance;
   }
 
   onUpdate(listener: UpdateListener) {
@@ -109,6 +111,7 @@ export class JukeboxEngine {
     this.config.minLongBranch = Math.floor(this.analysis.beats.length / 5);
     this.graph = buildJumpGraph(this.analysis, this.config);
     this.curRandomBranchChance = this.config.minRandomBranchChance;
+    this.branchState.curRandomBranchChance = this.curRandomBranchChance;
     this.applyDeletedEdges();
   }
 
@@ -224,6 +227,7 @@ export class JukeboxEngine {
     this.nextTransitionTime = 0;
     this.beatsPlayed = 0;
     this.curRandomBranchChance = this.config.minRandomBranchChance;
+    this.branchState.curRandomBranchChance = this.curRandomBranchChance;
     this.lastJumped = false;
     this.lastJumpTime = null;
     this.lastJumpFromIndex = null;
@@ -279,22 +283,23 @@ export class JukeboxEngine {
       return;
     }
     const currentIndex = this.currentBeatIndex;
+    const beatsCount = this.beats.length;
     const nextIndex = currentIndex + 1;
-    const wrappedIndex = nextIndex >= this.beats.length ? 0 : nextIndex;
+    const wrappedIndex = nextIndex >= beatsCount ? 0 : nextIndex;
     const enforceLastBranch = currentIndex === this.graph.lastBranchPoint;
     const seed = enforceLastBranch ? this.beats[currentIndex] : this.beats[wrappedIndex];
-    const branchState = { curRandomBranchChance: this.curRandomBranchChance };
+    this.branchState.curRandomBranchChance = this.curRandomBranchChance;
     const selection = selectNextBeatIndex(
       seed,
       this.graph,
       this.config,
       this.rng,
-      branchState,
+      this.branchState,
       this.forceBranch || enforceLastBranch
     );
-    this.curRandomBranchChance = branchState.curRandomBranchChance;
+    this.curRandomBranchChance = this.branchState.curRandomBranchChance;
     const chosenIndex = selection.jumped ? selection.index : wrappedIndex;
-    const wrappedToStart = wrappedIndex === 0 && currentIndex === this.beats.length - 1;
+    const wrappedToStart = wrappedIndex === 0 && currentIndex === beatsCount - 1;
     if (selection.jumped || wrappedToStart) {
       const targetBeat = this.beats[chosenIndex];
       const unclampedOffset = targetBeat.duration * JUMP_OFFSET_FRACTION;

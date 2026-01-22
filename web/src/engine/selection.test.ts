@@ -99,4 +99,99 @@ describe("selectNextBeatIndex", () => {
     expect(selection.index).toBe(2);
     expect(selection.jumped).toBe(true);
   });
+
+  it("rotates neighbor order after a jump", () => {
+    const seed = makeBeat(0);
+    const firstTarget = makeBeat(1);
+    const secondTarget = makeBeat(2);
+    seed.neighbors.push(
+      {
+        id: 0,
+        src: seed,
+        dest: firstTarget,
+        distance: 10,
+        deleted: false,
+      },
+      {
+        id: 1,
+        src: seed,
+        dest: secondTarget,
+        distance: 12,
+        deleted: false,
+      }
+    );
+    const config: JukeboxConfig = {
+      maxBranches: 4,
+      maxBranchThreshold: 80,
+      currentThreshold: 60,
+      addLastEdge: true,
+      justBackwards: false,
+      justLongBranches: false,
+      removeSequentialBranches: false,
+      minRandomBranchChance: 0.18,
+      maxRandomBranchChance: 0.5,
+      randomBranchChanceDelta: 0.018,
+      minLongBranch: 1,
+    };
+    const graph: JukeboxGraphState = {
+      computedThreshold: 60,
+      currentThreshold: 60,
+      lastBranchPoint: 0,
+      totalBeats: 3,
+      longestReach: 0,
+      allEdges: [],
+    };
+    const selection = selectNextBeatIndex(
+      seed,
+      graph,
+      config,
+      () => 0.01,
+      { curRandomBranchChance: 0.18 }
+    );
+    expect(selection.index).toBe(1);
+    expect(seed.neighbors[0].dest.which).toBe(2);
+    expect(seed.neighbors[1].dest.which).toBe(1);
+  });
+
+  it("keeps index when random chance does not trigger", () => {
+    const seed = makeBeat(0);
+    const target = makeBeat(3);
+    seed.neighbors.push({
+      id: 0,
+      src: seed,
+      dest: target,
+      distance: 10,
+      deleted: false,
+    });
+    const config: JukeboxConfig = {
+      maxBranches: 4,
+      maxBranchThreshold: 80,
+      currentThreshold: 60,
+      addLastEdge: true,
+      justBackwards: false,
+      justLongBranches: false,
+      removeSequentialBranches: false,
+      minRandomBranchChance: 0.18,
+      maxRandomBranchChance: 0.5,
+      randomBranchChanceDelta: 0.018,
+      minLongBranch: 1,
+    };
+    const graph: JukeboxGraphState = {
+      computedThreshold: 60,
+      currentThreshold: 60,
+      lastBranchPoint: 99,
+      totalBeats: 4,
+      longestReach: 0,
+      allEdges: [],
+    };
+    const selection = selectNextBeatIndex(
+      seed,
+      graph,
+      config,
+      () => 0.9,
+      { curRandomBranchChance: 0.18 }
+    );
+    expect(selection.index).toBe(0);
+    expect(selection.jumped).toBe(false);
+  });
 });
