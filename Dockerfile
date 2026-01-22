@@ -56,8 +56,7 @@ RUN chmod +x /app/entrypoint.sh
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app/api" \
-    ENGINE_REPO="/app/engine" \
-    ENGINE_CONFIG="/app/engine/calibration.json"
+    ENGINE_REPO="/app/engine"
 
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

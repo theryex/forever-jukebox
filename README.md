@@ -58,14 +58,13 @@ export SPOTIFY_CLIENT_SECRET=...
 export YOUTUBE_API_KEY=...
 export ADMIN_KEY=...
 export WORKER_COUNT=1
-export ENGINE_CONFIG=../engine/calibration.json
 export ALLOW_USER_UPLOAD=false
 export ALLOW_USER_YOUTUBE=false
 export ALLOW_FAVORITES_SYNC=false
 docker compose up --build
 ```
 
-`ENGINE_CONFIG` is optional; omit it to use default analysis settings.
+`ENGINE_CONFIG` is optional; set it only if you want a calibration bundle.
 
 You can also put these values in a `.env` file (same directory as
 `docker-compose.yml`) and Compose will load them automatically.

@@ -24,7 +24,7 @@ def main() -> None:
     def progress_printer(percent: int, stage: str) -> None:
         print(f"PROGRESS:{percent}:{stage}", flush=True)
 
-    progress_cb = progress_printer if os.environ.get("FJ_PROGRESS") == "1" else None
+    progress_cb = progress_printer if os.environ.get("ENGINE_PROGRESS") == "true" else None
     analysis_progress = progress_cb
 
     data = analyze_audio(args.input, calibration_path=args.calibration, progress_cb=analysis_progress)

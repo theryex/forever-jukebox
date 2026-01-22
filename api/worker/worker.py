@@ -51,7 +51,7 @@ def run_job(job_id: str, input_path: str, output_path: str) -> None:
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ENGINE_REPO)
-    env["FJ_PROGRESS"] = "1"
+    env["ENGINE_PROGRESS"] = "true"
 
     input_abs = abs_storage_path(STORAGE_ROOT, input_path)
     if not input_abs.exists():
