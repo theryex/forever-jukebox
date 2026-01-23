@@ -39,6 +39,36 @@ from ..paths import DB_PATH, STORAGE_ROOT
 from ..utils import abs_storage_path, get_logger
 from ..ytdlp_config import apply_ejs_config
 
+ERROR_ENGINE = "ERROR: [engine] Analysis engine encountered an issue."
+ERROR_YOUTUBE_UNAVAILABLE = "ERROR: [youtube] This video is not available."
+ERROR_DOWNLOAD_UNAVAILABLE = "ERROR: [download] This video is not available."
+ERROR_YOUTUBE_UNREACHABLE = "ERROR: [youtube] Unable to reach YouTube"
+ERROR_GENERIC = "ERROR: Something went wrong. Please try again or report an issue on GitHub."
+ERROR_CODE_ANALYSIS_MISSING = "analysis_missing"
+
+
+def _normalize_job_error(raw: str | None) -> str:
+    if not raw:
+        return ERROR_GENERIC
+    lowered = raw.lower()
+    if "engine exited" in lowered:
+        return ERROR_ENGINE
+    if "video unavailable" in lowered or "this video is not available" in lowered:
+        return ERROR_YOUTUBE_UNAVAILABLE
+    if "http error 403" in lowered or "[download]" in lowered or "unable to download video data" in lowered:
+        return ERROR_DOWNLOAD_UNAVAILABLE
+    if "sign in to confirm" in lowered or "not a bot" in lowered:
+        return ERROR_YOUTUBE_UNREACHABLE
+    return ERROR_GENERIC
+
+
+def _error_code_for(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    if raw == "Analysis missing":
+        return ERROR_CODE_ANALYSIS_MISSING
+    return None
+
 router = APIRouter()
 logger = get_logger()
 
@@ -126,12 +156,22 @@ def _job_response(job) -> JSONResponse:
         return JSONResponse(payload.model_dump(), status_code=202)
 
     if job.status == "failed":
-        payload = JobError(status="failed", error=job.error, **base_payload)
+        payload = JobError(
+            status="failed",
+            error=_normalize_job_error(job.error),
+            error_code=_error_code_for(job.error),
+            **base_payload,
+        )
         return JSONResponse(payload.model_dump(), status_code=200)
 
     result_path = abs_storage_path(STORAGE_ROOT, job.output_path)
     if not result_path.exists():
-        payload = JobError(status="failed", error="Analysis missing", **base_payload)
+        payload = JobError(
+            status="failed",
+            error=_normalize_job_error("Analysis missing"),
+            error_code=_error_code_for("Analysis missing"),
+            **base_payload,
+        )
         return JSONResponse(payload.model_dump(), status_code=200)
 
     data = json.loads(result_path.read_text(encoding="utf-8"))

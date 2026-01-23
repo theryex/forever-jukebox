@@ -292,20 +292,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun maybeRepairMissing(
-        baseUrl: String,
         response: AnalysisResponse
     ): AnalysisResponse {
-        if (response.status != "failed") {
-            return response
-        }
-        if (response.error != "Analysis missing" || response.id == null) {
-            return response
-        }
-        return try {
-            api.repairJob(baseUrl, response.id)
-        } catch (_: Exception) {
-            response
-        }
+        return response
     }
 
     fun toggleFavoriteForCurrent(): Boolean {
@@ -517,7 +506,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (artist.isNotBlank()) {
                 try {
                     val response = maybeRepairMissing(
-                        baseUrl,
                         api.getJobByTrack(baseUrl, name, artist)
                     )
                     val jobId = response.id
@@ -627,7 +615,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             setAnalysisQueued(null, "Fetching audio...")
             try {
-                val response = maybeRepairMissing(baseUrl, api.getJobByYoutube(baseUrl, youtubeId))
+                val response = maybeRepairMissing(api.getJobByYoutube(baseUrl, youtubeId))
                 if (response.id == null) {
                     setAnalysisError("Loading failed.")
                     return@launch
@@ -953,9 +941,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             updateDeleteEligibility(response)
             when (response.status) {
                 "failed" -> {
-                    if (response.error == "Analysis missing") {
+                    if (response.errorCode == "analysis_missing" && response.id != null) {
                         try {
-                            api.repairJob(baseUrl, jobId)
+                            api.repairJob(baseUrl, response.id)
                             delay(intervalMs)
                             continue
                         } catch (_: Exception) {

@@ -21,6 +21,7 @@ class JobProgress(JobBase):
 class JobError(JobBase):
     status: str
     error: str | None = None
+    error_code: str | None = None
 
 
 class JobComplete(JobBase):

@@ -493,8 +493,10 @@ export async function pollAnalysis(
       }
       const response = await fetchAnalysis(jobId, controller.signal);
       if (!response) {
-        deps.setAnalysisStatus("Load failed. Try again.", false);
-        deps.navigateToTab("top", { replace: true });
+        deps.setAnalysisStatus(
+          "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
+          false
+        );
         return;
       }
       maybeUpdateDeleteEligibility(context, response, jobId);
@@ -511,16 +513,16 @@ export async function pollAnalysis(
           await loadAudioFromJob(context, jobId);
         }
       } else if (isAnalysisFailed(response)) {
-        if (response.error === "Analysis missing") {
+        if (response.error_code === "analysis_missing" && response.id) {
           try {
-            await repairJob(jobId);
+            await repairJob(response.id);
             continue;
           } catch (err) {
             console.warn(`Repair failed: ${String(err)}`);
           }
         }
-        deps.setAnalysisStatus("Loading failed.", false);
-        throw new Error(response.error || "Analysis failed");
+        deps.setAnalysisStatus(response.error || "Loading failed.", false);
+        return;
       } else if (isAnalysisComplete(response)) {
         if (!state.audioLoaded) {
           const audioLoaded = await loadAudioFromJob(context, jobId);
@@ -561,8 +563,10 @@ export async function loadTrackByYouTubeId(
   try {
     const response = await fetchJobByYoutube(youtubeId);
     if (!response || !response.id) {
-      deps.setAnalysisStatus("Track unavailable. Try again.", false);
-      deps.navigateToTab("top", { replace: true });
+      deps.setAnalysisStatus(
+        "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
+        false
+      );
       return;
     }
     maybeUpdateDeleteEligibility(context, response, response.id);
@@ -587,7 +591,10 @@ export async function loadTrackByYouTubeId(
       await pollAnalysis(context, deps, response.id);
       return;
     }
-    deps.setAnalysisStatus("Track unavailable. Try again.", false);
+    deps.setAnalysisStatus(
+      "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
+      false
+    );
   } catch (err) {
     deps.setAnalysisStatus(`Load failed: ${String(err)}`, false);
   }
@@ -608,8 +615,10 @@ export async function loadTrackByJobId(
   try {
     const response = await fetchAnalysis(jobId);
     if (!response || !response.id) {
-      deps.setAnalysisStatus("Track unavailable. Try again.", false);
-      deps.navigateToTab("top", { replace: true });
+      deps.setAnalysisStatus(
+        "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
+        false
+      );
       return;
     }
     maybeUpdateDeleteEligibility(context, response, response.id);
@@ -633,7 +642,10 @@ export async function loadTrackByJobId(
       await pollAnalysis(context, deps, response.id);
       return;
     }
-    deps.setAnalysisStatus("Track unavailable. Try again.", false);
+    deps.setAnalysisStatus(
+      "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
+      false
+    );
   } catch (err) {
     deps.setAnalysisStatus(`Load failed: ${String(err)}`, false);
   }

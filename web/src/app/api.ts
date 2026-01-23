@@ -43,6 +43,7 @@ export type AnalysisFailed = AnalysisBase & {
   status: "failed";
   id?: string;
   error?: string;
+  error_code?: string;
 };
 
 export type AnalysisResponse =
@@ -137,6 +138,7 @@ function parseAnalysisResponse(data: unknown): AnalysisResponse | null {
       created_at: createdAt,
       is_user_supplied: isUserSupplied,
       error: typeof data.error === "string" ? data.error : undefined,
+      error_code: typeof data.error_code === "string" ? data.error_code : undefined,
     };
   }
   if (status === "complete") {
