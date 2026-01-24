@@ -33,7 +33,6 @@ import {
   applyTuningChanges,
   closeInfo,
   closeTuning,
-  getTuningSearchParams,
   resetTuningDefaults,
   loadAudioFromJob,
   loadTrackByJobId,
@@ -53,6 +52,10 @@ import { runSearch } from "./search";
 import { TOP_SONGS_LIMIT } from "./constants";
 import type { AppContext, AppState, TabId } from "./context";
 import type { AppConfig } from "./api";
+import {
+  getTuningParamsFromEngine,
+  getTuningParamsStringFromUrl,
+} from "./tuning";
 import {
   addFavorite,
   isFavorite,
@@ -123,6 +126,7 @@ export function bootstrap() {
     pollController: null,
     listenTimerId: null,
     wakeLock: null,
+    tuningParams: null,
   };
   const context: AppContext = {
     elements,
@@ -222,7 +226,7 @@ export function bootstrap() {
         options?: { replace?: boolean; youtubeId?: string | null },
       ) => navigateToTabWithState(tabId, options),
       updateTrackUrl: (youtubeId: string, replace?: boolean) =>
-        updateTrackUrl(youtubeId, replace),
+        updateTrackUrl(youtubeId, replace, state.tuningParams),
       setAnalysisStatus: (message: string, spinning: boolean) =>
         setAnalysisStatus(context, message, spinning),
       setLoadingProgress: (progress: number | null, message?: string | null) =>
@@ -240,7 +244,7 @@ export function bootstrap() {
         options?: { replace?: boolean; youtubeId?: string | null },
       ) => navigateToTabWithState(tabId, options),
       updateTrackUrl: (youtubeId: string, replace?: boolean) =>
-        updateTrackUrl(youtubeId, replace),
+        updateTrackUrl(youtubeId, replace, state.tuningParams),
       setAnalysisStatus: (message: string, spinning: boolean) =>
         setAnalysisStatus(context, message, spinning),
       setLoadingProgress: (progress: number | null, message?: string | null) =>
@@ -250,7 +254,7 @@ export function bootstrap() {
       applyAnalysisResult: (response) =>
         applyAnalysisResult(context, response, maybeAutoFavoriteUserSupplied),
       loadAudioFromJob: (jobId: string) => loadAudioFromJob(context, jobId),
-      resetForNewTrack: () => resetForNewTrack(context),
+      resetForNewTrack: (options) => resetForNewTrack(context, options),
       updateVizVisibility: () => updateVizVisibility(context),
       onTrackChange: () => syncFavoriteButton(),
     };
@@ -1074,7 +1078,7 @@ export function bootstrap() {
       state.lastYouTubeId = null;
       state.audioLoaded = false;
       state.analysisLoaded = false;
-      updateTrackUrl(response.id, true);
+      updateTrackUrl(response.id, true, state.tuningParams);
       elements.uploadFileInput.value = "";
       setActiveTabWithRefresh("play");
       setLoadingProgress(context, null, "Queued");
@@ -1119,7 +1123,7 @@ export function bootstrap() {
       state.lastJobId = response.id;
       state.pendingAutoFavoriteId = youtubeId;
       elements.uploadYoutubeInput.value = "";
-      updateTrackUrl(youtubeId, true);
+      updateTrackUrl(youtubeId, true, state.tuningParams);
       setActiveTabWithRefresh("play");
       setLoadingProgress(context, null, "Fetching audio");
       await pollAnalysis(context, playbackDeps, response.id);
@@ -1377,7 +1381,8 @@ export function bootstrap() {
     options?: { replace?: boolean; youtubeId?: string | null },
   ) {
     setActiveTabWithRefresh(tabId);
-    navigateToTab(tabId, options, getCurrentTrackId());
+    const tuningParams = state.tuningParams ?? getTuningParamsStringFromUrl();
+    navigateToTab(tabId, options, getCurrentTrackId(), tuningParams);
   }
 
   function setActiveTabWithRefresh(tabId: TabId) {
@@ -1443,7 +1448,7 @@ export function bootstrap() {
     const url = new URL(
       `${window.location.origin}/listen/${encodeURIComponent(trackId)}`,
     );
-    const tuningParams = getTuningSearchParams(context);
+    const tuningParams = getTuningParamsFromEngine(context);
     tuningParams.forEach((value, key) => {
       url.searchParams.set(key, value);
     });

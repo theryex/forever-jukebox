@@ -14,17 +14,6 @@ export function pathForTab(tabId: TabId, youtubeId?: string | null) {
   return "/";
 }
 
-const TUNING_PARAM_KEYS = new Set(["lb", "jb", "lg", "sq", "thresh", "bp"]);
-
-function applyTuningParams(target: URL, sourceParams: URLSearchParams) {
-  TUNING_PARAM_KEYS.forEach((key) => {
-    const value = sourceParams.get(key);
-    if (value !== null) {
-      target.searchParams.set(key, value);
-    }
-  });
-}
-
 export function setActiveTab(
   context: AppContext,
   tabId: TabId,
@@ -65,14 +54,13 @@ export function setActiveTab(
 export function navigateToTab(
   tabId: TabId,
   options?: { replace?: boolean; youtubeId?: string | null },
-  lastYouTubeId?: string | null
+  lastYouTubeId?: string | null,
+  tuningParams?: string | null
 ) {
   const path = pathForTab(tabId, options?.youtubeId ?? lastYouTubeId);
   const url = new URL(window.location.href);
-  const tuningParams = new URLSearchParams(window.location.search);
   url.pathname = path;
-  url.search = "";
-  applyTuningParams(url, tuningParams);
+  url.search = tabId === "play" && tuningParams ? `?${tuningParams}` : "";
   if (options?.replace) {
     window.history.replaceState({}, "", url.toString());
   } else {
@@ -80,12 +68,14 @@ export function navigateToTab(
   }
 }
 
-export function updateTrackUrl(youtubeId: string, replace = false) {
+export function updateTrackUrl(
+  youtubeId: string,
+  replace = false,
+  tuningParams?: string | null
+) {
   const url = new URL(window.location.href);
-  const tuningParams = new URLSearchParams(window.location.search);
   url.pathname = pathForTab("play", youtubeId);
-  url.search = "";
-  applyTuningParams(url, tuningParams);
+  url.search = tuningParams ? `?${tuningParams}` : "";
   if (replace) {
     window.history.replaceState({}, "", url.toString());
   } else {

@@ -1,6 +1,7 @@
 import type { AppContext } from "./context";
 import type { PlaybackDeps } from "./playback";
 import { loadTrackByJobId, loadTrackByYouTubeId } from "./playback";
+import { hasTuningParamsInUrl } from "./tuning";
 
 function isLikelyYoutubeId(value: string) {
   return /^[a-zA-Z0-9_-]{11}$/.test(value);
@@ -26,6 +27,7 @@ export async function handleRouteChange(
     const trackId = parts.length >= 2 ? parts[1] : null;
     if (trackId) {
       const { state } = context;
+      const preserveUrlTuning = hasTuningParamsInUrl();
       if (isLikelyYoutubeId(trackId)) {
         if (
           trackId === state.lastYouTubeId &&
@@ -38,11 +40,13 @@ export async function handleRouteChange(
           return;
         }
         deps.navigateToTab("play", { replace: true, youtubeId: trackId });
-        await loadTrackByYouTubeId(context, deps, trackId);
+        await loadTrackByYouTubeId(context, deps, trackId, {
+          preserveUrlTuning,
+        });
         return;
       }
       deps.navigateToTab("play", { replace: true, youtubeId: trackId });
-      await loadTrackByJobId(context, deps, trackId);
+      await loadTrackByJobId(context, deps, trackId, { preserveUrlTuning });
       return;
     }
     deps.navigateToTab("top", { replace: true });
