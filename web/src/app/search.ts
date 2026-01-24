@@ -25,7 +25,7 @@ export type SearchDeps = {
   pollAnalysis: (jobId: string) => Promise<void>;
   applyAnalysisResult: (response: AnalysisComplete) => boolean;
   loadAudioFromJob: (jobId: string) => Promise<boolean>;
-  resetForNewTrack: () => void;
+  resetForNewTrack: (options?: { clearTuning?: boolean }) => void;
   updateVizVisibility: () => void;
   onTrackChange?: (youtubeId: string | null) => void;
 };
@@ -55,7 +55,7 @@ export async function startYoutubeAnalysisFlow(
   title: string,
   artist: string
 ) {
-  deps.resetForNewTrack();
+  deps.resetForNewTrack({ clearTuning: true });
   resetSearchUI(context);
   context.state.audioLoaded = false;
   context.state.analysisLoaded = false;
@@ -174,7 +174,7 @@ export async function tryLoadExistingTrackByName(
     if (!youtubeId) {
       return false;
     }
-    deps.resetForNewTrack();
+    deps.resetForNewTrack({ clearTuning: true });
     resetSearchUI(context);
     state.audioLoaded = false;
     state.analysisLoaded = false;

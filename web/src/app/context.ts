@@ -43,6 +43,7 @@ export type AppState = {
   pollController: AbortController | null;
   listenTimerId: number | null;
   wakeLock: WakeLockSentinel | null;
+  tuningParams: string | null;
 };
 
 export type AppContext = {

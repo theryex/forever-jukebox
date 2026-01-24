@@ -119,6 +119,10 @@ export function getElements() {
     document.querySelector<HTMLButtonElement>("#tuning-apply"),
     "#tuning-apply"
   );
+  const tuningReset = requireElement(
+    document.querySelector<HTMLButtonElement>("#tuning-reset"),
+    "#tuning-reset"
+  );
   const infoDurationEl = requireElement(
     document.querySelector<HTMLSpanElement>("#info-duration"),
     "#info-duration"
@@ -373,6 +377,7 @@ export function getElements() {
     tuningClose,
     infoClose,
     tuningApply,
+    tuningReset,
     favoritesSyncEnterModal,
     favoritesSyncEnterClose,
     favoritesSyncEnterInput,

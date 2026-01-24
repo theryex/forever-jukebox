@@ -499,6 +499,10 @@ button:hover {
   justify-content: flex-end;
 }
 
+.tuning-footer {
+  justify-content: space-between;
+}
+
 .favorites-sync-code {
   padding: 10px 12px;
   border-radius: 10px;

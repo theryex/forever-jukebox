@@ -16,6 +16,14 @@ import {
   type AnalysisResponse,
 } from "./api";
 import { readCachedTrack, updateCachedTrack } from "./cache";
+import {
+  applyTuningParamsFromUrl,
+  clearTuningParamsFromUrl,
+  syncTuningParamsState,
+  writeTuningParamsToUrl,
+} from "./tuning";
+
+const DEFAULT_VOLUME = 0.5;
 
 export type PlaybackDeps = {
   setActiveTab: (tabId: "top" | "search" | "play" | "faq") => void;
@@ -32,6 +40,7 @@ export type PlaybackDeps = {
   onTrackChange?: (youtubeId: string | null) => void;
   onAnalysisLoaded?: (response: AnalysisComplete) => void;
 };
+
 
 export function updateListenTimeDisplay(context: AppContext) {
   const { elements, state } = context;
@@ -176,6 +185,11 @@ export function syncTuningUI(context: AppContext) {
 export function applyTuningChanges(context: AppContext) {
   const { elements, engine, state, visualizations } = context;
   const threshold = Number(elements.thresholdInput.value);
+  const computed = Number(elements.computedThresholdEl.textContent);
+  const useAutoThreshold =
+    engine.getConfig().currentThreshold === 0 &&
+    Number.isFinite(computed) &&
+    threshold === computed;
   let minProb = Number(elements.minProbInput.value) / 100;
   let maxProb = Number(elements.maxProbInput.value) / 100;
   const ramp = Number(elements.rampInput.value) / 100;
@@ -187,7 +201,7 @@ export function applyTuningChanges(context: AppContext) {
     elements.maxProbVal.textContent = `${elements.maxProbInput.value}%`;
   }
   engine.updateConfig({
-    currentThreshold: threshold,
+    currentThreshold: useAutoThreshold ? 0 : threshold,
     minRandomBranchChance: minProb,
     maxRandomBranchChance: maxProb,
     randomBranchChanceDelta: ramp,
@@ -204,18 +218,45 @@ export function applyTuningChanges(context: AppContext) {
   }
   const graph = engine.getGraphState();
   updateTrackInfo(context);
-  elements.computedThresholdEl.textContent =
-    state.autoComputedThreshold === null
-      ? "-"
-      : `${state.autoComputedThreshold}`;
-  if (threshold === 0 && graph) {
+  if (graph) {
     const resolved = Math.max(0, Math.round(graph.currentThreshold));
-    state.autoComputedThreshold = resolved;
-    elements.thresholdInput.value = `${resolved}`;
-    elements.thresholdVal.textContent = elements.thresholdInput.value;
-    engine.updateConfig({ currentThreshold: resolved });
+    if (useAutoThreshold) {
+      state.autoComputedThreshold = resolved;
+    }
+    elements.computedThresholdEl.textContent = `${resolved}`;
+    if (useAutoThreshold) {
+      elements.thresholdInput.value = `${resolved}`;
+      elements.thresholdVal.textContent = elements.thresholdInput.value;
+    }
+  } else {
+    elements.computedThresholdEl.textContent =
+      state.autoComputedThreshold === null
+        ? "-"
+        : `${state.autoComputedThreshold}`;
   }
+  syncTuningParamsState(context);
+  writeTuningParamsToUrl(state.tuningParams, true);
   closeTuning(context);
+}
+
+export function resetTuningDefaults(context: AppContext) {
+  const { engine, state, visualizations, player } = context;
+  engine.updateConfig(context.defaultConfig);
+  engine.rebuildGraph();
+  state.vizData = engine.getVisualizationData();
+  const data = state.vizData;
+  if (data) {
+    visualizations.forEach((viz) => viz.setData(data));
+  }
+  const graph = engine.getGraphState();
+  state.autoComputedThreshold = graph
+    ? Math.round(graph.currentThreshold)
+    : null;
+  state.tuningParams = null;
+  writeTuningParamsToUrl(null, true);
+  player.setVolume(DEFAULT_VOLUME);
+  syncTuningUI(context);
+  updateTrackInfo(context);
 }
 
 export function startListenTimer(context: AppContext) {
@@ -309,8 +350,12 @@ function updatePlayButton(context: AppContext, isRunning: boolean) {
   context.elements.playTabButton.classList.toggle("is-playing", shouldPulse);
 }
 
-export function resetForNewTrack(context: AppContext) {
+export function resetForNewTrack(
+  context: AppContext,
+  options?: { clearTuning?: boolean }
+) {
   const { elements, engine, visualizations, state, defaultConfig } = context;
+  const shouldClearTuning = options?.clearTuning ?? false;
   cancelPoll(context);
   state.shiftBranching = false;
   engine.setForceBranch(false);
@@ -340,6 +385,10 @@ export function resetForNewTrack(context: AppContext) {
     stopPlayback(context);
   }
   state.autoComputedThreshold = null;
+  if (shouldClearTuning) {
+    state.tuningParams = null;
+    clearTuningParamsFromUrl(true);
+  }
   elements.computedThresholdEl.textContent = "-";
   engine.updateConfig({ ...defaultConfig });
   syncTuningUI(context);
@@ -421,11 +470,12 @@ export function applyAnalysisResult(
   }
   maybeUpdateDeleteEligibility(context, response, response.id);
   const { elements, engine, state, visualizations } = context;
+  applyTuningParamsFromUrl(context);
+  const useAutoThreshold = engine.getConfig().currentThreshold === 0;
   engine.loadAnalysis(response.result);
   const graph = engine.getGraphState();
-  state.autoComputedThreshold = graph
-    ? Math.round(graph.currentThreshold)
-    : null;
+  state.autoComputedThreshold =
+    useAutoThreshold && graph ? Math.round(graph.currentThreshold) : null;
   state.vizData = engine.getVisualizationData();
   const data = state.vizData;
   if (data) {
@@ -555,9 +605,11 @@ export async function pollAnalysis(
 export async function loadTrackByYouTubeId(
   context: AppContext,
   deps: PlaybackDeps,
-  youtubeId: string
+  youtubeId: string,
+  options?: { preserveUrlTuning?: boolean }
 ) {
-  resetForNewTrack(context);
+  const shouldClear = !options?.preserveUrlTuning;
+  resetForNewTrack(context, { clearTuning: shouldClear });
   deps.setActiveTab("play");
   deps.setLoadingProgress(null, "Fetching audio");
   context.state.lastYouTubeId = youtubeId;
@@ -606,9 +658,11 @@ export async function loadTrackByYouTubeId(
 export async function loadTrackByJobId(
   context: AppContext,
   deps: PlaybackDeps,
-  jobId: string
+  jobId: string,
+  options?: { preserveUrlTuning?: boolean }
 ) {
-  resetForNewTrack(context);
+  const shouldClear = !options?.preserveUrlTuning;
+  resetForNewTrack(context, { clearTuning: shouldClear });
   deps.setActiveTab("play");
   deps.setLoadingProgress(null, "Fetching audio");
   context.state.lastJobId = jobId;
