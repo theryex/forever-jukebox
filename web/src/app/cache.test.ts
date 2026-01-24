@@ -8,6 +8,7 @@ class MockRequest<T = unknown> {
   error: Error | null = null;
   onsuccess: RequestHandler | null = null;
   onerror: RequestHandler | null = null;
+  onupgradeneeded: RequestHandler | null = null;
 }
 
 class MockStore {

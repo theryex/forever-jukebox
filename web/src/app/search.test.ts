@@ -58,13 +58,13 @@ describe("search flows", () => {
     vi.clearAllMocks();
     api = await import("./api");
     playback = await import("./playback");
-    playback.tryLoadCachedAudio.mockResolvedValue(undefined);
+    (playback.tryLoadCachedAudio as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   });
 
   it("loads existing track and applies analysis", async () => {
     const context = createContext();
     const deps = createDeps();
-    api.fetchJobByTrack.mockResolvedValue({
+    (api.fetchJobByTrack as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       status: "complete",
       id: "job1",
       youtube_id: "yt1",
@@ -84,7 +84,7 @@ describe("search flows", () => {
   it("starts youtube analysis flow", async () => {
     const context = createContext();
     const deps = createDeps();
-    api.startYoutubeAnalysis.mockResolvedValue({ id: "job2", status: "queued" });
+    (api.startYoutubeAnalysis as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "job2", status: "queued" });
     await startYoutubeAnalysisFlow(context, deps, "yt2", "Song", "Artist");
     expect(deps.updateTrackUrl).toHaveBeenCalledWith("yt2");
     expect(deps.pollAnalysis).toHaveBeenCalledWith("job2");

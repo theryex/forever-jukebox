@@ -78,10 +78,10 @@ function createContext(overrides?: Partial<AppContext>): AppContext {
     getDuration: vi.fn(() => null),
   };
   return {
-    elements: elements as AppContext["elements"],
-    engine: engine as AppContext["engine"],
-    player: player as AppContext["player"],
-    visualizations: [{ setData: vi.fn() }] as AppContext["visualizations"],
+    elements: elements as unknown as AppContext["elements"],
+    engine: engine as unknown as AppContext["engine"],
+    player: player as unknown as AppContext["player"],
+    visualizations: [{ setData: vi.fn() }] as unknown as AppContext["visualizations"],
     defaultConfig: engineConfig as AppContext["defaultConfig"],
     state: {
       autoComputedThreshold: null,

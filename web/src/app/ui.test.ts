@@ -26,7 +26,7 @@ function createContext(): AppContext {
         innerHTML: "",
         textContent: "",
       },
-    } as AppContext["elements"],
+    } as unknown as AppContext["elements"],
     engine: {} as AppContext["engine"],
     player: {} as AppContext["player"],
     visualizations: [],
@@ -40,6 +40,11 @@ class MockElement {
     public tagName: string,
     public isContentEditable = false,
   ) {}
+  addEventListener() {}
+  dispatchEvent() {
+    return true;
+  }
+  removeEventListener() {}
 }
 
 describe("ui helpers", () => {

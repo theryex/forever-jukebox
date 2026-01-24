@@ -61,7 +61,7 @@ describe("theme", () => {
     const context = {
       elements: { themeLinks: [link] },
       visualizations: [{ refresh: vi.fn() }],
-    } as AppContext;
+    } as unknown as AppContext;
     applyTheme(context, "light");
     expect(document.body.classList.toggle).toHaveBeenCalledWith(
       "theme-light",
@@ -76,7 +76,7 @@ describe("theme", () => {
     const context = {
       elements: { themeLinks: [] },
       visualizations: [],
-    } as AppContext;
+    } as unknown as AppContext;
     applyStoredTheme(context);
     expect(document.body.classList.toggle).toHaveBeenCalledWith(
       "theme-light",
