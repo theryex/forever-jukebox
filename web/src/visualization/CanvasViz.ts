@@ -57,7 +57,11 @@ export class CanvasViz {
     beatHighlight: "#ffd46a",
   };
 
-  constructor(container: HTMLElement, positioner: Positioner) {
+  constructor(
+    container: HTMLElement,
+    positioner: Positioner,
+    options: { enableInteraction?: boolean } = {}
+  ) {
     this.container = container;
     this.positioner = positioner;
     this.baseCanvas = document.createElement("canvas");
@@ -73,7 +77,9 @@ export class CanvasViz {
     this.applyCanvasStyles();
     this.updateTheme();
     this.resize();
-    this.overlayCanvas.addEventListener("click", this.handleCanvasClick);
+    if (options.enableInteraction !== false) {
+      this.overlayCanvas.addEventListener("click", this.handleCanvasClick);
+    }
   }
 
   setVisible(visible: boolean) {
@@ -121,6 +127,15 @@ export class CanvasViz {
     this.jumpLine = null;
     this.selectedEdge = null;
     this.drawOverlay();
+  }
+
+  destroy() {
+    this.overlayCanvas.removeEventListener("click", this.handleCanvasClick);
+    this.baseCanvas.remove();
+    this.overlayCanvas.remove();
+    this.data = null;
+    this.positions = [];
+    this.edgeGeometry = new WeakMap();
   }
 
   setOnSelect(handler: (index: number) => void) {
