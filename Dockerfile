@@ -71,13 +71,13 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 # Conditional GPU package installation
 # Using --no-cache-dir is CRITICAL for keeping image size down
 RUN if [ "$GPU_MODE" = "cuda" ]; then \
-        pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cu121 && \
-        pip install --no-cache-dir cupy-cuda12x; \
+    pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cu121 && \
+    pip install --no-cache-dir cupy-cuda12x; \
     elif [ "$GPU_MODE" = "rocm" ]; then \
-        pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/rocm5.7; \
+    pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/rocm5.7; \
     else \
-        # CPU-only torch wheels are much smaller than the default
-        pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu; \
+    # CPU-only torch wheels are much smaller than the default
+    pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu; \
     fi
 
 # =============================================================================
@@ -96,13 +96,16 @@ ENV FOREVER_JUKEBOX_GPU=${GPU_MODE} \
     GENERATOR_CALIBRATION="/app/engine/calibration.json"
 
 # Install only RUNTIME shared libraries (NO compilers, NO -dev packages)
+# Note: Package names for Debian Trixie (python:3.11-slim base)
+#   - libfftw3-3 -> libfftw3-double3
+#   - libtag1v5 -> libtag1t64 (time_t 64-bit transition)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsndfile1 \
     libsamplerate0 \
-    libfftw3-3 \
+    libfftw3-double3 \
     libyaml-0-2 \
-    libtag1v5 \
+    libtag1t64 \
     libchromaprint1 \
     curl \
     ca-certificates \
