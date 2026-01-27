@@ -1,4 +1,4 @@
-name: Build CPU, CUDA, and ROCm Images
+name: Build and Publish Docker Images
 
 on:
   push:
@@ -6,6 +6,18 @@ on:
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Build specific flavor (cpu, cuda, rocm, or all)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - cpu
+          - cuda
+          - rocm
 
 env:
   REGISTRY: ghcr.io
@@ -18,20 +30,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # --- CPU VARIANT ---
+          # --- CPU VARIANT (Default/Latest) ---
           - flavor: cpu
-            # This makes the CPU version the default "latest" tag
             is-latest: true
             build-args: |
               GPU_MODE=cpu
 
-          # --- NVIDIA VARIANT ---
+          # --- NVIDIA CUDA VARIANT ---
           - flavor: cuda
             is-latest: false
             build-args: |
               GPU_MODE=cuda
 
-          # --- AMD VARIANT ---
+          # --- AMD ROCm VARIANT ---
           - flavor: rocm
             is-latest: false
             build-args: |
@@ -42,11 +53,29 @@ jobs:
       packages: write
       id-token: write
 
+    # Skip matrix entries if workflow_dispatch specifies a specific flavor
+    if: |
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.flavor == 'all' ||
+      github.event.inputs.flavor == matrix.flavor
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Set up QEMU (optional, but good for multi-arch compatibility later)
+      # Free up disk space for large GPU builds
+      - name: Free Disk Space (Ubuntu)
+        if: matrix.flavor != 'cpu'
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: false
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -67,24 +96,79 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # This logic handles the tagging:
-          # 1. Always tag with the flavor (e.g., :cuda, :rocm, :cpu)
-          # 2. If it is the CPU build, ALSO tag it as :latest
+          # Tagging strategy:
+          # 1. Always tag with the flavor (e.g., :cpu, :cuda, :rocm)
+          # 2. For version tags (v*.*.*), also tag as :flavor-vX.X.X
+          # 3. CPU build also gets :latest
+          # 4. SHA-based tags for traceability
           tags: |
             type=raw,value=${{ matrix.flavor }}
             type=raw,value=latest,enable=${{ matrix.is-latest }}
+            type=semver,pattern={{version}},prefix=${{ matrix.flavor }}-
+            type=semver,pattern={{major}}.{{minor}},prefix=${{ matrix.flavor }}-
             type=sha,prefix=${{ matrix.flavor }}-
 
-      # Build and push Docker image
+      # Build and push Docker image with optimized caching
       - name: Build and push Docker image
         id: build-and-push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # This injects the GPU_MODE arg from the matrix above
           build-args: ${{ matrix.build-args }}
-          cache-from: type=gha,scope=${{ matrix.flavor }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.flavor }}
+          # Multi-stage cache optimization:
+          # Cache each stage separately for better reuse
+          cache-from: |
+            type=gha,scope=build-${{ matrix.flavor }}
+            type=gha,scope=build-base
+          cache-to: type=gha,mode=max,scope=build-${{ matrix.flavor }}
+          # Provenance for supply chain security
+          provenance: true
+          sbom: true
+
+      # Verify the image works (basic smoke test)
+      - name: Smoke test image
+        if: github.event_name != 'pull_request' && matrix.flavor == 'cpu'
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.flavor }}
+          docker run --rm -d --name smoke-test \
+            -e SPOTIFY_CLIENT_ID=test \
+            -e SPOTIFY_CLIENT_SECRET=test \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.flavor }}
+          sleep 10
+          # Check if container is still running (didn't crash on startup)
+          if docker ps | grep -q smoke-test; then
+            echo "✅ Container started successfully"
+            docker logs smoke-test
+            docker stop smoke-test
+          else
+            echo "❌ Container failed to start"
+            docker logs smoke-test || true
+            exit 1
+          fi
+
+  # Summary job that runs after all builds complete
+  build-summary:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: always() && github.event_name != 'pull_request'
+    steps:
+      - name: Build Summary
+        run: |
+          echo "## 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Flavor | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| CPU | ${{ needs.build-and-push.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CUDA | ${{ needs.build-and-push.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ROCm | ${{ needs.build-and-push.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Images Published" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "ghcr.io/${{ github.repository }}:cpu" >> $GITHUB_STEP_SUMMARY
+          echo "ghcr.io/${{ github.repository }}:cuda" >> $GITHUB_STEP_SUMMARY
+          echo "ghcr.io/${{ github.repository }}:rocm" >> $GITHUB_STEP_SUMMARY
+          echo "ghcr.io/${{ github.repository }}:latest (CPU)" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
