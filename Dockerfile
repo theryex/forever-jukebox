@@ -30,7 +30,7 @@ RUN npm run build
 # =============================================================================
 # Stage 2: Python Builder (Build environment with compilers)
 # =============================================================================
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim-bookworm AS builder
 
 ARG GPU_MODE=cpu
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
@@ -83,7 +83,7 @@ RUN if [ "$GPU_MODE" = "cuda" ]; then \
 # =============================================================================
 # Stage 3: Final Runtime (Minimal environment)
 # =============================================================================
-FROM python:3.11-slim AS runtime
+FROM python:3.11-slim-bookworm AS runtime
 
 ARG GPU_MODE=cpu
 
@@ -96,16 +96,13 @@ ENV FOREVER_JUKEBOX_GPU=${GPU_MODE} \
     GENERATOR_CALIBRATION="/app/engine/calibration.json"
 
 # Install only RUNTIME shared libraries (NO compilers, NO -dev packages)
-# Note: Package names for Debian Trixie (python:3.11-slim base)
-#   - libfftw3-3 -> libfftw3-double3
-#   - libtag1v5 -> libtag1t64 (time_t 64-bit transition)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsndfile1 \
     libsamplerate0 \
-    libfftw3-double3 \
+    libfftw3-3 \
     libyaml-0-2 \
-    libtag1t64 \
+    libtag1v5 \
     libchromaprint1 \
     curl \
     ca-certificates \
