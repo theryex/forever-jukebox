@@ -70,7 +70,7 @@ import {
   sortFavorites,
   type FavoriteTrack,
 } from "./favorites";
-import { installGlobalBackgroundTimer } from "./backgroundTimer";
+import { installGlobalBackgroundTimer } from "../shared/backgroundTimer";
 
 const vizStorageKey = "fj-viz";
 
