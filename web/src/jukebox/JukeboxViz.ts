@@ -719,6 +719,12 @@ export class JukeboxViz {
 
   destroy() {
     this.visualizations.forEach((viz) => viz.destroy());
+    this.visualizations = [];
+    this.data = null;
+    this.selectedEdge = null;
+    this.lastUpdate = null;
+    this.visible = false;
+    this.activeIndex = 0;
   }
 
   setOnSelect(handler: (index: number) => void) {
