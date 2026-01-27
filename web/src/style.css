@@ -670,11 +670,7 @@ button:hover {
   gap: 6px;
 }
 
-.tune-toggle.is-hidden {
-  display: none !important;
-}
-
-.info-toggle.is-hidden {
+.is-hidden {
   display: none !important;
 }
 

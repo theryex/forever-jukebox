@@ -11,6 +11,14 @@ export function getElements() {
     document.querySelector<HTMLSpanElement>("#beats-played"),
     "#beats-played"
   );
+  const beatsLabel = requireElement(
+    document.querySelector<HTMLSpanElement>("#viz-beats-label"),
+    "#viz-beats-label"
+  );
+  const beatsDivider = requireElement(
+    document.querySelector<HTMLSpanElement>("#viz-beats-divider"),
+    "#viz-beats-divider"
+  );
   const vizNowPlayingEl = requireElement(
     document.querySelector<HTMLDivElement>("#viz-now-playing"),
     "#viz-now-playing"
@@ -362,6 +370,8 @@ export function getElements() {
   return {
     listenTimeEl,
     beatsPlayedEl,
+    beatsLabel,
+    beatsDivider,
     vizNowPlayingEl,
     vizPanel,
     vizLayer,

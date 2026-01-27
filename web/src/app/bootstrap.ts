@@ -1563,6 +1563,18 @@ export function bootstrap() {
       "is-hidden",
       mode === "autocanonizer",
     );
+    elements.beatsLabel.classList.toggle(
+      "is-hidden",
+      mode === "autocanonizer",
+    );
+    elements.beatsPlayedEl.classList.toggle(
+      "is-hidden",
+      mode === "autocanonizer",
+    );
+    elements.beatsDivider.classList.toggle(
+      "is-hidden",
+      mode === "autocanonizer",
+    );
     autocanonizer.setVisible(mode === "autocanonizer");
     jukebox.setVisible(mode === "jukebox");
     if (state.trackTitle || state.trackArtist) {
