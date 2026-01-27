@@ -53,19 +53,26 @@ jobs:
       packages: write
       id-token: write
 
-    # Skip matrix entries if workflow_dispatch specifies a specific flavor
-    if: |
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.flavor == 'all' ||
-      github.event.inputs.flavor == matrix.flavor
-
     steps:
+      # Skip this matrix entry if workflow_dispatch specifies a different flavor
+      - name: Check if should skip
+        id: skip-check
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && \
+                "${{ github.event.inputs.flavor }}" != "all" && \
+                "${{ github.event.inputs.flavor }}" != "${{ matrix.flavor }}" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⏭️ Skipping ${{ matrix.flavor }} build (requested: ${{ github.event.inputs.flavor }})"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
       - name: Checkout repository
+        if: steps.skip-check.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       # Free up disk space for large GPU builds
       - name: Free Disk Space (Ubuntu)
-        if: matrix.flavor != 'cpu'
+        if: steps.skip-check.outputs.skip != 'true' && matrix.flavor != 'cpu'
         uses: jlumbroso/free-disk-space@main
         with:
           tool-cache: false
@@ -77,13 +84,15 @@ jobs:
           swap-storage: false
 
       - name: Set up QEMU
+        if: steps.skip-check.outputs.skip != 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
+        if: steps.skip-check.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
+        if: steps.skip-check.outputs.skip != 'true' && github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -92,6 +101,7 @@ jobs:
 
       # Extract metadata (tags, labels) for Docker
       - name: Extract Docker metadata
+        if: steps.skip-check.outputs.skip != 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -110,6 +120,7 @@ jobs:
 
       # Build and push Docker image with optimized caching
       - name: Build and push Docker image
+        if: steps.skip-check.outputs.skip != 'true'
         id: build-and-push
         uses: docker/build-push-action@v6
         with:
@@ -130,7 +141,7 @@ jobs:
 
       # Verify the image works (basic smoke test)
       - name: Smoke test image
-        if: github.event_name != 'pull_request' && matrix.flavor == 'cpu'
+        if: steps.skip-check.outputs.skip != 'true' && github.event_name != 'pull_request' && matrix.flavor == 'cpu'
         run: |
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.flavor }}
           docker run --rm -d --name smoke-test \
