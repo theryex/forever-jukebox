@@ -252,7 +252,7 @@ export class AutocanonizerViz {
       const fromX = hPad + (spanWidth * beat.other.start) / this.trackDuration;
       const toX = hPad + (spanWidth * next.other.start) / this.trackDuration;
       const cx = (toX - fromX) / 2 + fromX;
-      let cy = (Math.abs(delta) / maxDelta) * connectionHeight * 2;
+      let cy = (Math.abs(delta) / maxDelta) * connectionHeight * 1.2;
       if (cy < 20) {
         cy = 30;
       }
