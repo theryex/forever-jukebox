@@ -283,12 +283,25 @@ export class AutocanonizerViz {
     this.baseCtx.save();
     for (let i = 0; i < this.layouts.length; i += 1) {
       const layout = this.layouts[i];
+      const next = this.layouts[i + 1] ?? null;
       const override = this.tileColorOverrides.get(i);
       const fillColor = override ?? layout.color;
+      const x = layout.x;
+      const y = layout.y;
+      const w = layout.width;
+      const h = layout.height;
+      const nextTop = next ? Math.min(next.y, y + h) : y;
+      const topRightX = next ? Math.max(next.x, x + w) : x + w;
       this.baseCtx.fillStyle = fillColor;
       this.baseCtx.strokeStyle = fillColor;
-      this.baseCtx.fillRect(layout.x, layout.y, layout.width, layout.height);
-      this.baseCtx.strokeRect(layout.x, layout.y, layout.width, layout.height);
+      this.baseCtx.beginPath();
+      this.baseCtx.moveTo(x, y);
+      this.baseCtx.lineTo(topRightX, nextTop);
+      this.baseCtx.lineTo(topRightX, y + h);
+      this.baseCtx.lineTo(x, y + h);
+      this.baseCtx.closePath();
+      this.baseCtx.fill();
+      this.baseCtx.stroke();
     }
     this.baseCtx.restore();
     if (this.sections.length) {
