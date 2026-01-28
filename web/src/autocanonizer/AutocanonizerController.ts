@@ -487,7 +487,7 @@ function assignBeatColors(beats: BeatWithSim[], segments: Segment[]) {
     }
   }
   for (const beat of beats) {
-    const segment = beat.oseg ?? beat.overlappingSegments[0];
+    const segment = beat.overlappingSegments[0];
     if (!segment) {
       beat.color = "#333333";
       continue;

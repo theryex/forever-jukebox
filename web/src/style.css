@@ -967,7 +967,7 @@ button:hover {
 
 .viz {
   width: 100%;
-  height: 650px;
+  height: clamp(360px, 65vh, 700px);
   background: var(--viz-bg);
   border: 1px solid var(--border-panel);
   border-radius: 12px;

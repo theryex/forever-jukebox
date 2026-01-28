@@ -64,7 +64,7 @@ export class AutocanonizerViz {
     connectionHeight: 0,
     hPad: 20,
     vPad: 20,
-    topPad: 64,
+    topPad: 0,
     bottomPad: 64,
   };
 
@@ -196,7 +196,9 @@ export class AutocanonizerViz {
       const beatWidth = (spanWidth * beat.duration) / this.trackDuration;
       const x = hPad + (spanWidth * beat.start) / this.trackDuration;
       const height =
-        (tileHeight - vPad) * Math.pow(Math.max(0, beat.median_volume), 4);
+        (tileHeight - vPad) *
+        Math.pow(Math.max(0, beat.median_volume), 4) *
+        0.5;
       const y = baseY - height;
       const otherX =
         hPad +
@@ -525,7 +527,6 @@ export class AutocanonizerViz {
     this.tileColorOverrides.set(index, color);
     this.drawBase();
   }
-
 
   private handleClick = (event: MouseEvent) => {
     if (!this.visible || !this.onSelect || !this.layouts.length) {
