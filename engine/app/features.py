@@ -3,7 +3,6 @@ from typing import Dict
 import numpy as np
 from scipy import fftpack, signal
 
-from . import env
 from .constants import EPS
 
 # GPU acceleration - lazy import to avoid errors when torch not installed

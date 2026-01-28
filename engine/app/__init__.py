@@ -3,7 +3,6 @@
 Combines upstream's Essentia-based analysis with GPU acceleration.
 """
 
-from . import env  # noqa: F401
 from .analysis import analyze_audio
 
 __all__ = [

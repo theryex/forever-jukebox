@@ -21,3 +21,4 @@ test/benchmark/
 training/analysis
 training/audio
 training/ids.txt
+*.bak
