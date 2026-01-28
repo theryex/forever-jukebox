@@ -42,6 +42,7 @@ import {
   releaseWakeLock,
   requestWakeLock,
   resetForNewTrack,
+  startAutocanonizerPlayback,
   stopPlayback,
   togglePlayback,
   updateTrackInfo,
@@ -174,6 +175,12 @@ export function bootstrap() {
     if (state.isRunning) {
       stopPlayback(context);
     }
+  });
+  autocanonizer.setOnSelect((index) => {
+    if (state.playMode !== "autocanonizer") {
+      return;
+    }
+    startAutocanonizerPlayback(context, index);
   });
 
   engine.onUpdate((engineState) => {

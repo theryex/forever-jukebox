@@ -140,10 +140,12 @@ export class AutocanonizerController {
   private currentIndex = 0;
   private onBeat: ((index: number, beat: CanonizerBeat) => void) | null = null;
   private onEnded: (() => void) | null = null;
+  private onSelect: ((index: number) => void) | null = null;
 
   constructor(container: HTMLElement) {
     this.viz = new AutocanonizerViz(container);
     this.viz.setOnSelect((index) => {
+      this.onSelect?.(index);
       this.selectIndex(index, true);
     });
   }
@@ -162,6 +164,10 @@ export class AutocanonizerController {
 
   setOnEnded(handler: (() => void) | null) {
     this.onEnded = handler;
+  }
+
+  setOnSelect(handler: ((index: number) => void) | null) {
+    this.onSelect = handler;
   }
 
   setVolume(volume: number) {
@@ -217,6 +223,10 @@ export class AutocanonizerController {
     this.viz.reset();
   }
 
+  resetVisualization() {
+    this.viz.reset();
+  }
+
   selectIndex(index: number, autoStart: boolean) {
     if (!this.beats.length) {
       return;
@@ -242,12 +252,16 @@ export class AutocanonizerController {
   }
 
   start() {
+    this.startAtIndex(0);
+  }
+
+  startAtIndex(index: number) {
     if (!this.isReady() || !this.player) {
       return;
     }
     this.stop();
     this.running = true;
-    this.currentIndex = 0;
+    this.currentIndex = Math.max(0, Math.min(index, this.beats.length - 1));
     this.player.reset();
     this.tick();
   }

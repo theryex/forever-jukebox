@@ -45,6 +45,7 @@ export class AutocanonizerViz {
   private maxDelta = 1;
   private onSelect: ((index: number) => void) | null = null;
   private connections: Array<ConnectionPath | null> = [];
+  private tileColorOverrides = new Map<number, string>();
   private otherAnim: {
     path: ConnectionPath;
     start: number;
@@ -103,6 +104,7 @@ export class AutocanonizerViz {
     this.beats = beats;
     this.trackDuration = trackDuration;
     this.sections = sections;
+    this.tileColorOverrides.clear();
     this.computeLayout();
     this.drawBase();
     this.drawOverlay();
@@ -110,6 +112,7 @@ export class AutocanonizerViz {
 
   reset() {
     this.currentIndex = -1;
+    this.tileColorOverrides.clear();
     this.clearCanvas(this.overlayCtx);
   }
 
@@ -280,8 +283,10 @@ export class AutocanonizerViz {
     this.baseCtx.save();
     for (let i = 0; i < this.layouts.length; i += 1) {
       const layout = this.layouts[i];
-      this.baseCtx.fillStyle = layout.color;
-      this.baseCtx.strokeStyle = layout.color;
+      const override = this.tileColorOverrides.get(i);
+      const fillColor = override ?? layout.color;
+      this.baseCtx.fillStyle = fillColor;
+      this.baseCtx.strokeStyle = fillColor;
       this.baseCtx.fillRect(layout.x, layout.y, layout.width, layout.height);
       this.baseCtx.strokeRect(layout.x, layout.y, layout.width, layout.height);
     }
@@ -489,8 +494,25 @@ export class AutocanonizerViz {
         this.requestAnimation();
       }
     }
+    this.applyTileOverride(index, "#4F8FFF");
+    const beat = this.beats[index];
+    if (beat?.other) {
+      this.applyTileOverride(beat.other.which, "#10DF00");
+    }
     this.drawOverlay();
   }
+
+  private applyTileOverride(index: number, color: string) {
+    if (!this.layouts[index]) {
+      return;
+    }
+    if (this.tileColorOverrides.get(index) === color) {
+      return;
+    }
+    this.tileColorOverrides.set(index, color);
+    this.drawBase();
+  }
+
 
   private handleClick = (event: MouseEvent) => {
     if (!this.visible || !this.onSelect || !this.layouts.length) {

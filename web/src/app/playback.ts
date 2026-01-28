@@ -29,18 +29,17 @@ export type PlaybackDeps = {
   setActiveTab: (tabId: "top" | "search" | "play" | "faq") => void;
   navigateToTab: (
     tabId: "top" | "search" | "play" | "faq",
-    options?: { replace?: boolean; youtubeId?: string | null }
+    options?: { replace?: boolean; youtubeId?: string | null },
   ) => void;
   updateTrackUrl: (youtubeId: string, replace?: boolean) => void;
   setAnalysisStatus: (message: string, spinning: boolean) => void;
   setLoadingProgress: (
     progress: number | null,
-    message?: string | null
+    message?: string | null,
   ) => void;
   onTrackChange?: (youtubeId: string | null) => void;
   onAnalysisLoaded?: (response: AnalysisComplete) => void;
 };
-
 
 export function updateListenTimeDisplay(context: AppContext) {
   const { elements, state } = context;
@@ -54,7 +53,7 @@ export function updateListenTimeDisplay(context: AppContext) {
 function maybeUpdateDeleteEligibility(
   context: AppContext,
   response: AnalysisResponse | null,
-  jobIdOverride?: string | null
+  jobIdOverride?: string | null,
 ) {
   if (!response) {
     return;
@@ -65,8 +64,7 @@ function maybeUpdateDeleteEligibility(
     return;
   }
   let eligible = false;
-  const createdAt =
-    "created_at" in response ? response.created_at : undefined;
+  const createdAt = "created_at" in response ? response.created_at : undefined;
   if (typeof createdAt === "string") {
     const createdMs = Date.parse(createdAt);
     if (!Number.isNaN(createdMs)) {
@@ -100,8 +98,8 @@ export function updateTrackInfo(context: AppContext) {
   const branchCount = state.vizData
     ? state.vizData.edges.length
     : graph
-    ? graph.allEdges.filter((edge) => !edge.deleted).length
-    : 0;
+      ? graph.allEdges.filter((edge) => !edge.deleted).length
+      : 0;
   elements.infoBranchesEl.textContent = `${branchCount}`;
 }
 
@@ -301,34 +299,11 @@ export function stopPlayback(context: AppContext) {
 }
 
 export function togglePlayback(context: AppContext) {
-  const { autocanonizer, engine, elements, jukebox, player, state } = context;
+  const { engine, elements, jukebox, player, state } = context;
   if (!state.isRunning) {
     try {
       if (state.playMode === "autocanonizer") {
-        if (!autocanonizer.isReady()) {
-          console.warn("Autocanonizer not ready");
-          return;
-        }
-        player.stop();
-        engine.stopJukebox();
-        state.playTimerMs = 0;
-        state.lastPlayStamp = null;
-        updateListenTimeDisplay(context);
-        elements.beatsPlayedEl.textContent = "0";
-        state.lastBeatIndex = null;
-        if (elements.vizStats) {
-          elements.vizStats.classList.remove("pulse");
-          void elements.vizStats.offsetWidth;
-          elements.vizStats.classList.add("pulse");
-        }
-        autocanonizer.start();
-        state.lastPlayStamp = performance.now();
-        state.isRunning = true;
-        startListenTimer(context);
-        updatePlayButton(context, true);
-        if (document.fullscreenElement) {
-          requestWakeLock(context);
-        }
+        startAutocanonizerPlayback(context, 0);
         return;
       }
       if (player.getDuration() === null) {
@@ -366,6 +341,36 @@ export function togglePlayback(context: AppContext) {
   }
 }
 
+export function startAutocanonizerPlayback(context: AppContext, index: number) {
+  const { autocanonizer, engine, elements, player, state } = context;
+  if (!autocanonizer.isReady()) {
+    console.warn("Autocanonizer not ready");
+    return false;
+  }
+  player.stop();
+  engine.stopJukebox();
+  state.playTimerMs = 0;
+  state.lastPlayStamp = null;
+  updateListenTimeDisplay(context);
+  elements.beatsPlayedEl.textContent = "0";
+  state.lastBeatIndex = null;
+  if (elements.vizStats) {
+    elements.vizStats.classList.remove("pulse");
+    void elements.vizStats.offsetWidth;
+    elements.vizStats.classList.add("pulse");
+  }
+  autocanonizer.resetVisualization();
+  autocanonizer.startAtIndex(index);
+  state.lastPlayStamp = performance.now();
+  state.isRunning = true;
+  startListenTimer(context);
+  updatePlayButton(context, true);
+  if (document.fullscreenElement) {
+    requestWakeLock(context);
+  }
+  return true;
+}
+
 function updatePlayButton(context: AppContext, isRunning: boolean) {
   const label = isRunning ? "Stop" : "Play";
   const updateButton = (button: HTMLButtonElement) => {
@@ -388,7 +393,7 @@ function updatePlayButton(context: AppContext, isRunning: boolean) {
 
 export function resetForNewTrack(
   context: AppContext,
-  options?: { clearTuning?: boolean }
+  options?: { clearTuning?: boolean },
 ) {
   const { autocanonizer, elements, engine, jukebox, state, defaultConfig } =
     context;
@@ -476,19 +481,19 @@ export async function loadAudioFromJob(context: AppContext, jobId: string) {
 }
 
 function isAnalysisComplete(
-  response: AnalysisResponse | null
+  response: AnalysisResponse | null,
 ): response is AnalysisComplete {
   return response?.status === "complete";
 }
 
 function isAnalysisFailed(
-  response: AnalysisResponse | null
+  response: AnalysisResponse | null,
 ): response is AnalysisFailed {
   return response?.status === "failed";
 }
 
 function isAnalysisInProgress(
-  response: AnalysisResponse | null
+  response: AnalysisResponse | null,
 ): response is AnalysisInProgress {
   return (
     response?.status === "downloading" ||
@@ -500,7 +505,7 @@ function isAnalysisInProgress(
 export function applyAnalysisResult(
   context: AppContext,
   response: AnalysisComplete,
-  onAnalysisLoaded?: (response: AnalysisComplete) => void
+  onAnalysisLoaded?: (response: AnalysisComplete) => void,
 ): boolean {
   if (!response || response.status !== "complete" || !response.result) {
     return false;
@@ -574,7 +579,7 @@ async function recordPlayOnce(context: AppContext, jobId: string) {
 export async function pollAnalysis(
   context: AppContext,
   deps: PlaybackDeps,
-  jobId: string
+  jobId: string,
 ) {
   const { state } = context;
   const controller = new AbortController();
@@ -589,7 +594,7 @@ export async function pollAnalysis(
       if (!response) {
         deps.setAnalysisStatus(
           "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
-          false
+          false,
         );
         return;
       }
@@ -647,7 +652,7 @@ export async function loadTrackByYouTubeId(
   context: AppContext,
   deps: PlaybackDeps,
   youtubeId: string,
-  options?: { preserveUrlTuning?: boolean }
+  options?: { preserveUrlTuning?: boolean },
 ) {
   const shouldClear = !options?.preserveUrlTuning;
   resetForNewTrack(context, { clearTuning: shouldClear });
@@ -661,7 +666,7 @@ export async function loadTrackByYouTubeId(
     if (!response || !response.id) {
       deps.setAnalysisStatus(
         "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
-        false
+        false,
       );
       return;
     }
@@ -689,7 +694,7 @@ export async function loadTrackByYouTubeId(
     }
     deps.setAnalysisStatus(
       "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
-      false
+      false,
     );
   } catch (err) {
     deps.setAnalysisStatus(`Load failed: ${String(err)}`, false);
@@ -700,7 +705,7 @@ export async function loadTrackByJobId(
   context: AppContext,
   deps: PlaybackDeps,
   jobId: string,
-  options?: { preserveUrlTuning?: boolean }
+  options?: { preserveUrlTuning?: boolean },
 ) {
   const shouldClear = !options?.preserveUrlTuning;
   resetForNewTrack(context, { clearTuning: shouldClear });
@@ -715,7 +720,7 @@ export async function loadTrackByJobId(
     if (!response || !response.id) {
       deps.setAnalysisStatus(
         "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
-        false
+        false,
       );
       return;
     }
@@ -742,7 +747,7 @@ export async function loadTrackByJobId(
     }
     deps.setAnalysisStatus(
       "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
-      false
+      false,
     );
   } catch (err) {
     deps.setAnalysisStatus(`Load failed: ${String(err)}`, false);
@@ -801,14 +806,14 @@ export function delay(ms: number, signal?: AbortSignal) {
         window.clearTimeout(timer);
         resolve();
       },
-      { once: true }
+      { once: true },
     );
   });
 }
 
 export async function tryLoadCachedAudio(
   context: AppContext,
-  youtubeId: string
+  youtubeId: string,
 ) {
   const { autocanonizer, player, state } = context;
   try {
