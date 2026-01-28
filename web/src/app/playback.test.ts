@@ -46,6 +46,7 @@ function createElements() {
     playButton: { classList: createClassList(), disabled: false },
     playTabButton: { classList: createClassList(), disabled: false },
     vizButtons: [{ disabled: false }, { disabled: false }],
+    canonizerFinish: { checked: false, addEventListener: vi.fn() },
     infoDurationEl: createSpan(),
     infoBeatsEl: createSpan(),
     infoBranchesEl: createSpan(),
@@ -141,7 +142,7 @@ function createContext(overrides?: Partial<AppContext>): AppContext {
       appConfig: null,
       tuningParams: null,
       beatsPlayed: 0,
-    } as AppContext["state"],
+    } as unknown as AppContext["state"],
     ...overrides,
   };
 }

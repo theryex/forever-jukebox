@@ -22,7 +22,8 @@ function createContext(): AppContext {
       searchInput: { value: "" },
       searchResults: { textContent: "" },
       searchHint: { textContent: "" },
-    } as AppContext["elements"],
+      canonizerFinish: { checked: false, addEventListener: vi.fn() },
+    } as unknown as AppContext["elements"],
     engine: {} as AppContext["engine"],
     player: {} as AppContext["player"],
     autocanonizer: {} as AppContext["autocanonizer"],
@@ -34,7 +35,7 @@ function createContext(): AppContext {
       lastJobId: null,
       audioLoaded: false,
       analysisLoaded: false,
-    } as AppContext["state"],
+    } as unknown as AppContext["state"],
   };
 }
 

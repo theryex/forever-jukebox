@@ -52,6 +52,7 @@ export class AutocanonizerViz {
     duration: number;
     startOverrideX?: number;
   } | null = null;
+  private forcedOtherIndex: number | null = null;
   private lastOtherCursor: { x: number; y: number } | null = null;
   private otherAnimEndedAt: number | null = null;
   private rafId: number | null = null;
@@ -368,7 +369,8 @@ export class AutocanonizerViz {
     if (!current || !beat?.other) {
       return;
     }
-    const otherLayout = this.layouts[beat.other.which];
+    const otherIndex = this.forcedOtherIndex ?? beat.other.which;
+    const otherLayout = this.layouts[otherIndex];
     const cursorWidth = 8;
     const cursorHeight = 8;
     const sectionY = topPad + tileHeight - 20;
@@ -396,17 +398,27 @@ export class AutocanonizerViz {
       cursorWidth,
       cursorHeight,
     );
-    const otherCursor = this.getAnimatedOtherCursor();
-    if (otherCursor) {
+    if (this.forcedOtherIndex !== null && otherLayout) {
       this.overlayCtx.fillStyle = "#10DF00";
       this.overlayCtx.fillRect(
-        otherCursor.x - cursorWidth / 2,
-        otherCursor.y,
+        otherLayout.x - cursorWidth / 2,
+        sectionY + 8,
         cursorWidth,
         cursorHeight,
       );
-      this.lastOtherCursor = { x: otherCursor.x, y: otherCursor.y };
-    } else if (this.lastOtherCursor) {
+      this.lastOtherCursor = { x: otherLayout.x, y: sectionY + 8 };
+    } else {
+      const otherCursor = this.getAnimatedOtherCursor();
+      if (otherCursor) {
+        this.overlayCtx.fillStyle = "#10DF00";
+        this.overlayCtx.fillRect(
+          otherCursor.x - cursorWidth / 2,
+          otherCursor.y,
+          cursorWidth,
+          cursorHeight,
+        );
+        this.lastOtherCursor = { x: otherCursor.x, y: otherCursor.y };
+      } else if (this.lastOtherCursor) {
       const holdMs = 120;
       if (
         this.otherAnimEndedAt !== null &&
@@ -441,7 +453,7 @@ export class AutocanonizerViz {
           cursorHeight,
         );
       }
-    } else if (otherLayout) {
+      } else if (otherLayout) {
       this.overlayCtx.fillStyle = "#10DF00";
       const fallback = {
         x: otherLayout.x,
@@ -454,6 +466,7 @@ export class AutocanonizerViz {
         cursorHeight,
       );
       this.lastOtherCursor = fallback;
+      }
     }
     this.overlayCtx.restore();
   }
@@ -494,6 +507,7 @@ export class AutocanonizerViz {
 
   setCurrentIndex(index: number, animate: boolean) {
     this.currentIndex = index;
+    this.forcedOtherIndex = null;
     if (animate) {
       const path = this.connections[index];
       if (path) {
@@ -514,6 +528,16 @@ export class AutocanonizerViz {
     if (beat?.other) {
       this.applyTileOverride(beat.other.which, "#10DF00");
     }
+    this.drawOverlay();
+  }
+
+  setOtherIndex(index: number) {
+    if (!this.layouts[index]) {
+      return;
+    }
+    this.forcedOtherIndex = index;
+    this.otherAnim = null;
+    this.applyTileOverride(index, "#10DF00");
     this.drawOverlay();
   }
 

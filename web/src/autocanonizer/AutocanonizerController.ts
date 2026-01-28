@@ -27,6 +27,7 @@ class AutocanonizerPlayer {
   private mainSource: AudioBufferSourceNode | null = null;
   private otherSource: AudioBufferSourceNode | null = null;
   private deltaTime = 0;
+  private otherDeltaTime = 0;
   private skewDelta = 0;
   private maxSkewDelta = 0.05;
 
@@ -54,6 +55,7 @@ class AutocanonizerPlayer {
     this.stop();
     this.currentBeat = null;
     this.deltaTime = 0;
+    this.otherDeltaTime = 0;
     this.skewDelta = 0;
   }
 
@@ -76,6 +78,19 @@ class AutocanonizerPlayer {
       this.otherSource.disconnect();
       this.otherSource = null;
     }
+  }
+
+  stopMain() {
+    if (!this.mainSource) {
+      return;
+    }
+    try {
+      this.mainSource.stop(0);
+    } catch {
+      // no-op
+    }
+    this.mainSource.disconnect();
+    this.mainSource = null;
   }
 
   playBeat(beat: CanonizerBeat) {
@@ -111,8 +126,29 @@ class AutocanonizerPlayer {
         duration,
         this.otherGain
       );
+      this.otherDeltaTime = this.context.currentTime - beat.other.start;
     }
     this.skewDelta += beat.duration - beat.other.duration;
+    this.currentBeat = beat;
+    return beat.duration - delta;
+  }
+
+  playOtherOnly(beat: CanonizerBeat) {
+    if (this.context.state === "suspended") {
+      void this.context.resume();
+    }
+    this.otherGain.gain.value =
+      this.baseVolume * (1 - this.masterBlend) * beat.otherGain;
+    if (!this.currentBeat || this.currentBeat.other.next !== beat) {
+      if (this.otherSource) {
+        this.otherSource.stop();
+      }
+      const duration = this.buffer.duration - beat.start;
+      this.otherSource = this.playBuffer(beat.start, duration, this.otherGain);
+      this.otherDeltaTime = this.context.currentTime - beat.start;
+    }
+    const now = this.context.currentTime - this.otherDeltaTime;
+    const delta = now - beat.start;
     this.currentBeat = beat;
     return beat.duration - delta;
   }
@@ -137,6 +173,9 @@ export class AutocanonizerController {
   private player: AutocanonizerPlayer | null = null;
   private running = false;
   private timerId: number | null = null;
+  private secondaryOnly = false;
+  private secondaryIndex = 0;
+  private finishOutSong = false;
   private currentIndex = 0;
   private onBeat: ((index: number, beat: CanonizerBeat) => void) | null = null;
   private onEnded: (() => void) | null = null;
@@ -168,6 +207,10 @@ export class AutocanonizerController {
 
   setOnSelect(handler: ((index: number) => void) | null) {
     this.onSelect = handler;
+  }
+
+  setFinishOutSong(enabled: boolean) {
+    this.finishOutSong = enabled;
   }
 
   setVolume(volume: number) {
@@ -261,6 +304,7 @@ export class AutocanonizerController {
     }
     this.stop();
     this.running = true;
+    this.secondaryOnly = false;
     this.currentIndex = Math.max(0, Math.min(index, this.beats.length - 1));
     this.player.reset();
     this.tick();
@@ -274,6 +318,7 @@ export class AutocanonizerController {
       return;
     }
     this.running = false;
+    this.secondaryOnly = false;
     if (this.timerId !== null) {
       window.clearTimeout(this.timerId);
       this.timerId = null;
@@ -298,12 +343,45 @@ export class AutocanonizerController {
       return;
     }
     const beat = this.beats[this.currentIndex];
+    const isFinal = this.currentIndex === this.beats.length - 1;
     const delay = this.player.playBeat(beat);
     this.viz.update(this.currentIndex);
     this.onBeat?.(this.currentIndex, beat);
+    if (isFinal) {
+      if (this.finishOutSong) {
+        this.secondaryOnly = true;
+        this.secondaryIndex = beat.other.which;
+        this.player.stopMain();
+        this.tickSecondary();
+        return;
+      }
+    }
     this.currentIndex += 1;
     const nextDelayMs = Math.max(0, delay * 1000);
     this.timerId = window.setTimeout(() => this.tick(), nextDelayMs);
+  }
+
+  private tickSecondary() {
+    if (!this.running || !this.secondaryOnly) {
+      return;
+    }
+    if (!this.player || !this.beats.length) {
+      this.stop();
+      this.onEnded?.();
+      return;
+    }
+    if (this.secondaryIndex >= this.beats.length) {
+      this.stop();
+      this.onEnded?.();
+      return;
+    }
+    const beat = this.beats[this.secondaryIndex];
+    const delay = this.player.playOtherOnly(beat);
+    this.viz.setOtherIndex(this.secondaryIndex);
+    this.onBeat?.(this.secondaryIndex, beat);
+    this.secondaryIndex += 1;
+    const nextDelayMs = Math.max(0, delay * 1000);
+    this.timerId = window.setTimeout(() => this.tickSecondary(), nextDelayMs);
   }
 }
 

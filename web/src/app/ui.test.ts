@@ -26,13 +26,17 @@ function createContext(): AppContext {
         innerHTML: "",
         textContent: "",
       },
+      canonizerFinish: { checked: false, addEventListener: vi.fn() },
     } as unknown as AppContext["elements"],
     engine: {} as AppContext["engine"],
     player: {} as AppContext["player"],
     autocanonizer: {} as AppContext["autocanonizer"],
     jukebox: { refresh: vi.fn() } as unknown as AppContext["jukebox"],
     defaultConfig: {} as AppContext["defaultConfig"],
-    state: { toastTimer: null, playMode: "jukebox" } as AppContext["state"],
+    state: {
+      toastTimer: null,
+      playMode: "jukebox",
+    } as unknown as AppContext["state"],
   };
 }
 

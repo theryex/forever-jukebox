@@ -42,11 +42,16 @@ function createContext(
   return {
     defaultConfig,
     engine: engine as AppContext["engine"],
-    elements: {} as AppContext["elements"],
+    elements: {
+      canonizerFinish: { checked: false, addEventListener: vi.fn() },
+    } as unknown as AppContext["elements"],
     player: {} as AppContext["player"],
     autocanonizer: {} as AppContext["autocanonizer"],
     jukebox: { refresh: vi.fn() } as unknown as AppContext["jukebox"],
-    state: { tuningParams: null, playMode: "jukebox" } as AppContext["state"],
+    state: {
+      tuningParams: null,
+      playMode: "jukebox",
+    } as unknown as AppContext["state"],
   };
 }
 

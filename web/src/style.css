@@ -1148,6 +1148,22 @@ button:hover {
   display: none;
 }
 
+#jukebox-viz:not(.is-canonizer) .canonizer-finish {
+  display: none;
+}
+
+.canonizer-finish {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.canonizer-finish input {
+  accent-color: var(--accent);
+}
+
 .viz-btn {
   padding: 4px 8px;
   border-radius: 999px;

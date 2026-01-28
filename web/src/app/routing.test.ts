@@ -13,7 +13,9 @@ let playbackModule: typeof import("./playback");
 
 function createContext(): AppContext {
   return {
-    elements: {} as AppContext["elements"],
+    elements: {
+      canonizerFinish: { checked: false, addEventListener: vi.fn() },
+    } as unknown as AppContext["elements"],
     engine: {} as AppContext["engine"],
     player: {} as AppContext["player"],
     autocanonizer: {} as AppContext["autocanonizer"],
@@ -27,7 +29,7 @@ function createContext(): AppContext {
       analysisLoaded: false,
       audioLoadInFlight: false,
       isRunning: false,
-    } as AppContext["state"],
+    } as unknown as AppContext["state"],
   };
 }
 

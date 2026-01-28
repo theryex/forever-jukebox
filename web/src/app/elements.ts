@@ -35,6 +35,10 @@ export function getElements() {
     document.querySelector<HTMLDivElement>("#canonizer-layer"),
     "#canonizer-layer"
   );
+  const canonizerFinish = requireElement(
+    document.querySelector<HTMLInputElement>("#canonizer-finish"),
+    "#canonizer-finish"
+  );
   const jukeboxViz = requireElement(
     document.querySelector<HTMLDivElement>("#jukebox-viz"),
     "#jukebox-viz"
@@ -376,6 +380,7 @@ export function getElements() {
     vizPanel,
     vizLayer,
     canonizerLayer,
+    canonizerFinish,
     jukeboxViz,
     vizButtons,
     playModeButtons,

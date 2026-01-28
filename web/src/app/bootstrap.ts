@@ -70,6 +70,7 @@ import {
 } from "./favorites";
 
 const vizStorageKey = "fj-viz";
+const canonizerFinishKey = "fj-canonizer-finish";
 
 type PlaybackDeps = Parameters<typeof pollAnalysis>[1];
 
@@ -160,6 +161,10 @@ export function bootstrap() {
       setActiveVisualization(parsed);
     }
   }
+  const storedCanonizerFinish = localStorage.getItem(canonizerFinishKey);
+  const finishOutSong = storedCanonizerFinish === "true";
+  elements.canonizerFinish.checked = finishOutSong;
+  autocanonizer.setFinishOutSong(finishOutSong);
 
   player.setOnEnded(() => {
     if (state.isRunning) {
@@ -374,6 +379,7 @@ export function bootstrap() {
     elements.playModeButtons.forEach((button) => {
       button.addEventListener("click", handleModeClick);
     });
+    elements.canonizerFinish.addEventListener("change", handleCanonizerFinish);
     elements.themeLinks.forEach((link) => {
       link.addEventListener("click", handleThemeClick);
     });
@@ -1338,6 +1344,15 @@ export function bootstrap() {
     const mode =
       button?.dataset.playMode === "autocanonizer" ? "autocanonizer" : "jukebox";
     setPlayMode(mode);
+  }
+
+  function handleCanonizerFinish(event: Event) {
+    const input = event.currentTarget as HTMLInputElement | null;
+    if (!input) {
+      return;
+    }
+    localStorage.setItem(canonizerFinishKey, String(input.checked));
+    autocanonizer.setFinishOutSong(input.checked);
   }
 
   function handleThemeClick(event: Event) {
