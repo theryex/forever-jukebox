@@ -1,6 +1,10 @@
 import type { QuantumBase, Segment } from "../engine/types";
 import { normalizeAnalysis } from "../engine/analysis";
 import { AutocanonizerViz, type CanonizerBeat } from "./AutocanonizerViz";
+import {
+  backgroundClearTimeout,
+  backgroundSetTimeout,
+} from "../shared/backgroundTimer";
 
 type BeatWithSim = CanonizerBeat & {
   sim?: CanonizerBeat;
@@ -278,7 +282,7 @@ export class AutocanonizerController {
     this.currentIndex = clamped;
     if (this.running) {
       if (this.timerId !== null) {
-        window.clearTimeout(this.timerId);
+        backgroundClearTimeout(this.timerId);
         this.timerId = null;
       }
       this.tick();
@@ -320,7 +324,7 @@ export class AutocanonizerController {
     this.running = false;
     this.secondaryOnly = false;
     if (this.timerId !== null) {
-      window.clearTimeout(this.timerId);
+      backgroundClearTimeout(this.timerId);
       this.timerId = null;
     }
     if (this.player) {
@@ -358,7 +362,7 @@ export class AutocanonizerController {
     }
     this.currentIndex += 1;
     const nextDelayMs = Math.max(0, delay * 1000);
-    this.timerId = window.setTimeout(() => this.tick(), nextDelayMs);
+    this.timerId = backgroundSetTimeout(() => this.tick(), nextDelayMs);
   }
 
   private tickSecondary() {
@@ -381,7 +385,7 @@ export class AutocanonizerController {
     this.onBeat?.(this.secondaryIndex, beat);
     this.secondaryIndex += 1;
     const nextDelayMs = Math.max(0, delay * 1000);
-    this.timerId = window.setTimeout(() => this.tickSecondary(), nextDelayMs);
+    this.timerId = backgroundSetTimeout(() => this.tickSecondary(), nextDelayMs);
   }
 }
 
