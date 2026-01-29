@@ -17,10 +17,13 @@ import com.foreverjukebox.app.playback.ForegroundPlaybackService
 import com.foreverjukebox.app.playback.PlaybackControllerHolder
 import com.foreverjukebox.app.visualization.JumpLine
 import com.foreverjukebox.app.visualization.visualizationCount
+import com.foreverjukebox.app.cast.CastAppIdResolver
+import com.google.android.gms.cast.Cast
 import com.google.android.gms.cast.MediaInfo
 import com.google.android.gms.cast.MediaLoadRequestData
 import com.google.android.gms.cast.MediaMetadata
 import com.google.android.gms.cast.framework.CastContext
+import com.google.android.gms.cast.framework.CastSession
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -65,16 +68,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var syncUpdateInFlight = false
     private var pendingSyncDelta: FavoritesDelta? = null
     private val tabHistory = ArrayDeque<TabId>()
-    private var castStateLogged = false
     private var lastNotificationUpdateMs = 0L
+    private var castStatusListenerRegistered = false
 
     init {
         viewModelScope.launch {
             preferences.baseUrl.collect { url ->
+                val resolvedAppId = CastAppIdResolver.resolve(getApplication(), url)
                 _state.update { current ->
                     current.copy(
                         baseUrl = url.orEmpty(),
-                        showBaseUrlPrompt = url.isNullOrBlank()
+                        showBaseUrlPrompt = url.isNullOrBlank(),
+                        castEnabled = !resolvedAppId.isNullOrBlank()
                     )
                 }
                 if (!url.isNullOrBlank()) {
@@ -401,10 +406,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 is LoadingEvent.AudioLoading -> current.copy(audioLoading = event.loading)
             }
         }
-    }
-
-    private fun setAnalysisIdle() {
-        applyLoadingEvent(LoadingEvent.Reset)
     }
 
     private fun setAnalysisQueued(progress: Int?, message: String? = null) {
@@ -875,6 +876,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun togglePlayback() {
         val current = state.value.playback
         if (current.isCasting) {
+            if (!state.value.castEnabled) {
+                notifyCastUnavailable()
+                return
+            }
             val trackId = current.lastYouTubeId ?: current.lastJobId
             if (trackId.isNullOrBlank()) {
                 viewModelScope.launch { showToast("Select a track before playing.") }
@@ -910,7 +915,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ForegroundPlaybackService.start(getApplication())
                 }
             } catch (err: Exception) {
-                setAnalysisError("Loading failed.")
+                setAnalysisError("Playback failed.")
             }
         } else {
             controller.stopPlayback()
@@ -922,6 +927,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun castCurrentTrack() {
+        if (!state.value.castEnabled) {
+            notifyCastUnavailable()
+            return
+        }
         val baseUrl = state.value.baseUrl.trim()
         if (baseUrl.isBlank()) {
             viewModelScope.launch { showToast("Set a base URL before casting.") }
@@ -967,7 +976,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
             }
+            castStatusListenerRegistered = false
             resetForNewTrack()
+            requestCastStatus()
         } else {
             if (!state.value.playback.isCasting) {
                 return
@@ -980,6 +991,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
             }
+            castStatusListenerRegistered = false
             resetForNewTrack()
             applyActiveTab(TabId.Top, recordHistory = true)
         }
@@ -995,7 +1007,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         setCastingConnected(false)
     }
 
+    fun requestCastStatus() {
+        if (!state.value.castEnabled) {
+            return
+        }
+        val castContext = runCatching {
+            CastContext.getSharedInstance(getApplication())
+        }.getOrNull() ?: return
+        val session = castContext.sessionManager.currentCastSession ?: return
+        ensureCastStatusListener(session)
+        val payload = JSONObject().apply {
+            put("type", "getStatus")
+        }
+        runCatching { session.sendMessage(CAST_COMMAND_NAMESPACE, payload.toString()) }
+    }
+
+    private fun ensureCastStatusListener(session: CastSession) {
+        if (castStatusListenerRegistered) {
+            return
+        }
+        session.setMessageReceivedCallbacks(CAST_COMMAND_NAMESPACE, Cast.MessageReceivedCallback { _, _, message ->
+            handleCastStatusMessage(message)
+        })
+        castStatusListenerRegistered = true
+    }
+
+    private fun handleCastStatusMessage(message: String) {
+        val json = runCatching { JSONObject(message) }.getOrNull() ?: return
+        if (json.optString("type") != "status") {
+            return
+        }
+        val songId = json.optString("songId", "")
+        val title = json.optString("title", "")
+        val artist = json.optString("artist", "")
+        val isPlaying = json.optBoolean("isPlaying", false)
+        val displayTitle = if (artist.isBlank()) {
+            if (title.isBlank()) "" else title
+        } else {
+            "${if (title.isBlank()) "Unknown" else title} — $artist"
+        }
+        _state.update {
+            it.copy(
+                playback = it.playback.copy(
+                    isRunning = isPlaying,
+                    playTitle = displayTitle,
+                    trackTitle = if (title.isBlank()) null else title,
+                    trackArtist = if (artist.isBlank()) null else artist,
+                    lastYouTubeId = if (songId.isBlank()) it.playback.lastYouTubeId else songId
+                )
+            )
+        }
+    }
+
     private fun castTrackId(trackId: String, title: String? = null, artist: String? = null) {
+        if (!state.value.castEnabled) {
+            notifyCastUnavailable()
+            return
+        }
         val baseUrl = state.value.baseUrl.trim()
         if (baseUrl.isBlank()) return
         val castContext = try {
@@ -1044,6 +1112,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun sendCastCommand(command: String): Boolean {
+        if (!state.value.castEnabled) {
+            notifyCastUnavailable()
+            return false
+        }
         val castContext = try {
             CastContext.getSharedInstance(getApplication())
         } catch (_: Exception) {
@@ -1059,6 +1131,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (_: Exception) {
             false
         }
+    }
+
+    private fun notifyCastUnavailable() {
+        viewModelScope.launch {
+            showToast("Casting is not available for this API base URL.")
+        }
+    }
+
+    fun retryFailedLoad() {
+        val baseUrl = state.value.baseUrl.trim()
+        if (baseUrl.isBlank()) {
+            viewModelScope.launch { showToast("Set a base URL first.") }
+            return
+        }
+        val youtubeId = state.value.playback.lastYouTubeId
+        if (youtubeId.isNullOrBlank()) {
+            viewModelScope.launch { showToast("Nothing to retry.") }
+            return
+        }
+        val title = state.value.playback.trackTitle
+        val artist = state.value.playback.trackArtist
+        resetForNewTrack()
+        loadTrackByYoutubeId(youtubeId, title, artist)
     }
 
     suspend fun deleteCurrentJob(): Boolean {
@@ -1146,7 +1241,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun handleDeepLink(uri: Uri?) {
         if (uri == null) return
-        if (uri.scheme != "https" || uri.host != "foreverjukebox.com") return
+        val base = state.value.baseUrl.trim().trimEnd('/')
+        if (base.isBlank()) return
+        val baseUri = runCatching { Uri.parse(base) }.getOrNull() ?: return
+        if (uri.scheme != baseUri.scheme || uri.host != baseUri.host) return
+        if (baseUri.port != -1 && uri.port != baseUri.port) return
         val segments = uri.pathSegments
         if (segments.size >= 2 && segments.firstOrNull() == "listen") {
             val id = segments[1]

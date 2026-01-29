@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.CircularProgressIndicator
@@ -67,6 +68,7 @@ fun PlayPanel(state: UiState, viewModel: MainViewModel) {
     val coroutineScope = rememberCoroutineScope()
     val vizLabels = visualizationLabels
     var jumpLine by remember { mutableStateOf(playback.jumpLine) }
+    val hasCastTrack = playback.lastYouTubeId != null || playback.lastJobId != null
     val fullscreenLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -96,7 +98,10 @@ fun PlayPanel(state: UiState, viewModel: MainViewModel) {
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!playback.isCasting && !playback.analysisErrorMessage.isNullOrBlank()) {
-            ErrorStatus(message = playback.analysisErrorMessage)
+            ErrorStatus(
+                message = playback.analysisErrorMessage,
+                onRetry = { viewModel.retryFailedLoad() }
+            )
         } else if (!playback.isCasting && (playback.analysisInFlight || playback.analysisCalculating || playback.audioLoading)) {
             LoadingStatus(
                 progress = playback.analysisProgress,
@@ -118,6 +123,10 @@ fun PlayPanel(state: UiState, viewModel: MainViewModel) {
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                if (playback.isCasting && !hasCastTrack) {
+                    CastingPanel(playback)
+                    return@Column
+                }
                 if (playback.playTitle.isNotBlank()) {
                     Text(
                         text = playback.playTitle,
@@ -207,7 +216,8 @@ fun PlayPanel(state: UiState, viewModel: MainViewModel) {
                         IconButton(
                             onClick = {
                                 val id = playback.lastYouTubeId ?: return@IconButton
-                                val url = "https://foreverjukebox.com/listen/$id"
+                                val baseUrl = state.baseUrl.trim().trimEnd('/')
+                                val url = "$baseUrl/listen/$id"
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
                                     putExtra(Intent.EXTRA_TEXT, url)
@@ -353,7 +363,7 @@ fun PlayPanel(state: UiState, viewModel: MainViewModel) {
 private fun CastingPanel(
     playback: PlaybackState
 ) {
-    val deviceLabel = playback.castDeviceName?.let { "Connected to $it" } ?: "Connected to Cast device"
+    val castLabel = playback.castDeviceName?.let { "Connected to $it" } ?: "Connected to cast device"
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -364,22 +374,19 @@ private fun CastingPanel(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Casting",
+                text = castLabel,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground
             )
-            Spacer(modifier = Modifier.width(6.dp))
-            CastRouteButton(
-                modifier = Modifier.size(SmallButtonHeight),
-                enabled = true,
-                onSessionStarted = {}
+        }
+        val hasCastTrack = playback.lastYouTubeId != null || playback.lastJobId != null
+        if (!hasCastTrack) {
+            Text(
+                text = "Choose a song to start casting.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
             )
         }
-        Text(
-            text = deviceLabel,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-        )
     }
 }
 
@@ -421,7 +428,7 @@ private fun LoadingStatus(progress: Int?, label: String?) {
 }
 
 @Composable
-private fun ErrorStatus(message: String) {
+private fun ErrorStatus(message: String, onRetry: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -433,5 +440,17 @@ private fun ErrorStatus(message: String) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        IconButton(
+            onClick = onRetry,
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .size(SmallButtonHeight)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Refresh,
+                contentDescription = "Retry",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
