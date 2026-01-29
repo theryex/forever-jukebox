@@ -10,12 +10,20 @@ type CastCustomData = {
   songId?: string;
 };
 
+type CastCommand = {
+  type?: "play" | "stop";
+};
+
 type CastLoadRequest = {
   customData?: CastCustomData;
   media?: {
     customData?: CastCustomData;
   };
 };
+
+type CastReceiverContextType = NonNullable<
+  NonNullable<NonNullable<Window["cast"]>["framework"]>["CastReceiverContext"]
+>;
 
 declare global {
   interface Window {
@@ -29,7 +37,12 @@ declare global {
                 handler: (loadRequestData: CastLoadRequest) => unknown,
               ): void;
             };
-            start(): void;
+            addCustomMessageListener(
+              namespace: string,
+              handler: (event: { data?: unknown }) => void,
+            ): void;
+            start(options?: { disableIdleTimeout?: boolean }): void;
+            stop?(): void;
           };
         };
         messages?: {
@@ -209,16 +222,20 @@ async function loadAudio(
 
 async function bootstrap() {
   const elements = getElements();
-  setIdleState(elements);
-  setLogoVisible(elements, true);
-
+  const IDLE_TIMEOUT_MS = 120_000;
+  const IDLE_KEEPALIVE_MS = 25_000;
   let player: BufferedAudioPlayer | null = null;
   let engine: JukeboxEngine | null = null;
+  let castContext: ReturnType<CastReceiverContextType["getInstance"]> | null =
+    null;
+  let idleStopTimer: number | null = null;
+  let idleKeepaliveTimer: number | null = null;
   Object.defineProperty(window, "devicePixelRatio", {
     value: 1,
     configurable: true,
   });
   let viz: JukeboxViz | null = null;
+  const castNamespace = "urn:x-cast:com.foreverjukebox.app";
   const destroyViz = () => {
     if (viz) {
       viz.destroy();
@@ -236,12 +253,48 @@ async function bootstrap() {
     viz.setVisible(false);
   };
 
+  setIdleState(elements);
+  setLogoVisible(elements, true);
+  scheduleIdleStop();
+
   const state: CastState = {
     lastBeatIndex: null,
     vizData: null,
     loadToken: 0,
     currentTrackId: null,
   };
+
+  function clearIdleStopTimer() {
+    if (idleStopTimer !== null) {
+      window.clearTimeout(idleStopTimer);
+      idleStopTimer = null;
+    }
+  }
+
+  function scheduleIdleStop() {
+    clearIdleStopTimer();
+    idleStopTimer = window.setTimeout(() => {
+      if (player && player.isPlaying()) {
+        return;
+      }
+      castContext?.stop?.();
+    }, IDLE_TIMEOUT_MS);
+  }
+
+  function stopIdleKeepAlive() {
+    if (idleKeepaliveTimer !== null) {
+      window.clearInterval(idleKeepaliveTimer);
+      idleKeepaliveTimer = null;
+    }
+  }
+
+  function startIdleKeepAlive() {
+    stopIdleKeepAlive();
+    // Chromecast can reboot on long idle unless we keep the JS event loop active.
+    idleKeepaliveTimer = window.setInterval(() => {
+      void 0;
+    }, IDLE_KEEPALIVE_MS);
+  }
 
   const attachEngineListeners = (nextEngine: JukeboxEngine) => {
     nextEngine.onUpdate((engineState) => {
@@ -260,7 +313,11 @@ async function bootstrap() {
         engineState.lastJumped && engineState.lastJumpFromIndex !== null
           ? engineState.lastJumpFromIndex
           : state.lastBeatIndex;
-      viz.update(engineState.currentBeatIndex, engineState.lastJumped, jumpFrom);
+      viz.update(
+        engineState.currentBeatIndex,
+        engineState.lastJumped,
+        jumpFrom,
+      );
       state.lastBeatIndex = engineState.currentBeatIndex;
     });
   };
@@ -275,6 +332,15 @@ async function bootstrap() {
     }
     destroyViz();
     player = new BufferedAudioPlayer();
+    player.setOnEnded(() => {
+      if (engine) {
+        engine.stopJukebox();
+      }
+      setIdleState(elements);
+      setLogoVisible(elements, true);
+      startIdleKeepAlive();
+      scheduleIdleStop();
+    });
     engine = new JukeboxEngine(player, { randomMode: "random" });
     attachEngineListeners(engine);
   };
@@ -289,12 +355,16 @@ async function bootstrap() {
   }, 200);
 
   async function startTrack(trackId: string) {
+    clearIdleStopTimer();
+    stopIdleKeepAlive();
     if (!trackId) {
       setIdleState(elements);
       setLogoVisible(elements, true);
       if (viz) {
         viz.setVisible(false);
       }
+      startIdleKeepAlive();
+      scheduleIdleStop();
       return;
     }
     if (trackId === state.currentTrackId) {
@@ -313,12 +383,12 @@ async function bootstrap() {
     elements.beatsPlayed.textContent = "0";
     elements.title.textContent = "The Forever Jukebox";
     state.lastBeatIndex = null;
-    state.vizData = null;
-    if (viz) {
-      viz.reset();
-      viz.setVisible(false);
-    }
-    await resetEngine();
+      state.vizData = null;
+      if (viz) {
+        viz.reset();
+        viz.setVisible(false);
+      }
+      await resetEngine();
     if (token !== state.loadToken) {
       return;
     }
@@ -367,6 +437,7 @@ async function bootstrap() {
       engine.startJukebox();
       engine.play();
       playStartAtMs = performance.now();
+      clearIdleStopTimer();
     } catch (err) {
       if (token !== state.loadToken) {
         return;
@@ -390,6 +461,48 @@ async function bootstrap() {
       playStartAtMs = null;
       setIdleState(elements);
       setLogoVisible(elements, true);
+      startIdleKeepAlive();
+      scheduleIdleStop();
+    }
+  }
+
+  function handleCastCommand(command: CastCommand) {
+    if (!engine || !player) {
+      return;
+    }
+    if (command.type === "play") {
+      if (!state.vizData) {
+        return;
+      }
+      stopIdleKeepAlive();
+      setLogoVisible(elements, false);
+      setLoadingState(elements, false);
+      if (viz) {
+        viz.setVisible(true);
+        viz.reset();
+      }
+      if (!engine.isRunning()) {
+        engine.startJukebox();
+      }
+      engine.play();
+      playStartAtMs = performance.now();
+      clearIdleStopTimer();
+      return;
+    }
+    if (command.type === "stop") {
+      engine.stopJukebox();
+      player.stop();
+      playStartAtMs = null;
+      elements.listenTime.textContent = "00:00:00";
+      elements.beatsPlayed.textContent = "0";
+      if (viz) {
+        viz.reset();
+        viz.setVisible(true);
+      }
+      setLoadingState(elements, false);
+      setLogoVisible(elements, false);
+      startIdleKeepAlive();
+      scheduleIdleStop();
     }
   }
 
@@ -401,11 +514,13 @@ async function bootstrap() {
       return false;
     }
     const context = ctx.getInstance();
+    castContext = context;
     const playerManager = context.getPlayerManager();
     playerManager.setMessageInterceptor(
       messages.MessageType.LOAD,
       (loadRequestData: CastLoadRequest) => {
-        const customData = loadRequestData.customData ?? loadRequestData.media?.customData ?? {};
+        const customData =
+          loadRequestData.customData ?? loadRequestData.media?.customData ?? {};
         const baseUrl =
           typeof customData.baseUrl === "string" ? customData.baseUrl : null;
         const songId =
@@ -422,7 +537,22 @@ async function bootstrap() {
         return loadRequestData;
       },
     );
-    context.start();
+    context.addCustomMessageListener(castNamespace, (event) => {
+      const payload = event?.data;
+      if (!payload) {
+        return;
+      }
+      try {
+        const command =
+          typeof payload === "string"
+            ? (JSON.parse(payload) as CastCommand)
+            : (payload as CastCommand);
+        handleCastCommand(command);
+      } catch {
+        return;
+      }
+    });
+    context.start({ disableIdleTimeout: true });
     return true;
   }
 
@@ -439,6 +569,8 @@ async function bootstrap() {
     void startTrack(initialTrackId);
   } else {
     setIdleState(elements);
+    startIdleKeepAlive();
+    scheduleIdleStop();
   }
 }
 
