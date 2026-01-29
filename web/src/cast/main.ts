@@ -11,7 +11,15 @@ type CastCustomData = {
 };
 
 type CastCommand = {
-  type?: "play" | "stop";
+  type?: "play" | "stop" | "getStatus";
+};
+
+type CastStatus = {
+  type: "status";
+  songId: string | null;
+  title: string | null;
+  artist: string | null;
+  isPlaying: boolean;
 };
 
 type CastLoadRequest = {
@@ -39,7 +47,12 @@ declare global {
             };
             addCustomMessageListener(
               namespace: string,
-              handler: (event: { data?: unknown }) => void,
+              handler: (event: { data?: unknown; senderId?: string }) => void,
+            ): void;
+            sendCustomMessage(
+              namespace: string,
+              senderId: string,
+              message: unknown,
             ): void;
             start(options?: { disableIdleTimeout?: boolean }): void;
             stop?(): void;
@@ -71,6 +84,8 @@ type CastState = {
   vizData: ReturnType<JukeboxEngine["getVisualizationData"]> | null;
   loadToken: number;
   currentTrackId: string | null;
+  trackTitle: string | null;
+  trackArtist: string | null;
 };
 
 function getElements(): CastElements {
@@ -262,6 +277,8 @@ async function bootstrap() {
     vizData: null,
     loadToken: 0,
     currentTrackId: null,
+    trackTitle: null,
+    trackArtist: null,
   };
 
   function clearIdleStopTimer() {
@@ -383,7 +400,9 @@ async function bootstrap() {
     elements.beatsPlayed.textContent = "0";
     elements.title.textContent = "The Forever Jukebox";
     state.lastBeatIndex = null;
-      state.vizData = null;
+    state.vizData = null;
+    state.trackTitle = null;
+    state.trackArtist = null;
       if (viz) {
         viz.reset();
         viz.setVisible(false);
@@ -429,6 +448,8 @@ async function bootstrap() {
         const title = trackMeta.title || "Unknown";
         const artist = trackMeta.artist || "";
         elements.title.textContent = artist ? `${title} — ${artist}` : title;
+        state.trackTitle = title;
+        state.trackArtist = artist || null;
       }
       setLoadingState(elements, false);
       if (viz) {
@@ -445,6 +466,8 @@ async function bootstrap() {
       state.currentTrackId = null;
       state.lastBeatIndex = null;
       state.vizData = null;
+      state.trackTitle = null;
+      state.trackArtist = null;
       if (viz) {
         viz.reset();
         viz.setVisible(false);
@@ -466,7 +489,7 @@ async function bootstrap() {
     }
   }
 
-  function handleCastCommand(command: CastCommand) {
+  function handleCastCommand(command: CastCommand, senderId?: string) {
     if (!engine || !player) {
       return;
     }
@@ -503,6 +526,17 @@ async function bootstrap() {
       setLogoVisible(elements, false);
       startIdleKeepAlive();
       scheduleIdleStop();
+      return;
+    }
+    if (command.type === "getStatus" && castContext) {
+      const status: CastStatus = {
+        type: "status",
+        songId: state.currentTrackId,
+        title: state.trackTitle,
+        artist: state.trackArtist,
+        isPlaying: player.isPlaying(),
+      };
+      castContext.sendCustomMessage(castNamespace, senderId || "*", status);
     }
   }
 
@@ -547,7 +581,7 @@ async function bootstrap() {
           typeof payload === "string"
             ? (JSON.parse(payload) as CastCommand)
             : (payload as CastCommand);
-        handleCastCommand(command);
+        handleCastCommand(command, event?.senderId);
       } catch {
         return;
       }
