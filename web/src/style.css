@@ -303,12 +303,6 @@ body {
   font-size: 20px;
 }
 
-.faq-subtitle {
-  margin: 0 0 16px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
 .faq h4 {
   margin: 18px 0 6px;
   font-size: 14px;
@@ -955,16 +949,6 @@ button:hover {
   margin: 0 0 10px;
 }
 
-.play-matches {
-  margin-top: 12px;
-  min-height: 80px;
-  border: 1px dashed var(--border-panel);
-  border-radius: 10px;
-  padding: 12px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .viz {
   width: 100%;
   height: clamp(360px, 65vh, 700px);
@@ -1137,13 +1121,7 @@ button:hover {
   color: var(--muted);
 }
 
-.viz-sep {
-  opacity: 0.5;
-  padding: 0 2px;
-}
-
 #jukebox-viz.is-canonizer .viz-controls [data-viz],
-#jukebox-viz.is-canonizer .viz-controls .viz-sep,
 #jukebox-viz.is-canonizer .viz-controls .viz-label {
   display: none;
 }
