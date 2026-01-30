@@ -58,7 +58,8 @@ RUN chmod +x /app/entrypoint.sh
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app/api" \
-    ENGINE_REPO="/app/engine"
+    ENGINE_REPO="/app/engine" \
+    NTFY_TOPIC_KEY=""
 
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

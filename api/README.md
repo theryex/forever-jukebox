@@ -27,10 +27,20 @@ export SPOTIFY_CLIENT_ID=...
 export SPOTIFY_CLIENT_SECRET=...
 export YOUTUBE_API_KEY=...
 export ADMIN_KEY=...
+export NTFY_TOPIC_KEY=...
 export WORKER_COUNT=1
 export ALLOW_USER_UPLOAD=true
 export ALLOW_USER_YOUTUBE=true
 export ALLOW_FAVORITES_SYNC=true
+```
+
+### NTFY_TOPIC_KEY (optional)
+
+Set `NTFY_TOPIC_KEY` to enable ntfy alerts for YouTube download failures
+(HTTP 403 / “not a bot” challenge). The API will post to:
+
+```
+ntfy.sh/<NTFY_TOPIC_KEY>
 ```
 
 ## yt-dlp EJS runtime

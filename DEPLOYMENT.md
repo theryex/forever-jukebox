@@ -18,6 +18,7 @@ docker run \
   -e SPOTIFY_CLIENT_SECRET=... \
   -e YOUTUBE_API_KEY=... \
   -e ADMIN_KEY=... \
+  -e NTFY_TOPIC_KEY=... \
   -e ALLOW_USER_UPLOAD=false \
   -e ALLOW_USER_YOUTUBE=false \
   forever-jukebox
