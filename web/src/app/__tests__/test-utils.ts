@@ -17,11 +17,3 @@ export function setWindowUrl(url: string) {
     },
   } as unknown as Window;
 }
-
-export function setNow(nowMs: number) {
-  const original = Date.now;
-  Date.now = () => nowMs;
-  return () => {
-    Date.now = original;
-  };
-}
