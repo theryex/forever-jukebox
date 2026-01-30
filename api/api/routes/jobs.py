@@ -91,9 +91,9 @@ def _notify_youtube_issue(raw: str | None, youtube_id: str | None, job_id: str) 
     message = (
         "[Forever Jukebox] Youtube error on "
         + video_label
-        + ": {"
+        + ": "
         + " or ".join(issues)
-        + "} - "
+        + " - "
         + log_path
     )
     topic_url = f"ntfy.sh/{topic_key}"
