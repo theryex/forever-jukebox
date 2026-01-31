@@ -93,7 +93,19 @@ describe("JukeboxViz", () => {
 
   it("creates a classic positioner", () => {
     const positioner = JukeboxViz.createClassicPositioner();
-    const points = positioner(4, 100, 100);
+    const points = positioner(
+      {
+        beats: [
+          { which: 0, start: 0, duration: 1 },
+          { which: 1, start: 1, duration: 1 },
+          { which: 2, start: 2, duration: 1 },
+          { which: 3, start: 3, duration: 1 },
+        ],
+        edges: [],
+      } as any,
+      100,
+      100
+    );
     expect(points.length).toBe(4);
   });
 

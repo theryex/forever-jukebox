@@ -28,7 +28,7 @@ interface JumpLine {
 }
 
 type Positioner = (
-  count: number,
+  data: VisualizationData,
   width: number,
   height: number
 ) => Array<{ x: number; y: number }>;
@@ -204,7 +204,7 @@ class CanvasViz {
       return;
     }
     const { width, height } = this.size;
-    this.positions = this.positioner(this.data.beats.length, width, height);
+    this.positions = this.positioner(this.data, width, height);
     this.center = { x: width / 2, y: height / 2 };
     this.bendCache.clear();
   }
@@ -593,7 +593,8 @@ function createVisualizations(
 ) {
   const list = positioners ?? [
     JukeboxViz.createClassicPositioner(),
-    (count: number, width: number, height: number) => {
+    (data: VisualizationData, width: number, height: number) => {
+      const count = data.beats.length;
       const cx = width / 2;
       const cy = height / 2;
       const maxRadius = Math.min(width, height) * 0.42;
@@ -609,22 +610,138 @@ function createVisualizations(
         };
       });
     },
-    (count: number, width: number, height: number) => {
-      const cols = Math.ceil(Math.sqrt(count));
-      const rows = Math.ceil(count / cols);
-      const padding = 40;
-      const gridW = width - padding * 2;
-      const gridH = height - padding * 2;
+    (data: VisualizationData, width: number, height: number) => {
+      const count = data.beats.length;
+      let beatsPerBar = 4;
+      if (count > 0) {
+        const counts = new Map<number, number>();
+        let totalParents = 0;
+        const seenParents = new Set<object>();
+        for (const beat of data.beats) {
+          const parent = beat.parent;
+          if (!parent || !parent.children) {
+            continue;
+          }
+          if (!seenParents.has(parent)) {
+            seenParents.add(parent);
+            const length = Math.max(1, parent.children.length);
+            counts.set(length, (counts.get(length) ?? 0) + 1);
+            totalParents += 1;
+          }
+        }
+        if (counts.size > 0) {
+          let best = beatsPerBar;
+          let bestCount = -1;
+          for (const [size, count] of counts.entries()) {
+            if (count > bestCount) {
+              bestCount = count;
+              best = size;
+            }
+          }
+          beatsPerBar = best;
+        }
+        if (totalParents === 0) {
+          beatsPerBar = 4;
+        }
+      }
+      const bars: Array<{ bar: QuantumBase | null; section: QuantumBase | null }> = [];
+      const barIndex = new Map<QuantumBase, number>();
+      for (const beat of data.beats) {
+        const parent = beat.parent ?? null;
+        if (parent && !barIndex.has(parent)) {
+          barIndex.set(parent, bars.length);
+          bars.push({ bar: parent, section: parent.parent ?? null });
+        }
+      }
+      if (bars.length === 0) {
+        const totalBars = Math.max(
+          1,
+          Math.ceil(count / Math.max(1, beatsPerBar))
+        );
+        for (let i = 0; i < totalBars; i += 1) {
+          bars.push({ bar: null, section: null });
+        }
+      }
+      const totalBars = Math.max(1, bars.length);
+      const targetBarsPerRow = Math.max(1, Math.ceil(Math.sqrt(totalBars)));
+      const rowBars: number[] = [];
+      if (bars.some((entry) => entry.section)) {
+        let currentSection: QuantumBase | null = bars[0]?.section ?? null;
+        let sectionBars = 0;
+        const pushSectionRows = () => {
+          if (sectionBars <= 0) {
+            return;
+          }
+          let remaining = sectionBars;
+          while (remaining > 0) {
+            const chunk = Math.min(remaining, targetBarsPerRow);
+            rowBars.push(chunk);
+            remaining -= chunk;
+          }
+        };
+        for (const entry of bars) {
+          if (entry.section !== currentSection) {
+            pushSectionRows();
+            currentSection = entry.section;
+            sectionBars = 0;
+          }
+          sectionBars += 1;
+        }
+        pushSectionRows();
+      } else {
+        let remaining = totalBars;
+        while (remaining > 0) {
+          const chunk = Math.min(remaining, targetBarsPerRow);
+          rowBars.push(chunk);
+          remaining -= chunk;
+        }
+      }
+      const rows = Math.max(1, rowBars.length);
+      const paddingX = 40;
+      const paddingTop = 64;
+      const paddingBottom = 80;
+      const gridW = width - paddingX * 2;
+      const gridH = height - paddingTop - paddingBottom;
+      const safeRatio = (index: number, max: number) =>
+        max <= 1 ? 0.5 : index / (max - 1);
+      const rowStartBar: number[] = [];
+      let running = 0;
+      for (const barsInRow of rowBars) {
+        rowStartBar.push(running);
+        running += barsInRow;
+      }
       return Array.from({ length: count }, (_, i) => {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
+        const beat = data.beats[i];
+        const parent = beat.parent ?? null;
+        const barIdx = parent ? barIndex.get(parent) ?? 0 : Math.floor(i / beatsPerBar);
+        let rowIndex = 0;
+        for (let r = 0; r < rowBars.length; r += 1) {
+          const start = rowStartBar[r] ?? 0;
+          const end = start + rowBars[r];
+          if (barIdx >= start && barIdx < end) {
+            rowIndex = r;
+            break;
+          }
+        }
+        const barsInRow = rowBars[rowIndex] ?? 1;
+        const rowBarOffset = Math.max(0, barIdx - (rowStartBar[rowIndex] ?? 0));
+        let beatInBar = beat.indexInParent ?? -1;
+        if (beatInBar < 0 && parent?.children) {
+          beatInBar = parent.children.indexOf(beat);
+        }
+        if (beatInBar < 0) {
+          beatInBar = i % Math.max(1, beatsPerBar);
+        }
+        const cols = Math.max(1, beatsPerBar * barsInRow);
+        const col = Math.min(cols - 1, rowBarOffset * beatsPerBar + beatInBar);
         return {
-          x: padding + (col / Math.max(1, cols - 1)) * gridW,
-          y: padding + (row / Math.max(1, rows - 1)) * gridH,
+          x: paddingX + safeRatio(col, cols) * gridW,
+          y: paddingTop + safeRatio(rowIndex, rows) * gridH,
         };
       });
     },
-    (count: number, width: number, height: number) => {
+    (data: VisualizationData, width: number, height: number) => {
+      const count = data.beats.length;
       const padding = 40;
       const amp = height * 0.25;
       const center = height / 2;
@@ -638,7 +755,8 @@ function createVisualizations(
         };
       });
     },
-    (count: number, width: number, height: number) => {
+    (data: VisualizationData, width: number, height: number) => {
+      const count = data.beats.length;
       const cx = width / 2;
       const cy = height / 2;
       const ampX = width * 0.35;
@@ -651,7 +769,8 @@ function createVisualizations(
         };
       });
     },
-    (count: number, width: number, height: number) => {
+    (data: VisualizationData, width: number, height: number) => {
+      const count = data.beats.length;
       const cx = width / 2;
       const cy = height / 2;
       const maxRadius = Math.min(width, height) * 0.42;
@@ -685,7 +804,8 @@ export class JukeboxViz {
   private lastUpdate: LastUpdate | null = null;
 
   static createClassicPositioner(): Positioner {
-    return (count: number, width: number, height: number) => {
+    return (data: VisualizationData, width: number, height: number) => {
+      const count = data.beats.length;
       const radius = Math.min(width, height) * 0.4;
       const cx = width / 2;
       const cy = height / 2;
