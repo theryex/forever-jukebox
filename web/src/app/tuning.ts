@@ -2,7 +2,7 @@ import type { AppContext } from "./context";
 
 const MIN_RANDOM_BRANCH_DELTA = 0;
 const MAX_RANDOM_BRANCH_DELTA = 1;
-const TUNING_PARAM_KEYS = ["lb", "jb", "lg", "sq", "thresh", "bp"];
+const TUNING_PARAM_KEYS = ["lb", "jb", "lg", "sq", "thresh", "bp", "d"];
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -23,7 +23,7 @@ export function serializeParams(params: URLSearchParams): string {
   params.forEach((value, key) => {
     const encodedKey = encodeURIComponent(key);
     let encodedValue = encodeURIComponent(value);
-    if (key === "bp") {
+    if (key === "bp" || key === "d") {
       encodedValue = encodedValue.replace(/%2C/gi, ",");
     }
     pairs.push(`${encodedKey}=${encodedValue}`);
@@ -44,6 +44,18 @@ function filterTuningParams(params: URLSearchParams): URLSearchParams {
 
 export function getTuningParamsFromUrl(): URLSearchParams {
   return filterTuningParams(new URLSearchParams(window.location.search));
+}
+
+export function getDeletedEdgeIdsFromUrl(): number[] {
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get("d");
+  if (!raw) {
+    return [];
+  }
+  return raw
+    .split(",")
+    .map((value) => Number.parseInt(value, 10))
+    .filter((value) => Number.isFinite(value) && value >= 0);
 }
 
 export function getTuningParamsStringFromUrl(): string | null {
@@ -122,6 +134,7 @@ export function getTuningParamsFromEngine(context: AppContext): URLSearchParams 
   const params = new URLSearchParams();
   const config = context.engine.getConfig();
   const defaults = context.defaultConfig;
+  const graph = context.engine.getGraphState();
   if (!config.addLastEdge) {
     params.set("lb", "0");
   }
@@ -158,6 +171,12 @@ export function getTuningParamsFromEngine(context: AppContext): URLSearchParams 
       ),
     );
     params.set("bp", `${minPct},${maxPct},${deltaPct}`);
+  }
+  const deletedIds = graph
+    ? graph.allEdges.filter((edge) => edge.deleted).map((edge) => edge.id)
+    : context.state.deletedEdgeIds;
+  if (deletedIds.length > 0) {
+    params.set("d", deletedIds.join(","));
   }
   return params;
 }

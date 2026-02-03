@@ -46,6 +46,7 @@ export type AppState = {
   listenTimerId: number | null;
   wakeLock: WakeLockSentinel | null;
   tuningParams: string | null;
+  deletedEdgeIds: number[];
 };
 
 export type AppContext = {

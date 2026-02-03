@@ -19,11 +19,62 @@ import { readCachedTrack, updateCachedTrack } from "./cache";
 import {
   applyTuningParamsFromUrl,
   clearTuningParamsFromUrl,
+  getDeletedEdgeIdsFromUrl,
   syncTuningParamsState,
   writeTuningParamsToUrl,
 } from "./tuning";
 
 const DEFAULT_VOLUME = 0.5;
+
+function getDeletedEdgeIdsFromGraph(
+  graph: ReturnType<AppContext["engine"]["getGraphState"]>,
+) {
+  if (!graph) {
+    return [];
+  }
+  return graph.allEdges.filter((edge) => edge.deleted).map((edge) => edge.id);
+}
+
+function applyDeletedEdgesById(context: AppContext, ids: number[]): boolean {
+  if (ids.length === 0) {
+    return false;
+  }
+  const graph = context.engine.getGraphState();
+  if (!graph) {
+    return false;
+  }
+  const edgeById = new Map(graph.allEdges.map((edge) => [edge.id, edge]));
+  let changed = false;
+  for (const id of ids) {
+    const edge = edgeById.get(id);
+    if (edge && !edge.deleted) {
+      context.engine.deleteEdge(edge);
+      changed = true;
+    }
+  }
+  if (changed) {
+    context.engine.rebuildGraph();
+  }
+  return changed;
+}
+
+function applyDeletedEdgesFromUrl(context: AppContext) {
+  const urlIds = getDeletedEdgeIdsFromUrl();
+  const fallbackIds = context.state.deletedEdgeIds;
+  const ids = urlIds.length > 0 ? urlIds : fallbackIds;
+  if (applyDeletedEdgesById(context, ids)) {
+    context.state.vizData = context.engine.getVisualizationData();
+    if (context.state.vizData) {
+      context.jukebox.setData(context.state.vizData);
+    }
+  }
+}
+
+export function syncDeletedEdgeState(context: AppContext) {
+  const { engine, state } = context;
+  state.deletedEdgeIds = getDeletedEdgeIdsFromGraph(engine.getGraphState());
+  syncTuningParamsState(context);
+}
 
 export type PlaybackDeps = {
   setActiveTab: (tabId: "top" | "search" | "play" | "faq") => void;
@@ -101,6 +152,10 @@ export function updateTrackInfo(context: AppContext) {
       ? graph.allEdges.filter((edge) => !edge.deleted).length
       : 0;
   elements.infoBranchesEl.textContent = `${branchCount}`;
+  const deletedCount = graph
+    ? graph.allEdges.filter((edge) => edge.deleted).length
+    : state.deletedEdgeIds.length;
+  elements.infoDeletedBranchesEl.textContent = `${deletedCount}`;
 }
 
 export function updateVizVisibility(context: AppContext) {
@@ -243,6 +298,7 @@ export function applyTuningChanges(context: AppContext) {
 
 export function resetTuningDefaults(context: AppContext) {
   const { autocanonizer, engine, jukebox, state, player } = context;
+  engine.clearDeletedEdges();
   engine.updateConfig(context.defaultConfig);
   engine.rebuildGraph();
   state.vizData = engine.getVisualizationData();
@@ -250,6 +306,7 @@ export function resetTuningDefaults(context: AppContext) {
   if (data) {
     jukebox.setData(data);
   }
+  syncDeletedEdgeState(context);
   const graph = engine.getGraphState();
   state.autoComputedThreshold = graph
     ? Math.round(graph.currentThreshold)
@@ -404,6 +461,7 @@ export function resetForNewTrack(
   state.selectedEdge = null;
   jukebox.setSelectedEdge(null);
   engine.clearDeletedEdges();
+  state.deletedEdgeIds = [];
   state.audioLoaded = false;
   state.analysisLoaded = false;
   state.audioLoadInFlight = false;
@@ -443,6 +501,7 @@ export function resetForNewTrack(
   state.deleteEligibilityJobId = null;
   elements.deleteButton.classList.add("hidden");
   state.vizData = null;
+  syncTuningParamsState(context);
   updateTrackInfo(context);
   const emptyVizData = { beats: [], edges: [] };
   jukebox.setData(emptyVizData);
@@ -515,6 +574,7 @@ export function applyAnalysisResult(
   applyTuningParamsFromUrl(context);
   const useAutoThreshold = engine.getConfig().currentThreshold === 0;
   engine.loadAnalysis(response.result);
+  applyDeletedEdgesFromUrl(context);
   autocanonizer.setAnalysis(response.result, response.result.track?.duration);
   const graph = engine.getGraphState();
   state.autoComputedThreshold =
@@ -526,6 +586,7 @@ export function applyAnalysisResult(
   }
   state.selectedEdge = null;
   jukebox.setSelectedEdge(null);
+  syncDeletedEdgeState(context);
   state.analysisLoaded = true;
   updateVizVisibility(context);
   const resultTrack = response.result.track ?? null;
@@ -553,6 +614,7 @@ export function applyAnalysisResult(
   }
   updateTrackInfo(context);
   onAnalysisLoaded?.(response);
+  writeTuningParamsToUrl(state.tuningParams, true);
   const jobId = response.id || state.lastJobId;
   if (jobId) {
     recordPlayOnce(context, jobId).catch((err) => {
