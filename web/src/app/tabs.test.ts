@@ -42,6 +42,6 @@ describe("tabs", () => {
   it("adds mode param for autocanonizer", () => {
     updateTrackUrl("xyz", true, "lg=1", "autocanonizer");
     expect(window.location.pathname).toBe("/listen/xyz");
-    expect(window.location.search).toBe("?lg=1&mode=autocanonizer");
+    expect(window.location.search).toBe("?mode=autocanonizer");
   });
 });

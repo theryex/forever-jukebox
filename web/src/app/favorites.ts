@@ -4,6 +4,7 @@ export type FavoriteTrack = {
   artist: string;
   duration: number | null;
   sourceType: "youtube" | "upload";
+  tuningParams?: string | null;
 };
 
 const FAVORITES_KEY = "fj-favorites";

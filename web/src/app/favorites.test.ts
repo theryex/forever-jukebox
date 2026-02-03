@@ -40,6 +40,7 @@ describe("favorites", () => {
         artist: "C",
         duration: 1,
         sourceType: "youtube" as const,
+        tuningParams: "jb=1&d=2",
       },
       {
         uniqueSongId: "1",
@@ -53,6 +54,7 @@ describe("favorites", () => {
     const loaded = loadFavorites();
     expect(loaded[0].uniqueSongId).toBe("1");
     expect(loaded[1].uniqueSongId).toBe("2");
+    expect(loaded[1].tuningParams).toBe("jb=1&d=2");
   });
 
   it("enforces favorite limit and handles duplicates", () => {
