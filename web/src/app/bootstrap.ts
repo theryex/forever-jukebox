@@ -42,6 +42,7 @@ import {
   releaseWakeLock,
   requestWakeLock,
   resetForNewTrack,
+  syncDeletedEdgeState,
   startAutocanonizerPlayback,
   stopPlayback,
   togglePlayback,
@@ -55,6 +56,7 @@ import type { AppConfig } from "./api";
 import {
   getTuningParamsFromEngine,
   getTuningParamsStringFromUrl,
+  writeTuningParamsToUrl,
 } from "./tuning";
 import {
   addFavorite,
@@ -130,6 +132,7 @@ export function bootstrap() {
     listenTimerId: null,
     wakeLock: null,
     tuningParams: null,
+    deletedEdgeIds: [],
   };
   const context: AppContext = {
     elements,
@@ -1393,7 +1396,9 @@ export function bootstrap() {
       }
       jukebox.refresh();
       jukebox.resizeActive();
+      syncDeletedEdgeState(context);
       updateTrackInfo(context);
+      writeTuningParamsToUrl(state.tuningParams, true);
       state.selectedEdge = null;
       jukebox.setSelectedEdge(null);
       return;

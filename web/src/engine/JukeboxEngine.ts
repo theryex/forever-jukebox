@@ -186,7 +186,6 @@ export class JukeboxEngine {
     const srcIndex = edge.src.which;
     const destIndex = edge.dest.which;
     this.deletedEdgeKeys.add(this.edgeKey(srcIndex, destIndex));
-    this.deletedEdgeKeys.add(this.edgeKey(destIndex, srcIndex));
     this.applyDeletedEdges();
   }
 

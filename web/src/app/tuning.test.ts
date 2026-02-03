@@ -4,6 +4,7 @@ import type { JukeboxConfig } from "../engine/types";
 import {
   applyTuningParamsToEngine,
   clearTuningParamsFromUrl,
+  getDeletedEdgeIdsFromUrl,
   getTuningParamsFromEngine,
   syncTuningParamsState,
   writeTuningParamsToUrl,
@@ -38,6 +39,7 @@ function createContext(
     updateConfig: (partial: Partial<JukeboxConfig>) => {
       config = { ...config, ...partial };
     },
+    getGraphState: () => null,
   };
   return {
     defaultConfig,
@@ -51,6 +53,7 @@ function createContext(
     state: {
       tuningParams: null,
       playMode: "jukebox",
+      deletedEdgeIds: [],
     } as unknown as AppContext["state"],
   };
 }
@@ -88,6 +91,26 @@ describe("tuning params", () => {
     expect(params.get("thresh")).toBe("30");
     expect(params.get("lb")).toBeNull();
     expect(params.get("bp")).toBeNull();
+  });
+
+  it("serializes deleted edge ids when present", () => {
+    const context = createContext();
+    const graph = {
+      allEdges: [
+        { id: 1, deleted: true },
+        { id: 2, deleted: false },
+        { id: 5, deleted: true },
+      ],
+    };
+    (context.engine as unknown as { getGraphState: () => unknown }).getGraphState =
+      () => graph;
+    const params = getTuningParamsFromEngine(context);
+    expect(params.get("d")).toBe("1,5");
+  });
+
+  it("parses deleted edge ids from url", () => {
+    setWindowUrl("http://localhost/listen/abc?d=3,5,notanumber,7");
+    expect(getDeletedEdgeIdsFromUrl()).toEqual([3, 5, 7]);
   });
 
   it("syncs tuning params state from engine config", () => {

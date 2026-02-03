@@ -159,6 +159,10 @@ export function getElements() {
     document.querySelector<HTMLSpanElement>("#info-branches"),
     "#info-branches"
   );
+  const infoDeletedBranchesEl = requireElement(
+    document.querySelector<HTMLSpanElement>("#info-deleted-branches"),
+    "#info-deleted-branches"
+  );
   const favoritesSyncEnterModal = requireElement(
     document.querySelector<HTMLDivElement>("#favorites-sync-enter-modal"),
     "#favorites-sync-enter-modal"
@@ -422,6 +426,7 @@ export function getElements() {
     infoDurationEl,
     infoBeatsEl,
     infoBranchesEl,
+    infoDeletedBranchesEl,
     thresholdInput,
     thresholdVal,
     computedThresholdEl,

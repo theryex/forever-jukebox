@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppContext } from "./context";
-import { applyTuningChanges, syncTuningUI, updateListenTimeDisplay } from "./playback";
+import {
+  applyAnalysisResult,
+  applyTuningChanges,
+  syncTuningUI,
+  updateListenTimeDisplay,
+} from "./playback";
 import { setWindowUrl } from "./__tests__/test-utils";
 
 function createClassList() {
@@ -47,9 +52,13 @@ function createElements() {
     playTabButton: { classList: createClassList(), disabled: false },
     vizButtons: [{ disabled: false }, { disabled: false }],
     canonizerFinish: { checked: false, addEventListener: vi.fn() },
+    playTitle: createSpan(),
+    vizNowPlayingEl: createSpan(),
     infoDurationEl: createSpan(),
     infoBeatsEl: createSpan(),
     infoBranchesEl: createSpan(),
+    infoDeletedBranchesEl: createSpan(),
+    deleteButton: { classList: createClassList() },
   };
 }
 
@@ -141,6 +150,7 @@ function createContext(overrides?: Partial<AppContext>): AppContext {
       lastPlayCountedJobId: null,
       appConfig: null,
       tuningParams: null,
+      deletedEdgeIds: [],
       beatsPlayed: 0,
     } as unknown as AppContext["state"],
     ...overrides,
@@ -180,6 +190,61 @@ describe("playback tuning", () => {
       }),
     );
     expect(context.elements.thresholdInput.value).toBe("45");
+  });
+
+  it("applies deleted edges from url when analysis loads", () => {
+    setWindowUrl("http://localhost/listen/abc?d=1,3");
+    const graph = {
+      currentThreshold: 45,
+      allEdges: [
+        { id: 1, deleted: false },
+        { id: 2, deleted: false },
+        { id: 3, deleted: false },
+      ],
+      totalBeats: 0,
+    };
+    const context = createContext({
+      engine: {
+        getConfig: vi.fn(() => ({
+          currentThreshold: 0,
+          minRandomBranchChance: 0.18,
+          maxRandomBranchChance: 0.5,
+          randomBranchChanceDelta: 0.1,
+          addLastEdge: true,
+          justBackwards: false,
+          justLongBranches: false,
+          removeSequentialBranches: false,
+        })),
+        updateConfig: vi.fn(),
+        loadAnalysis: vi.fn(),
+        getGraphState: vi.fn(() => graph),
+        getVisualizationData: vi.fn(() => ({ beats: [], edges: [] })),
+        deleteEdge: vi.fn((edge: { deleted: boolean }) => {
+          edge.deleted = true;
+        }),
+        rebuildGraph: vi.fn(),
+      } as unknown as AppContext["engine"],
+    });
+
+    const response = {
+      status: "complete",
+      id: "job123",
+      result: { beats: [], track: {} },
+    };
+
+    const applied = applyAnalysisResult(
+      context,
+      response as unknown as Parameters<typeof applyAnalysisResult>[1],
+    );
+
+    expect(applied).toBe(true);
+    expect(
+      (context.engine.deleteEdge as unknown as ReturnType<typeof vi.fn>).mock
+        .calls.length,
+    ).toBe(2);
+    expect(graph.allEdges[0].deleted).toBe(true);
+    expect(graph.allEdges[2].deleted).toBe(true);
+    expect(context.state.deletedEdgeIds).toEqual([1, 3]);
   });
 });
 
