@@ -56,6 +56,7 @@ import type { AppConfig } from "./api";
 import {
   getTuningParamsFromEngine,
   getTuningParamsStringFromUrl,
+  syncTuningParamsState,
   writeTuningParamsToUrl,
 } from "./tuning";
 import {
@@ -274,7 +275,7 @@ export function bootstrap() {
         options?: { replace?: boolean; youtubeId?: string | null },
       ) => navigateToTabWithState(tabId, options),
       updateTrackUrl: (youtubeId: string, replace?: boolean) =>
-        updateTrackUrl(youtubeId, replace, state.tuningParams),
+        updateTrackUrl(youtubeId, replace, state.tuningParams, state.playMode),
       setAnalysisStatus: (message: string, spinning: boolean) =>
         setAnalysisStatus(context, message, spinning),
       setLoadingProgress: (progress: number | null, message?: string | null) =>
@@ -727,12 +728,17 @@ export function bootstrap() {
           : null;
       const sourceType =
         item.sourceType === "upload" ? "upload" : ("youtube" as const);
+      const tuningParams =
+        typeof item.tuningParams === "string" && item.tuningParams.trim()
+          ? item.tuningParams.trim()
+          : null;
       normalized.push({
         uniqueSongId: item.uniqueSongId,
         title,
         artist,
         duration,
         sourceType,
+        tuningParams,
       });
     }
     return sortFavorites(normalized).slice(0, maxFavorites());
@@ -875,6 +881,13 @@ export function bootstrap() {
     return state.lastYouTubeId ? "youtube" : "upload";
   }
 
+  function getFavoriteTuningParams() {
+    if (state.playMode !== "jukebox") {
+      return null;
+    }
+    return syncTuningParamsState(context);
+  }
+
   function renderFavoritesList() {
     elements.favoritesList.innerHTML = "";
     if (state.favorites.length === 0) {
@@ -938,6 +951,7 @@ export function bootstrap() {
       artist,
       duration: state.trackDurationSec,
       sourceType: response.youtube_id ? "youtube" : "upload",
+      tuningParams: getFavoriteTuningParams(),
     };
     const result = addFavorite(state.favorites, track);
     if (result.status === "added") {
@@ -961,13 +975,29 @@ export function bootstrap() {
     if (!favoriteId) {
       return;
     }
+    const favorite = state.favorites.find(
+      (item) => item.uniqueSongId === favoriteId,
+    );
+    const desiredTuningParams = favorite?.tuningParams ?? null;
+    if (desiredTuningParams && state.playMode !== "jukebox") {
+      setPlayMode("jukebox");
+    }
+    state.tuningParams =
+      state.playMode === "jukebox" ? desiredTuningParams : null;
+    if (state.playMode === "jukebox") {
+      writeTuningParamsToUrl(state.tuningParams, true);
+    }
     const sourceType = target?.dataset.sourceType ?? "youtube";
     navigateToTabWithState("play", { youtubeId: favoriteId });
     if (sourceType === "upload") {
-      loadTrackByJobId(context, playbackDeps, favoriteId);
+      loadTrackByJobId(context, playbackDeps, favoriteId, {
+        preserveUrlTuning: true,
+      });
       return;
     }
-    loadTrackByYouTubeId(context, playbackDeps, favoriteId);
+    loadTrackByYouTubeId(context, playbackDeps, favoriteId, {
+      preserveUrlTuning: true,
+    });
   }
 
   function handleFavoriteRemove(event: Event) {
@@ -1000,6 +1030,7 @@ export function bootstrap() {
       artist,
       duration: state.trackDurationSec,
       sourceType: getCurrentFavoriteSourceType(),
+      tuningParams: getFavoriteTuningParams(),
     };
     const result = addFavorite(state.favorites, track);
     if (result.status === "limit") {
@@ -1111,7 +1142,7 @@ export function bootstrap() {
       state.lastYouTubeId = null;
       state.audioLoaded = false;
       state.analysisLoaded = false;
-      updateTrackUrl(response.id, true, state.tuningParams);
+      updateTrackUrl(response.id, true, state.tuningParams, state.playMode);
       elements.uploadFileInput.value = "";
       setActiveTabWithRefresh("play");
       setLoadingProgress(context, null, "Queued");
@@ -1156,7 +1187,7 @@ export function bootstrap() {
       state.lastJobId = response.id;
       state.pendingAutoFavoriteId = youtubeId;
       elements.uploadYoutubeInput.value = "";
-      updateTrackUrl(youtubeId, true, state.tuningParams);
+      updateTrackUrl(youtubeId, true, state.tuningParams, state.playMode);
       setActiveTabWithRefresh("play");
       setLoadingProgress(context, null, "Fetching audio");
       await pollAnalysis(context, playbackDeps, response.id);
@@ -1323,6 +1354,7 @@ export function bootstrap() {
 
   function handleTuningReset() {
     resetTuningDefaults(context);
+    closeTuning(context);
   }
 
   function handlePlayClick() {
@@ -1520,10 +1552,12 @@ export function bootstrap() {
     const url = new URL(
       `${window.location.origin}/listen/${encodeURIComponent(trackId)}`,
     );
-    const tuningParams = getTuningParamsFromEngine(context);
-    tuningParams.forEach((value, key) => {
-      url.searchParams.set(key, value);
-    });
+    if (state.playMode === "jukebox") {
+      const tuningParams = getTuningParamsFromEngine(context);
+      tuningParams.forEach((value, key) => {
+        url.searchParams.set(key, value);
+      });
+    }
     if (state.playMode === "autocanonizer") {
       url.searchParams.set("mode", "autocanonizer");
     }

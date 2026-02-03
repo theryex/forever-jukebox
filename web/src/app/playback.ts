@@ -614,7 +614,9 @@ export function applyAnalysisResult(
   }
   updateTrackInfo(context);
   onAnalysisLoaded?.(response);
-  writeTuningParamsToUrl(state.tuningParams, true);
+  if (state.playMode === "jukebox") {
+    writeTuningParamsToUrl(state.tuningParams, true);
+  }
   const jobId = response.id || state.lastJobId;
   if (jobId) {
     recordPlayOnce(context, jobId).catch((err) => {

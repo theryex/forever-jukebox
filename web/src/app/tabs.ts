@@ -90,7 +90,10 @@ function buildSearchParams(
   tuningParams?: string | null,
   playMode?: "jukebox" | "autocanonizer",
 ) {
-  const params = new URLSearchParams(tuningParams ?? "");
+  const params =
+    playMode === "autocanonizer"
+      ? new URLSearchParams()
+      : new URLSearchParams(tuningParams ?? "");
   if (playMode === "autocanonizer") {
     params.set("mode", "autocanonizer");
   } else {
