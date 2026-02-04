@@ -508,6 +508,14 @@ export function createFavoritesHandlers(deps: FavoritesDeps) {
       const showArtist = artist !== "" && artist !== "Unknown";
       const artistText = showArtist ? ` — ${artist}` : "";
       link.textContent = `${titleText}${artistText}`;
+      if (item.tuningParams) {
+        const tuneIcon = document.createElement("span");
+        tuneIcon.className = "material-symbols-outlined favorite-tune-icon";
+        tuneIcon.textContent = "tune";
+        tuneIcon.setAttribute("aria-hidden", "true");
+        tuneIcon.title = "Custom tuning";
+        link.append(" ", tuneIcon);
+      }
       link.dataset.favoriteId = item.uniqueSongId;
       link.dataset.sourceType = sourceType;
       link.addEventListener("click", handleFavoriteClick);
