@@ -16,11 +16,11 @@ function createContext(): AppContext {
     elements: {
       canonizerFinish: { checked: false, addEventListener: vi.fn() },
     } as unknown as AppContext["elements"],
-    engine: {} as AppContext["engine"],
-    player: {} as AppContext["player"],
-    autocanonizer: {} as AppContext["autocanonizer"],
+    engine: {} as unknown as AppContext["engine"],
+    player: {} as unknown as AppContext["player"],
+    autocanonizer: {} as unknown as AppContext["autocanonizer"],
     jukebox: { refresh: vi.fn() } as unknown as AppContext["jukebox"],
-    defaultConfig: {} as AppContext["defaultConfig"],
+    defaultConfig: {} as unknown as AppContext["defaultConfig"],
     state: {
       playMode: "jukebox",
       lastYouTubeId: null,

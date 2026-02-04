@@ -373,6 +373,10 @@ export function getElements() {
     document.querySelector<HTMLDivElement>("#toast"),
     "#toast"
   );
+  const cachedAudioClearButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#cached-audio-clear"),
+    "#cached-audio-clear"
+  );
   const vizStats = document.querySelector<HTMLDivElement>("#viz-stats");
 
   return {
@@ -467,6 +471,7 @@ export function getElements() {
     favoritesSyncMenu,
     favoritesSyncItems,
     toast,
+    cachedAudioClearButton,
     vizStats,
   };
 }

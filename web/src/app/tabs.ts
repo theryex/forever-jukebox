@@ -12,6 +12,9 @@ export function pathForTab(tabId: TabId, youtubeId?: string | null) {
     }
     return "/listen";
   }
+  if (tabId === "faq") {
+    return "/faq";
+  }
   return "/";
 }
 

@@ -1,0 +1,71 @@
+import type { AppContext, AppState } from "../context";
+import type { Elements } from "../elements";
+import type { FavoritesHandlers } from "./favorites";
+
+type DeleteJobDeps = {
+  context: AppContext;
+  elements: Elements;
+  state: AppState;
+  favoritesHandlers: FavoritesHandlers;
+  deleteJob: (jobId: string) => Promise<void>;
+  deleteCachedTrack: (trackId: string) => Promise<void>;
+  resetForNewTrack: (context: AppContext) => void;
+  navigateToTabWithState: (
+    tabId: "top" | "search" | "play" | "faq",
+    options?: { replace?: boolean; youtubeId?: string | null },
+  ) => void;
+  showToast: (context: AppContext, message: string, options?: { icon?: string }) => void;
+  isFavorite: (items: AppState["favorites"], id: string) => boolean;
+  removeFavorite: (items: AppState["favorites"], id: string) => AppState["favorites"];
+};
+
+export type DeleteJobHandlers = ReturnType<typeof createDeleteJobHandlers>;
+
+export function createDeleteJobHandlers(deps: DeleteJobDeps) {
+  const {
+    context,
+    elements,
+    state,
+    favoritesHandlers,
+    deleteJob,
+    deleteCachedTrack,
+    resetForNewTrack,
+    navigateToTabWithState,
+    showToast,
+    isFavorite,
+    removeFavorite,
+  } = deps;
+
+  function handleDeleteJobClick() {
+    const jobId = state.lastJobId;
+    const youtubeId = state.lastYouTubeId;
+    if (!jobId) {
+      return;
+    }
+    deleteJob(jobId)
+      .then(() => {
+        const favoriteId = youtubeId ?? jobId;
+        if (favoriteId) {
+          deleteCachedTrack(favoriteId).catch((err) => {
+            console.warn(`Cache delete failed: ${String(err)}`);
+          });
+        }
+        if (favoriteId && isFavorite(state.favorites, favoriteId)) {
+          favoritesHandlers.updateFavorites(
+            removeFavorite(state.favorites, favoriteId),
+          );
+        }
+        resetForNewTrack(context);
+        navigateToTabWithState("top", { replace: true });
+        showToast(context, "Deleted song");
+      })
+      .catch(() => {
+        state.deleteEligible = false;
+        state.deleteEligibilityJobId = jobId;
+        elements.deleteButton.classList.add("hidden");
+        showToast(context, "Song can no longer be deleted");
+      });
+  }
+
+  return { handleDeleteJobClick };
+}

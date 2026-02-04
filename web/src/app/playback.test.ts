@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppContext } from "./context";
+import type { AnalysisComplete } from "./api";
 import {
   applyAnalysisResult,
   applyTuningChanges,
@@ -16,6 +17,18 @@ function createClassList() {
     contains: vi.fn().mockReturnValue(false),
   };
 }
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true }) as Response),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 function createInput(initial = "") {
   return { value: initial, checked: false } as HTMLInputElement;
@@ -114,7 +127,7 @@ function createContext(overrides?: Partial<AppContext>): AppContext {
     player: player as unknown as AppContext["player"],
     autocanonizer: autocanonizer as unknown as AppContext["autocanonizer"],
     jukebox: jukebox as unknown as AppContext["jukebox"],
-    defaultConfig: engineConfig as AppContext["defaultConfig"],
+    defaultConfig: engineConfig as unknown as AppContext["defaultConfig"],
     state: {
       playMode: "jukebox",
       autoComputedThreshold: null,
@@ -226,21 +239,17 @@ describe("playback tuning", () => {
       } as unknown as AppContext["engine"],
     });
 
-    const response = {
+    const response: AnalysisComplete = {
       status: "complete",
       id: "job123",
       result: { beats: [], track: {} },
     };
 
-    const applied = applyAnalysisResult(
-      context,
-      response as unknown as Parameters<typeof applyAnalysisResult>[1],
-    );
+    const applied = applyAnalysisResult(context, response);
 
     expect(applied).toBe(true);
     expect(
-      (context.engine.deleteEdge as unknown as ReturnType<typeof vi.fn>).mock
-        .calls.length,
+      (context.engine.deleteEdge as ReturnType<typeof vi.fn>).mock.calls.length,
     ).toBe(2);
     expect(graph.allEdges[0].deleted).toBe(true);
     expect(graph.allEdges[2].deleted).toBe(true);

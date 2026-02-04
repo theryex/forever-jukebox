@@ -320,24 +320,38 @@
         <div class="faq">
           <h4>What the what?</h4>
           <p>
-            The Forever Jukebox is a fully open source, end-to-end modernization
-            and reimagining of the Infinite Jukebox, a web app created by Paul
-            Lamere in 2012 that lets you search a song on Spotify, match it to
-            YouTube audio, and generate a forever-changing version of the song.
+            The Forever Jukebox is an open-source modernization of the
+            <a
+              href="https://musicmachinery.com/2012/11/12/the-infinite-jukebox/"
+              target="_blank"
+              rel="noreferrer"
+              >Infinite Jukebox</a
+            >
+            and
+            <a
+              href="https://musicmachinery.com/2014/03/18/how-the-autocanonizer-works/"
+              target="_blank"
+              rel="noreferrer"
+              >Autocanonizer</a
+            >
+            (Paul Lamere) — rebuilt from the ground up and launched on January
+            1, 2026 by
+            <a href="https://creighton.dev" target="_blank" rel="noreferrer"
+              >Creighton Linza</a
+            >. It generates a forever-evolving version of any song.
           </p>
 
           <h4>How does it work?</h4>
           <p>
-            The app uses the Spotify API for searching track data, and YouTube
-            for the audio. The audio gets analyzed by the Forever Jukebox
-            Analysis Engine, an attempt to approximate Spotify’s legacy
-            analysis, which has since been deprecated. The engine determines
-            beats, segments, and other features and passes them to the frontend,
-            which then plays the audio beat by beat. At each beat there is a
-            chance to jump to a different part of the song that sounds similar.
-            Similarity uses features like timbre, loudness, duration, and beat
-            position. The visualizations show the possible jump paths for each
-            beat.
+            The app uses the Spotify Web API for track search/metadata and
+            YouTube as the audio source. The audio is processed by the Forever
+            Jukebox Analysis Engine, which approximates Spotify’s legacy Echo
+            Nest analysis (now deprecated) by extracting beats, segments, and
+            related features. Those features drive beat-synchronous playback in
+            the frontend. On each beat, the player may jump to a different,
+            sonically similar point in the track based on timbre, loudness,
+            segment duration, and beat position. The visualizations map these
+            potential jump paths for every beat.
           </p>
           <p>
             The full source code is available in the
@@ -349,15 +363,6 @@
             >
             repository.
           </p>
-
-          <h4>Keyboard commands</h4>
-          <ul>
-            <li><strong>Space</strong> - start/stop playback (Listen tab)</li>
-            <li>
-              <strong>Shift (hold)</strong> - force branching while playing
-            </li>
-            <li><strong>Delete</strong> - remove a selected branch</li>
-          </ul>
 
           <h4>How can I tune the Jukebox?</h4>
           <ul>
@@ -379,6 +384,24 @@
             </li>
           </ul>
 
+          <h4>How do Favorites work?</h4>
+          <ul>
+            <li>
+              Favorites are saved/unsaved by clicking the star icon on a song.
+              They are stored locally in your browser and can optionally be
+              synced across devices using a sync code obtained from the
+              Favorites sync menu.
+            </li>
+            <li>
+              When you favorite a song, its tuning and deleted branches are
+              saved too, so future loads restore your chosen parameters.
+            </li>
+            <li>
+              Use Reset in the Tune panel to restore default tuning and
+              deleted branches (must be re-favorited to save changes).
+            </li>
+          </ul>
+
           <h4>Credits</h4>
           <ul>
             <li>Original inspiration: Paul Lamere and the Infinite Jukebox.</li>
@@ -397,6 +420,9 @@
               >Create an issue</a
             >.
           </p>
+
+          <h4>CACHED AUDIO</h4>
+          <button id="cached-audio-clear" type="button">Clear 0MB</button>
         </div>
       </section>
       <div id="tuning-modal" class="modal">
@@ -523,6 +549,19 @@
             <div class="info-row">
               <span class="info-label">Deleted branches:</span>
               <span id="info-deleted-branches">0</span>
+            </div>
+            <h4>Keyboard commands</h4>
+            <div class="info-row">
+              <span class="info-label">Space:</span>
+              <span>Start/stop playback (Listen tab)</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Shift (hold):</span>
+              <span>Force branching while playing</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Delete:</span>
+              <span>Remove a selected branch</span>
             </div>
           </div>
         </div>

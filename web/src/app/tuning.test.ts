@@ -43,12 +43,12 @@ function createContext(
   };
   return {
     defaultConfig,
-    engine: engine as AppContext["engine"],
+    engine: engine as unknown as AppContext["engine"],
     elements: {
       canonizerFinish: { checked: false, addEventListener: vi.fn() },
     } as unknown as AppContext["elements"],
-    player: {} as AppContext["player"],
-    autocanonizer: {} as AppContext["autocanonizer"],
+    player: {} as unknown as AppContext["player"],
+    autocanonizer: {} as unknown as AppContext["autocanonizer"],
     jukebox: { refresh: vi.fn() } as unknown as AppContext["jukebox"],
     state: {
       tuningParams: null,
@@ -102,7 +102,7 @@ describe("tuning params", () => {
         { id: 5, deleted: true },
       ],
     };
-    (context.engine as unknown as { getGraphState: () => unknown }).getGraphState =
+    (context.engine as { getGraphState: () => unknown }).getGraphState =
       () => graph;
     const params = getTuningParamsFromEngine(context);
     expect(params.get("d")).toBe("1,5");

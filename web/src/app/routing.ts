@@ -22,6 +22,10 @@ export async function handleRouteChange(
     deps.navigateToTab("search", { replace: true });
     return;
   }
+  if (pathname.startsWith("/faq")) {
+    deps.navigateToTab("faq", { replace: true });
+    return;
+  }
   if (pathname.startsWith("/listen")) {
     const parts = pathname.split("/").filter(Boolean);
     const trackId = parts.length >= 2 ? parts[1] : null;
