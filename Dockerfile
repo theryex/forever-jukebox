@@ -142,12 +142,11 @@ RUN curl -fsSL "https://github.com/denoland/deno/releases/download/v${DENO_VERSI
     && unzip /tmp/deno.zip -d /usr/local/bin \
     && rm /tmp/deno.zip \
     && deno --version \
-    # Ensure latest runtime dependencies
-    && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
-    && /opt/venv/bin/pip install Cython "numpy==1.26.4" \
-    && /opt/venv/bin/pip install -r /app/api/requirements.txt \
-    && /opt/venv/bin/pip install --upgrade "yt-dlp[default]" \
-    && /opt/venv/bin/pip install --no-build-isolation --only-binary=essentia -r /app/engine/requirements.txt
+    && deno --version
+
+# Dependencies are already copied from builder stage /opt/venv
+# running pip install here is dangerous as runtime has no compilers.
+# && /opt/venv/bin/pip install ...
 
 # Copy source code
 COPY api/ ./api/

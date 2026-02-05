@@ -7,6 +7,7 @@ import {
   MAX_EDGES_BASE,
 } from "../app/constants";
 import { distanceToQuadratic, distanceToSegment } from "./geometry";
+// Re-export or just import
 
 interface VisualizationData {
   beats: QuantumBase[];
@@ -298,9 +299,9 @@ export class CanvasViz {
       const normalized =
         hex.length === 3
           ? hex
-              .split("")
-              .map((ch) => ch + ch)
-              .join("")
+            .split("")
+            .map((ch) => ch + ch)
+            .join("")
           : hex.slice(0, 6);
       const r = Number.parseInt(normalized.slice(0, 2), 16);
       const g = Number.parseInt(normalized.slice(2, 4), 16);
@@ -363,14 +364,14 @@ export class CanvasViz {
         const dist =
           geometry.bend && geometry.control
             ? distanceToQuadratic(
-                x,
-                y,
-                from.x,
-                from.y,
-                ...geometry.control,
-                to.x,
-                to.y
-              )
+              x,
+              y,
+              from.x,
+              from.y,
+              ...geometry.control,
+              to.x,
+              to.y
+            )
             : distanceToSegment(x, y, from.x, from.y, to.x, to.y);
         if (dist < bestEdgeDist) {
           bestEdgeDist = dist;
