@@ -63,11 +63,16 @@ Then open the web UI at `http://localhost:5173`.
 cp .env.example .env
 # Edit .env with your Spotify credentials
 
+# New variables in upstream:
+# NTFY_TOPIC_KEY=...
+# ALLOW_FAVORITES_SYNC=false
+
 # Build and run
 docker compose up --build -d
 
 # View logs
 docker compose logs -f
+
 ```
 
 Open `http://localhost:8000/`.

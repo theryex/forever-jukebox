@@ -41,6 +41,7 @@ fun TuningDialog(
     initialJustLong: Boolean,
     initialRemoveSequential: Boolean,
     onDismiss: () -> Unit,
+    onReset: () -> Unit,
     onApply: (
         threshold: Int,
         minProb: Double,
@@ -91,15 +92,30 @@ fun TuningDialog(
             }
         },
         dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                colors = pillOutlinedButtonColors(),
-                border = pillButtonBorder(),
-                shape = PillShape,
-                contentPadding = SmallButtonPadding,
-                modifier = Modifier.height(SmallButtonHeight)
-            ) {
-                Text("Close", style = MaterialTheme.typography.labelSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        onReset()
+                        onDismiss()
+                    },
+                    colors = pillOutlinedButtonColors(),
+                    border = pillButtonBorder(),
+                    shape = PillShape,
+                    contentPadding = SmallButtonPadding,
+                    modifier = Modifier.height(SmallButtonHeight)
+                ) {
+                    Text("Reset", style = MaterialTheme.typography.labelSmall)
+                }
+                OutlinedButton(
+                    onClick = onDismiss,
+                    colors = pillOutlinedButtonColors(),
+                    border = pillButtonBorder(),
+                    shape = PillShape,
+                    contentPadding = SmallButtonPadding,
+                    modifier = Modifier.height(SmallButtonHeight)
+                ) {
+                    Text("Close", style = MaterialTheme.typography.labelSmall)
+                }
             }
         },
         title = { Text("Tuning") },
@@ -160,7 +176,7 @@ fun BaseUrlDialog(initialValue: String, onSave: (String) -> Unit) {
             OutlinedTextField(
                 value = urlInput,
                 onValueChange = { urlInput = it },
-                label = { Text("Example: http://10.0.2.2:8000") },
+                label = { Text("Example: http://192.168.1.100") },
                 textStyle = MaterialTheme.typography.bodySmall,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(

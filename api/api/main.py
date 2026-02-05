@@ -67,6 +67,10 @@ if WEB_DIST.exists():
     def spa_fallback(full_path: str):
         if full_path.startswith("api"):
             raise HTTPException(status_code=404, detail="Not found")
+        if full_path == "cast" or full_path.startswith("cast/"):
+            cast_entry = WEB_DIST / "cast-receiver.html"
+            if cast_entry.exists():
+                return FileResponse(cast_entry)
         candidate = (WEB_DIST / full_path).resolve()
         if candidate.is_file():
             return FileResponse(candidate)

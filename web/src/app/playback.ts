@@ -19,28 +19,78 @@ import { readCachedTrack, updateCachedTrack } from "./cache";
 import {
   applyTuningParamsFromUrl,
   clearTuningParamsFromUrl,
+  getDeletedEdgeIdsFromUrl,
   syncTuningParamsState,
   writeTuningParamsToUrl,
 } from "./tuning";
 
 const DEFAULT_VOLUME = 0.5;
 
+function getDeletedEdgeIdsFromGraph(
+  graph: ReturnType<AppContext["engine"]["getGraphState"]>,
+) {
+  if (!graph) {
+    return [];
+  }
+  return graph.allEdges.filter((edge) => edge.deleted).map((edge) => edge.id);
+}
+
+function applyDeletedEdgesById(context: AppContext, ids: number[]): boolean {
+  if (ids.length === 0) {
+    return false;
+  }
+  const graph = context.engine.getGraphState();
+  if (!graph) {
+    return false;
+  }
+  const edgeById = new Map(graph.allEdges.map((edge) => [edge.id, edge]));
+  let changed = false;
+  for (const id of ids) {
+    const edge = edgeById.get(id);
+    if (edge && !edge.deleted) {
+      context.engine.deleteEdge(edge);
+      changed = true;
+    }
+  }
+  if (changed) {
+    context.engine.rebuildGraph();
+  }
+  return changed;
+}
+
+function applyDeletedEdgesFromUrl(context: AppContext) {
+  const urlIds = getDeletedEdgeIdsFromUrl();
+  const fallbackIds = context.state.deletedEdgeIds;
+  const ids = urlIds.length > 0 ? urlIds : fallbackIds;
+  if (applyDeletedEdgesById(context, ids)) {
+    context.state.vizData = context.engine.getVisualizationData();
+    if (context.state.vizData) {
+      context.jukebox.setData(context.state.vizData);
+    }
+  }
+}
+
+export function syncDeletedEdgeState(context: AppContext) {
+  const { engine, state } = context;
+  state.deletedEdgeIds = getDeletedEdgeIdsFromGraph(engine.getGraphState());
+  syncTuningParamsState(context);
+}
+
 export type PlaybackDeps = {
   setActiveTab: (tabId: "top" | "search" | "play" | "faq") => void;
   navigateToTab: (
     tabId: "top" | "search" | "play" | "faq",
-    options?: { replace?: boolean; youtubeId?: string | null }
+    options?: { replace?: boolean; youtubeId?: string | null },
   ) => void;
   updateTrackUrl: (youtubeId: string, replace?: boolean) => void;
   setAnalysisStatus: (message: string, spinning: boolean) => void;
   setLoadingProgress: (
     progress: number | null,
-    message?: string | null
+    message?: string | null,
   ) => void;
   onTrackChange?: (youtubeId: string | null) => void;
   onAnalysisLoaded?: (response: AnalysisComplete) => void;
 };
-
 
 export function updateListenTimeDisplay(context: AppContext) {
   const { elements, state } = context;
@@ -54,7 +104,7 @@ export function updateListenTimeDisplay(context: AppContext) {
 function maybeUpdateDeleteEligibility(
   context: AppContext,
   response: AnalysisResponse | null,
-  jobIdOverride?: string | null
+  jobIdOverride?: string | null,
 ) {
   if (!response) {
     return;
@@ -65,8 +115,7 @@ function maybeUpdateDeleteEligibility(
     return;
   }
   let eligible = false;
-  const createdAt =
-    "created_at" in response ? response.created_at : undefined;
+  const createdAt = "created_at" in response ? response.created_at : undefined;
   if (typeof createdAt === "string") {
     const createdMs = Date.parse(createdAt);
     if (!Number.isNaN(createdMs)) {
@@ -103,10 +152,14 @@ export function updateTrackInfo(context: AppContext) {
       ? graph.allEdges.filter((edge) => !edge.deleted).length
       : 0;
   elements.infoBranchesEl.textContent = `${branchCount}`;
+  const deletedCount = graph
+    ? graph.allEdges.filter((edge) => edge.deleted).length
+    : state.deletedEdgeIds.length;
+  elements.infoDeletedBranchesEl.textContent = `${deletedCount}`;
 }
 
 export function updateVizVisibility(context: AppContext) {
-  const { elements, visualizations, state } = context;
+  const { autocanonizer, elements, jukebox, state } = context;
   const hasTrack = Boolean(state.lastYouTubeId || state.lastJobId);
   if (state.audioLoaded && state.analysisLoaded) {
     elements.playStatusPanel.classList.add("hidden");
@@ -115,9 +168,13 @@ export function updateVizVisibility(context: AppContext) {
     elements.playButton.classList.remove("hidden");
     updatePlayButton(context, state.isRunning);
     elements.playTabButton.disabled = false;
-    visualizations[state.activeVizIndex]?.resizeNow();
+    if (state.playMode === "autocanonizer") {
+      autocanonizer.resizeNow();
+    } else {
+      jukebox.resizeActive();
+    }
     elements.vizButtons.forEach((button) => {
-      button.disabled = false;
+      button.disabled = state.playMode === "autocanonizer";
     });
   } else {
     elements.playStatusPanel.classList.remove("hidden");
@@ -183,7 +240,7 @@ export function syncTuningUI(context: AppContext) {
 }
 
 export function applyTuningChanges(context: AppContext) {
-  const { elements, engine, state, visualizations } = context;
+  const { elements, engine, jukebox, state } = context;
   const threshold = Number(elements.thresholdInput.value);
   const computed = Number(elements.computedThresholdEl.textContent);
   const useAutoThreshold =
@@ -214,7 +271,7 @@ export function applyTuningChanges(context: AppContext) {
   state.vizData = engine.getVisualizationData();
   const data = state.vizData;
   if (data) {
-    visualizations.forEach((viz) => viz.setData(data));
+    jukebox.setData(data);
   }
   const graph = engine.getGraphState();
   updateTrackInfo(context);
@@ -240,14 +297,16 @@ export function applyTuningChanges(context: AppContext) {
 }
 
 export function resetTuningDefaults(context: AppContext) {
-  const { engine, state, visualizations, player } = context;
+  const { autocanonizer, engine, jukebox, state, player } = context;
+  engine.clearDeletedEdges();
   engine.updateConfig(context.defaultConfig);
   engine.rebuildGraph();
   state.vizData = engine.getVisualizationData();
   const data = state.vizData;
   if (data) {
-    visualizations.forEach((viz) => viz.setData(data));
+    jukebox.setData(data);
   }
+  syncDeletedEdgeState(context);
   const graph = engine.getGraphState();
   state.autoComputedThreshold = graph
     ? Math.round(graph.currentThreshold)
@@ -255,6 +314,7 @@ export function resetTuningDefaults(context: AppContext) {
   state.tuningParams = null;
   writeTuningParamsToUrl(null, true);
   player.setVolume(DEFAULT_VOLUME);
+  autocanonizer.setVolume(DEFAULT_VOLUME);
   syncTuningUI(context);
   updateTrackInfo(context);
 }
@@ -279,7 +339,11 @@ export function stopListenTimer(context: AppContext) {
 }
 
 export function stopPlayback(context: AppContext) {
-  const { engine, state } = context;
+  const { autocanonizer, engine, player, state } = context;
+  if (state.playMode === "autocanonizer") {
+    autocanonizer.stop();
+    player.stop();
+  }
   engine.stopJukebox();
   if (state.lastPlayStamp !== null) {
     state.playTimerMs += performance.now() - state.lastPlayStamp;
@@ -292,9 +356,13 @@ export function stopPlayback(context: AppContext) {
 }
 
 export function togglePlayback(context: AppContext) {
-  const { engine, elements, visualizations, player, state } = context;
+  const { engine, elements, jukebox, player, state } = context;
   if (!state.isRunning) {
     try {
+      if (state.playMode === "autocanonizer") {
+        startAutocanonizerPlayback(context, 0);
+        return;
+      }
       if (player.getDuration() === null) {
         console.warn("Audio not loaded");
         return;
@@ -306,7 +374,7 @@ export function togglePlayback(context: AppContext) {
       updateListenTimeDisplay(context);
       elements.beatsPlayedEl.textContent = "0";
       state.lastBeatIndex = null;
-      visualizations[state.activeVizIndex]?.reset();
+      jukebox.reset();
       if (elements.vizStats) {
         elements.vizStats.classList.remove("pulse");
         void elements.vizStats.offsetWidth;
@@ -328,6 +396,36 @@ export function togglePlayback(context: AppContext) {
   } else {
     stopPlayback(context);
   }
+}
+
+export function startAutocanonizerPlayback(context: AppContext, index: number) {
+  const { autocanonizer, engine, elements, player, state } = context;
+  if (!autocanonizer.isReady()) {
+    console.warn("Autocanonizer not ready");
+    return false;
+  }
+  player.stop();
+  engine.stopJukebox();
+  state.playTimerMs = 0;
+  state.lastPlayStamp = null;
+  updateListenTimeDisplay(context);
+  elements.beatsPlayedEl.textContent = "0";
+  state.lastBeatIndex = null;
+  if (elements.vizStats) {
+    elements.vizStats.classList.remove("pulse");
+    void elements.vizStats.offsetWidth;
+    elements.vizStats.classList.add("pulse");
+  }
+  autocanonizer.resetVisualization();
+  autocanonizer.startAtIndex(index);
+  state.lastPlayStamp = performance.now();
+  state.isRunning = true;
+  startListenTimer(context);
+  updatePlayButton(context, true);
+  if (document.fullscreenElement) {
+    requestWakeLock(context);
+  }
+  return true;
 }
 
 function updatePlayButton(context: AppContext, isRunning: boolean) {
@@ -352,16 +450,18 @@ function updatePlayButton(context: AppContext, isRunning: boolean) {
 
 export function resetForNewTrack(
   context: AppContext,
-  options?: { clearTuning?: boolean }
+  options?: { clearTuning?: boolean },
 ) {
-  const { elements, engine, visualizations, state, defaultConfig } = context;
+  const { autocanonizer, elements, engine, jukebox, state, defaultConfig } =
+    context;
   const shouldClearTuning = options?.clearTuning ?? false;
   cancelPoll(context);
   state.shiftBranching = false;
   engine.setForceBranch(false);
   state.selectedEdge = null;
-  visualizations.forEach((viz) => viz.setSelectedEdge(null));
+  jukebox.setSelectedEdge(null);
   engine.clearDeletedEdges();
+  state.deletedEdgeIds = [];
   state.audioLoaded = false;
   state.analysisLoaded = false;
   state.audioLoadInFlight = false;
@@ -384,6 +484,7 @@ export function resetForNewTrack(
   if (state.isRunning) {
     stopPlayback(context);
   }
+  autocanonizer.reset();
   state.autoComputedThreshold = null;
   if (shouldClearTuning) {
     state.tuningParams = null;
@@ -400,19 +501,19 @@ export function resetForNewTrack(
   state.deleteEligibilityJobId = null;
   elements.deleteButton.classList.add("hidden");
   state.vizData = null;
+  syncTuningParamsState(context);
   updateTrackInfo(context);
   const emptyVizData = { beats: [], edges: [] };
-  visualizations.forEach((viz) => {
-    viz.setData(emptyVizData);
-    viz.reset();
-  });
+  jukebox.setData(emptyVizData);
+  jukebox.reset();
 }
 
 export async function loadAudioFromJob(context: AppContext, jobId: string) {
-  const { player, state } = context;
+  const { autocanonizer, player, state } = context;
   try {
     const buffer = await fetchAudio(jobId);
     await player.decode(buffer);
+    autocanonizer.setAudio(player.getBuffer(), player.getContext());
     state.audioLoaded = true;
     state.audioLoadInFlight = false;
     updateVizVisibility(context);
@@ -439,19 +540,19 @@ export async function loadAudioFromJob(context: AppContext, jobId: string) {
 }
 
 function isAnalysisComplete(
-  response: AnalysisResponse | null
+  response: AnalysisResponse | null,
 ): response is AnalysisComplete {
   return response?.status === "complete";
 }
 
 function isAnalysisFailed(
-  response: AnalysisResponse | null
+  response: AnalysisResponse | null,
 ): response is AnalysisFailed {
   return response?.status === "failed";
 }
 
 function isAnalysisInProgress(
-  response: AnalysisResponse | null
+  response: AnalysisResponse | null,
 ): response is AnalysisInProgress {
   return (
     response?.status === "downloading" ||
@@ -463,27 +564,33 @@ function isAnalysisInProgress(
 export function applyAnalysisResult(
   context: AppContext,
   response: AnalysisComplete,
-  onAnalysisLoaded?: (response: AnalysisComplete) => void
+  onAnalysisLoaded?: (response: AnalysisComplete) => void,
 ): boolean {
   if (!response || response.status !== "complete" || !response.result) {
     return false;
   }
   maybeUpdateDeleteEligibility(context, response, response.id);
-  const { elements, engine, state, visualizations } = context;
+  const { autocanonizer, elements, engine, jukebox, state } = context;
   applyTuningParamsFromUrl(context);
   const useAutoThreshold = engine.getConfig().currentThreshold === 0;
   engine.loadAnalysis(response.result);
+<<<<<<< HEAD
   state.rawAnalysis = response.result; // Store for canonizer
+=======
+  applyDeletedEdgesFromUrl(context);
+  autocanonizer.setAnalysis(response.result, response.result.track?.duration);
+>>>>>>> upstream/main
   const graph = engine.getGraphState();
   state.autoComputedThreshold =
     useAutoThreshold && graph ? Math.round(graph.currentThreshold) : null;
   state.vizData = engine.getVisualizationData();
   const data = state.vizData;
   if (data) {
-    visualizations.forEach((viz) => viz.setData(data));
+    jukebox.setData(data);
   }
   state.selectedEdge = null;
-  visualizations.forEach((viz) => viz.setSelectedEdge(null));
+  jukebox.setSelectedEdge(null);
+  syncDeletedEdgeState(context);
   state.analysisLoaded = true;
   updateVizVisibility(context);
   const resultTrack = response.result.track ?? null;
@@ -497,9 +604,12 @@ export function applyAnalysisResult(
       ? track.duration
       : null;
   if (title || artist) {
-    const displayTitle = artist
-      ? `${title ?? "Unknown"} — ${artist}`
-      : `${title}`;
+    const baseTitle = title ?? "Unknown";
+    const withSuffix =
+      state.playMode === "autocanonizer"
+        ? `${baseTitle} (autocanonized)`
+        : baseTitle;
+    const displayTitle = artist ? `${withSuffix} — ${artist}` : withSuffix;
     elements.playTitle.textContent = displayTitle;
     elements.vizNowPlayingEl.textContent = displayTitle;
   } else {
@@ -508,6 +618,9 @@ export function applyAnalysisResult(
   }
   updateTrackInfo(context);
   onAnalysisLoaded?.(response);
+  if (state.playMode === "jukebox") {
+    writeTuningParamsToUrl(state.tuningParams, true);
+  }
   const jobId = response.id || state.lastJobId;
   if (jobId) {
     recordPlayOnce(context, jobId).catch((err) => {
@@ -534,7 +647,7 @@ async function recordPlayOnce(context: AppContext, jobId: string) {
 export async function pollAnalysis(
   context: AppContext,
   deps: PlaybackDeps,
-  jobId: string
+  jobId: string,
 ) {
   const { state } = context;
   const controller = new AbortController();
@@ -549,7 +662,7 @@ export async function pollAnalysis(
       if (!response) {
         deps.setAnalysisStatus(
           "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
-          false
+          false,
         );
         return;
       }
@@ -607,7 +720,7 @@ export async function loadTrackByYouTubeId(
   context: AppContext,
   deps: PlaybackDeps,
   youtubeId: string,
-  options?: { preserveUrlTuning?: boolean }
+  options?: { preserveUrlTuning?: boolean },
 ) {
   const shouldClear = !options?.preserveUrlTuning;
   resetForNewTrack(context, { clearTuning: shouldClear });
@@ -621,7 +734,7 @@ export async function loadTrackByYouTubeId(
     if (!response || !response.id) {
       deps.setAnalysisStatus(
         "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
-        false
+        false,
       );
       return;
     }
@@ -649,7 +762,7 @@ export async function loadTrackByYouTubeId(
     }
     deps.setAnalysisStatus(
       "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
-      false
+      false,
     );
   } catch (err) {
     deps.setAnalysisStatus(`Load failed: ${String(err)}`, false);
@@ -660,7 +773,7 @@ export async function loadTrackByJobId(
   context: AppContext,
   deps: PlaybackDeps,
   jobId: string,
-  options?: { preserveUrlTuning?: boolean }
+  options?: { preserveUrlTuning?: boolean },
 ) {
   const shouldClear = !options?.preserveUrlTuning;
   resetForNewTrack(context, { clearTuning: shouldClear });
@@ -675,7 +788,7 @@ export async function loadTrackByJobId(
     if (!response || !response.id) {
       deps.setAnalysisStatus(
         "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
-        false
+        false,
       );
       return;
     }
@@ -702,7 +815,7 @@ export async function loadTrackByJobId(
     }
     deps.setAnalysisStatus(
       "ERROR: Something went wrong. Please try again or report an issue on GitHub.",
-      false
+      false,
     );
   } catch (err) {
     deps.setAnalysisStatus(`Load failed: ${String(err)}`, false);
@@ -761,16 +874,16 @@ export function delay(ms: number, signal?: AbortSignal) {
         window.clearTimeout(timer);
         resolve();
       },
-      { once: true }
+      { once: true },
     );
   });
 }
 
 export async function tryLoadCachedAudio(
   context: AppContext,
-  youtubeId: string
+  youtubeId: string,
 ) {
-  const { player, state } = context;
+  const { autocanonizer, player, state } = context;
   try {
     const cached = await readCachedTrack(youtubeId);
     if (!cached?.audio) {
@@ -778,6 +891,7 @@ export async function tryLoadCachedAudio(
     }
     state.lastJobId = cached.jobId ?? null;
     await player.decode(cached.audio);
+    autocanonizer.setAudio(player.getBuffer(), player.getContext());
     state.audioLoaded = true;
     state.audioLoadInFlight = false;
     updateVizVisibility(context);

@@ -1,0 +1,147 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { JukeboxViz } from "./JukeboxViz";
+
+function createMockCtx() {
+  return {
+    setTransform: vi.fn(),
+    clearRect: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    beginPath: vi.fn(),
+    arc: vi.fn(),
+    fill: vi.fn(),
+    stroke: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    quadraticCurveTo: vi.fn(),
+    lineWidth: 0,
+    fillStyle: "",
+    strokeStyle: "",
+  } as unknown as CanvasRenderingContext2D;
+}
+
+function createMockCanvas(ctx: CanvasRenderingContext2D) {
+  return {
+    style: {},
+    width: 0,
+    height: 0,
+    getContext: vi.fn(() => ctx),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 200, height: 200 }),
+    remove: vi.fn(),
+  } as unknown as HTMLCanvasElement;
+}
+
+function setMockDocument() {
+  const ctx = createMockCtx();
+  const canvases: HTMLCanvasElement[] = [];
+  (globalThis as any).window = {
+    devicePixelRatio: 1,
+    requestAnimationFrame: (cb: () => void) => {
+      cb();
+      return 1;
+    },
+  };
+  (globalThis as any).document = {
+    documentElement: {},
+    createElement: (tag: string) => {
+      if (tag === "canvas") {
+        const canvas = createMockCanvas(ctx);
+        canvases.push(canvas);
+        return canvas;
+      }
+      return {};
+    },
+  } as Document;
+  (globalThis as any).getComputedStyle = () => ({
+    getPropertyValue: () => "",
+  });
+  return canvases;
+}
+
+function createContainer() {
+  return {
+    append: vi.fn(),
+    getBoundingClientRect: () => ({ width: 300, height: 300 }),
+  } as unknown as HTMLElement;
+}
+
+describe("JukeboxViz", () => {
+  beforeEach(() => {
+    setMockDocument();
+  });
+
+  it("creates multiple visualization layouts", () => {
+    const container = createContainer();
+    const viz = new JukeboxViz(container);
+    const inner = viz as unknown as { visualizations: unknown[] };
+    expect(inner.visualizations.length).toBe(6);
+  });
+
+  it("toggles visibility across canvases", () => {
+    const container = createContainer();
+    const viz = new JukeboxViz(container);
+    viz.setVisible(false);
+    const inner = viz as unknown as { visualizations: any[] };
+    const first = inner.visualizations[0];
+    const baseCanvas = first.baseCanvas as HTMLCanvasElement;
+    const overlayCanvas = first.overlayCanvas as HTMLCanvasElement;
+    expect(baseCanvas.style.display).toBe("none");
+    expect(overlayCanvas.style.display).toBe("none");
+  });
+
+  it("creates a classic positioner", () => {
+    const positioner = JukeboxViz.createClassicPositioner();
+    const points = positioner(
+      {
+        beats: [
+          { which: 0, start: 0, duration: 1 },
+          { which: 1, start: 1, duration: 1 },
+          { which: 2, start: 2, duration: 1 },
+          { which: 3, start: 3, duration: 1 },
+        ],
+        edges: [],
+      } as any,
+      100,
+      100
+    );
+    expect(points.length).toBe(4);
+  });
+
+  it("tracks jump line updates", () => {
+    const container = createContainer();
+    const viz = new JukeboxViz(container);
+    const inner = viz as unknown as {
+      visualizations: Array<{
+        update: (index: number, jumped: boolean, prev: number | null) => void;
+        jumpLine: { from: number; to: number; at: number } | null;
+      }>;
+    };
+    const data = {
+      beats: [
+        { which: 0, start: 0, duration: 1 },
+        { which: 1, start: 1, duration: 1 },
+      ],
+      edges: [],
+    };
+    viz.setData(data as any);
+    viz.update(1, true, 0);
+    const jumpLine = inner.visualizations[0].jumpLine;
+    expect(jumpLine?.from).toBe(0);
+    expect(jumpLine?.to).toBe(1);
+  });
+
+  it("stores selected edge", () => {
+    const container = createContainer();
+    const viz = new JukeboxViz(container);
+    const edge = {
+      src: { which: 0 },
+      dest: { which: 1 },
+      deleted: false,
+    };
+    viz.setSelectedEdge(edge as any);
+    const inner = viz as unknown as { selectedEdge: unknown };
+    expect(inner.selectedEdge).toBe(edge);
+  });
+});

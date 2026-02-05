@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -47,6 +48,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import android.widget.Toast
 import kotlinx.coroutines.launch
 import com.foreverjukebox.app.data.FavoriteTrack
+import com.foreverjukebox.app.data.FavoriteSourceType
 import com.foreverjukebox.app.data.TopSongItem
 
 @Composable
@@ -56,7 +58,7 @@ fun TopSongsPanel(
     loading: Boolean,
     activeTab: TopSongsTab,
     onTabSelected: (TopSongsTab) -> Unit,
-    onSelect: (String) -> Unit,
+    onSelect: (String, String?, String?, String?, FavoriteSourceType) -> Unit,
     onRemoveFavorite: (String) -> Unit,
     favoritesSyncCode: String?,
     allowFavoritesSync: Boolean,
@@ -106,7 +108,7 @@ fun TopSongsPanel(
         ) {
             TopSongsTabs(activeTab = activeTab, onTabSelected = onTabSelected)
             if (activeTab == TopSongsTab.TopSongs) {
-                Text("Top 20", style = MaterialTheme.typography.labelLarge)
+                Text("Top 25", style = MaterialTheme.typography.labelLarge)
                 if (loading) {
                     Text("Loading top songs…", style = MaterialTheme.typography.bodySmall)
                 } else if (items.isEmpty()) {
@@ -114,13 +116,23 @@ fun TopSongsPanel(
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         itemsIndexed(items) { index, item ->
-                            val title = item.title ?: "Untitled"
-                            val artist = item.artist ?: ""
+                            val title = item.title
+                            val artist = item.artist
+                            val displayTitle = title ?: "Untitled"
+                            val displayArtist = artist ?: ""
                             val youtubeId = item.youtubeId ?: return@itemsIndexed
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onSelect(youtubeId) },
+                                    .clickable {
+                                        onSelect(
+                                            youtubeId,
+                                            title,
+                                            artist,
+                                            null,
+                                            FavoriteSourceType.Youtube
+                                        )
+                                    },
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
@@ -131,7 +143,11 @@ fun TopSongsPanel(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (artist.isNotBlank()) "$title — $artist" else title,
+                                    text = if (displayArtist.isNotBlank()) {
+                                        "$displayTitle — $displayArtist"
+                                    } else {
+                                        displayTitle
+                                    },
                                     modifier = Modifier
                                         .weight(1f)
                                         .alignByBaseline(),
@@ -192,27 +208,50 @@ fun TopSongsPanel(
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(favorites) { item ->
-                            val title = item.title.ifBlank { "Untitled" }
-                            val artist = item.artist.ifBlank { "" }
-                            val display = if (artist.isNotBlank() && artist != "Unknown") {
-                                "$title — $artist"
+                            val title = item.title
+                            val artist = item.artist
+                            val displayTitle = title.ifBlank { "Untitled" }
+                            val displayArtist = artist.ifBlank { "" }
+                            val display = if (displayArtist.isNotBlank() && displayArtist != "Unknown") {
+                                "$displayTitle — $displayArtist"
                             } else {
-                                title
+                                displayTitle
                             }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onSelect(item.uniqueSongId) },
+                                    .clickable {
+                                        onSelect(
+                                            item.uniqueSongId,
+                                            title,
+                                            artist,
+                                            item.tuningParams,
+                                            item.sourceType
+                                        )
+                                    },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = display,
+                                Row(
                                     modifier = Modifier
                                         .weight(1f)
                                         .alignByBaseline(),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = display,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (!item.tuningParams.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Icon(
+                                            Icons.Outlined.Tune,
+                                            contentDescription = "Custom tuning",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
                                 IconButton(
                                     onClick = { onRemoveFavorite(item.uniqueSongId) },
                                     modifier = Modifier.size(24.dp)

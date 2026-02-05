@@ -23,6 +23,7 @@ enum class TopSongsTab {
 
 data class UiState(
     val baseUrl: String = "",
+    val castEnabled: Boolean = false,
     val showBaseUrlPrompt: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.System,
     val activeTab: TabId = TabId.Top,
@@ -71,7 +72,9 @@ data class PlaybackState(
     val jumpLine: JumpLine? = null,
     val lastJobId: String? = null,
     val lastYouTubeId: String? = null,
-    val deleteEligible: Boolean = false
+    val deleteEligible: Boolean = false,
+    val isCasting: Boolean = false,
+    val castDeviceName: String? = null
 )
 
 data class TuningState(

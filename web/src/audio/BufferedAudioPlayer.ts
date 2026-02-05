@@ -30,6 +30,14 @@ export class BufferedAudioPlayer {
     await this.loadBuffer(buffer);
   }
 
+  getBuffer(): AudioBuffer | null {
+    return this.buffer;
+  }
+
+  getContext(): AudioContext {
+    return this.context;
+  }
+
   play() {
     if (!this.buffer || this.playing) {
       return;
@@ -206,5 +214,23 @@ export class BufferedAudioPlayer {
     };
     const duration = this.buffer.duration - offset;
     source.start(startTime, offset, Math.max(0, duration));
+  }
+
+  async dispose() {
+    this.stop();
+    this.buffer = null;
+    this.onEnded = null;
+    try {
+      this.masterGain.disconnect();
+    } catch {
+      // no-op
+    }
+    if (this.context.state !== "closed") {
+      try {
+        await this.context.close();
+      } catch {
+        // no-op
+      }
+    }
   }
 }

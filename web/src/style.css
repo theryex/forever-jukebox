@@ -323,12 +323,6 @@ body {
   font-size: 20px;
 }
 
-.faq-subtitle {
-  margin: 0 0 16px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
 .faq h4 {
   margin: 18px 0 6px;
   font-size: 14px;
@@ -577,6 +571,13 @@ button:hover {
   text-decoration: underline;
 }
 
+.favorite-row .favorite-tune-icon {
+  font-size: 14px;
+  line-height: 1;
+  vertical-align: middle;
+  color: var(--muted);
+}
+
 .favorite-remove {
   width: 22px;
   height: 22px;
@@ -688,6 +689,10 @@ button:hover {
   align-items: center;
   justify-content: center;
   gap: 6px;
+}
+
+.is-hidden {
+  display: none !important;
 }
 
 .play-toggle {
@@ -971,25 +976,19 @@ button:hover {
   margin: 0 0 10px;
 }
 
-.play-matches {
-  margin-top: 12px;
-  min-height: 80px;
-  border: 1px dashed var(--border-panel);
-  border-radius: 10px;
-  padding: 12px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .viz {
   width: 100%;
-  height: 650px;
+  height: clamp(360px, 65vh, 700px);
   background: var(--viz-bg);
   border: 1px solid var(--border-panel);
   border-radius: 12px;
   position: relative;
   overflow: hidden;
   cursor: pointer;
+}
+
+#jukebox-viz.is-canonizer {
+  cursor: default;
 }
 
 #viz-panel:fullscreen {
@@ -1029,6 +1028,26 @@ button:hover {
   z-index: 1;
 }
 
+.canonizer-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: none;
+}
+
+.canonizer-layer canvas {
+  position: absolute;
+  inset: 0;
+}
+
+#jukebox-viz.is-canonizer .canonizer-layer {
+  display: block;
+}
+
+#jukebox-viz.is-canonizer .viz-layer {
+  display: none;
+}
+
 .viz-top {
   position: absolute;
   top: 12px;
@@ -1063,6 +1082,7 @@ button:hover {
   background: var(--viz-overlay);
   backdrop-filter: blur(8px);
 }
+
 
 .viz-bottom-left {
   display: flex;
@@ -1121,6 +1141,32 @@ button:hover {
   gap: 6px;
   font-size: 12px;
   color: var(--muted);
+}
+
+.viz-actions {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#jukebox-viz.is-canonizer .viz-controls [data-viz],
+#jukebox-viz.is-canonizer .viz-controls .viz-label {
+  display: none;
+}
+
+#jukebox-viz:not(.is-canonizer) .canonizer-finish {
+  display: none;
+}
+
+.canonizer-finish {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.canonizer-finish input {
+  accent-color: var(--accent);
 }
 
 .viz-btn {

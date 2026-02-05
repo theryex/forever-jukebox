@@ -87,6 +87,42 @@ export async function deleteCachedTrack(youtubeId: string) {
   });
 }
 
+export async function getCachedAudioBytes(): Promise<number> {
+  const db = await openTrackCacheDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(trackCacheStore, "readonly");
+    const store = tx.objectStore(trackCacheStore);
+    const request = store.openCursor();
+    let totalBytes = 0;
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve(totalBytes);
+        return;
+      }
+      const value = cursor.value as CachedTrack;
+      if (value?.audio instanceof ArrayBuffer) {
+        totalBytes += value.audio.byteLength;
+      }
+      cursor.continue();
+    };
+    request.onerror = () =>
+      reject(request.error ?? new Error("IndexedDB read failed"));
+  });
+}
+
+export async function clearCachedAudio() {
+  const db = await openTrackCacheDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(trackCacheStore, "readwrite");
+    const store = tx.objectStore(trackCacheStore);
+    const request = store.clear();
+    request.onsuccess = () => resolve();
+    request.onerror = () =>
+      reject(request.error ?? new Error("IndexedDB clear failed"));
+  });
+}
+
 export async function saveAppConfig(value: unknown) {
   const db = await openTrackCacheDb();
   await new Promise<void>((resolve, reject) => {

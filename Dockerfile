@@ -132,6 +132,23 @@ WORKDIR /app
 # Copy ONLY the virtual environment from the builder (no compilers!)
 COPY --from=builder /opt/venv /opt/venv
 
+# Copy ONLY the virtual environment from the builder (no compilers!)
+COPY --from=builder /opt/venv /opt/venv
+
+# Upstream runtime dependencies (Deno, upgraded pip/yt-dlp)
+ARG DENO_VERSION=2.6.5
+RUN curl -fsSL "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip" \
+    -o /tmp/deno.zip \
+    && unzip /tmp/deno.zip -d /usr/local/bin \
+    && rm /tmp/deno.zip \
+    && deno --version \
+    # Ensure latest runtime dependencies
+    && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
+    && /opt/venv/bin/pip install Cython "numpy==1.26.4" \
+    && /opt/venv/bin/pip install -r /app/api/requirements.txt \
+    && /opt/venv/bin/pip install --upgrade "yt-dlp[default]" \
+    && /opt/venv/bin/pip install --no-build-isolation --only-binary=essentia -r /app/engine/requirements.txt
+
 # Copy source code
 COPY api/ ./api/
 COPY engine/ ./engine/
@@ -139,6 +156,11 @@ COPY --from=web-build /app/web/dist ./web/dist
 COPY docker/entrypoint.sh /app/entrypoint.sh
 
 RUN chmod +x /app/entrypoint.sh
+
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH="/app/api" \
+    ENGINE_REPO="/app/engine" \
+    NTFY_TOPIC_KEY=""
 
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]

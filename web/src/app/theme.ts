@@ -20,14 +20,14 @@ export function resolveStoredTheme(): ThemeName {
 }
 
 export function applyTheme(context: AppContext, theme: ThemeName) {
-  const { elements, visualizations } = context;
+  const { elements, jukebox } = context;
   applyThemeVariables(theme);
   document.body.classList.toggle("theme-light", theme === "light");
   elements.themeLinks.forEach((link) => {
     link.classList.toggle("active", link.dataset.theme === theme);
   });
   localStorage.setItem(themeStorageKey, theme);
-  visualizations.forEach((viz) => viz.refresh());
+  jukebox.refresh();
 }
 
 export function applyStoredTheme(context: AppContext) {

@@ -46,6 +46,40 @@ class MockStore {
     });
     return request;
   }
+
+  clear() {
+    const request = new MockRequest();
+    queueMicrotask(() => {
+      this.store.clear();
+      request.onsuccess?.();
+    });
+    return request;
+  }
+
+  openCursor() {
+    const request = new MockRequest();
+    const entries = Array.from(this.store.values());
+    let index = 0;
+    const makeCursor = () => ({
+      value: entries[index],
+      continue: () => {
+        index += 1;
+        queueMicrotask(() => {
+          if (index >= entries.length) {
+            request.result = null;
+          } else {
+            request.result = makeCursor();
+          }
+          request.onsuccess?.();
+        });
+      },
+    });
+    queueMicrotask(() => {
+      request.result = entries.length > 0 ? makeCursor() : null;
+      request.onsuccess?.();
+    });
+    return request;
+  }
 }
 
 class MockDb {
@@ -139,5 +173,24 @@ describe("cache", () => {
     await saveAppConfig({ theme: "light" });
     const config = await loadAppConfig();
     expect(config).toEqual({ theme: "light" });
+  });
+
+  it("reports cached audio size and clears tracks", async () => {
+    const {
+      getCachedAudioBytes,
+      clearCachedAudio,
+      updateCachedTrack,
+      readCachedTrack,
+      loadAppConfig,
+      saveAppConfig,
+    } = await import("./cache");
+    await updateCachedTrack("abc", { audio: new ArrayBuffer(1024) });
+    await updateCachedTrack("def", { audio: new ArrayBuffer(2048) });
+    await saveAppConfig({ theme: "dark" });
+    expect(await getCachedAudioBytes()).toBe(3072);
+    await clearCachedAudio();
+    expect(await getCachedAudioBytes()).toBe(0);
+    expect(await readCachedTrack("abc")).toBeNull();
+    expect(await loadAppConfig()).toEqual({ theme: "dark" });
   });
 });

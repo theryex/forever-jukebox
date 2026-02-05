@@ -33,7 +33,8 @@ fun ForeverJukeboxApp(viewModel: MainViewModel) {
                 onThemeChange = viewModel::setThemeMode,
                 onRefreshCacheSize = viewModel::refreshCacheSize,
                 onClearCache = viewModel::clearCache,
-                onTabSelected = viewModel::setActiveTab
+                onTabSelected = viewModel::setActiveTab,
+                onCastSessionStarted = {}
             )
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -44,7 +45,14 @@ fun ForeverJukeboxApp(viewModel: MainViewModel) {
                     loading = state.search.topSongsLoading,
                     activeTab = state.topSongsTab,
                     onTabSelected = viewModel::setTopSongsTab,
-                    onSelect = viewModel::loadTrackByYoutubeId,
+                    onSelect = { id, title, artist, tuningParams, sourceType ->
+                        when (sourceType) {
+                            com.foreverjukebox.app.data.FavoriteSourceType.Upload ->
+                                viewModel.loadTrackByJobId(id, title, artist, tuningParams)
+                            com.foreverjukebox.app.data.FavoriteSourceType.Youtube ->
+                                viewModel.loadTrackByYoutubeId(id, title, artist, tuningParams)
+                        }
+                    },
                     onRemoveFavorite = viewModel::removeFavorite,
                     favoritesSyncCode = state.favoritesSyncCode,
                     allowFavoritesSync = state.allowFavoritesSync,

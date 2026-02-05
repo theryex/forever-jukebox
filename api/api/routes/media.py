@@ -25,7 +25,10 @@ def get_audio(job_id: str):
 
 @router.get("/api/logs/{job_id}")
 def get_job_log(job_id: str):
-    log_path = STORAGE_ROOT / "logs" / f"{job_id}.log"
+    job = get_job(DB_PATH, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    log_path = STORAGE_ROOT / "logs" / f"{job.id}.log"
     if not log_path.exists():
         raise HTTPException(status_code=404, detail="Log not found")
     return FileResponse(path=str(log_path), media_type="text/plain")

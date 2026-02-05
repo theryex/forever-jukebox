@@ -13,6 +13,7 @@ let playbackModule: typeof import("./playback");
 
 function createContext(): AppContext {
   return {
+<<<<<<< HEAD
     elements: {} as AppContext["elements"],
     engine: {} as AppContext["engine"],
     player: {} as AppContext["player"],
@@ -21,14 +22,25 @@ function createContext(): AppContext {
     canonizerEngine: {} as AppContext["canonizerEngine"],
     canonizerPlayer: {} as AppContext["canonizerPlayer"],
     canonizerViz: {} as AppContext["canonizerViz"],
+=======
+    elements: {
+      canonizerFinish: { checked: false, addEventListener: vi.fn() },
+    } as unknown as AppContext["elements"],
+    engine: {} as unknown as AppContext["engine"],
+    player: {} as unknown as AppContext["player"],
+    autocanonizer: {} as unknown as AppContext["autocanonizer"],
+    jukebox: { refresh: vi.fn() } as unknown as AppContext["jukebox"],
+    defaultConfig: {} as unknown as AppContext["defaultConfig"],
+>>>>>>> upstream/main
     state: {
+      playMode: "jukebox",
       lastYouTubeId: null,
       lastJobId: null,
       audioLoaded: false,
       analysisLoaded: false,
       audioLoadInFlight: false,
       isRunning: false,
-    } as AppContext["state"],
+    } as unknown as AppContext["state"],
   };
 }
 

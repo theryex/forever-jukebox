@@ -1,6 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppContext } from "./context";
-import { applyTuningChanges, syncTuningUI, updateListenTimeDisplay } from "./playback";
+import type { AnalysisComplete } from "./api";
+import {
+  applyAnalysisResult,
+  applyTuningChanges,
+  syncTuningUI,
+  updateListenTimeDisplay,
+} from "./playback";
 import { setWindowUrl } from "./__tests__/test-utils";
 
 function createClassList() {
@@ -11,6 +17,18 @@ function createClassList() {
     contains: vi.fn().mockReturnValue(false),
   };
 }
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true }) as Response),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 function createInput(initial = "") {
   return { value: initial, checked: false } as HTMLInputElement;
@@ -46,9 +64,14 @@ function createElements() {
     playButton: { classList: createClassList(), disabled: false },
     playTabButton: { classList: createClassList(), disabled: false },
     vizButtons: [{ disabled: false }, { disabled: false }],
+    canonizerFinish: { checked: false, addEventListener: vi.fn() },
+    playTitle: createSpan(),
+    vizNowPlayingEl: createSpan(),
     infoDurationEl: createSpan(),
     infoBeatsEl: createSpan(),
     infoBranchesEl: createSpan(),
+    infoDeletedBranchesEl: createSpan(),
+    deleteButton: { classList: createClassList() },
   };
 }
 
@@ -76,17 +99,45 @@ function createContext(overrides?: Partial<AppContext>): AppContext {
   const player = {
     getVolume: vi.fn(() => 0.5),
     getDuration: vi.fn(() => null),
+    stop: vi.fn(),
+  };
+  const autocanonizer = {
+    setAnalysis: vi.fn(),
+    setAudio: vi.fn(),
+    setVolume: vi.fn(),
+    reset: vi.fn(),
+    stop: vi.fn(),
+    start: vi.fn(),
+    isReady: vi.fn(() => false),
+    setOnBeat: vi.fn(),
+    setOnEnded: vi.fn(),
+    setVisible: vi.fn(),
+    resizeNow: vi.fn(),
+  };
+  const jukebox = {
+    setData: vi.fn(),
+    setSelectedEdge: vi.fn(),
+    resizeActive: vi.fn(),
+    reset: vi.fn(),
+    update: vi.fn(),
   };
   return {
     elements: elements as unknown as AppContext["elements"],
     engine: engine as unknown as AppContext["engine"],
     player: player as unknown as AppContext["player"],
+<<<<<<< HEAD
     visualizations: [{ setData: vi.fn() }] as unknown as AppContext["visualizations"],
     defaultConfig: engineConfig as AppContext["defaultConfig"],
     canonizerEngine: { loadAnalysis: vi.fn(), getBeats: vi.fn(() => []) } as unknown as AppContext["canonizerEngine"],
     canonizerPlayer: { setAudioBuffer: vi.fn(), playBeat: vi.fn() } as unknown as AppContext["canonizerPlayer"],
     canonizerViz: { setData: vi.fn(), render: vi.fn() } as unknown as AppContext["canonizerViz"],
+=======
+    autocanonizer: autocanonizer as unknown as AppContext["autocanonizer"],
+    jukebox: jukebox as unknown as AppContext["jukebox"],
+    defaultConfig: engineConfig as unknown as AppContext["defaultConfig"],
+>>>>>>> upstream/main
     state: {
+      playMode: "jukebox",
       autoComputedThreshold: null,
       vizData: null,
       playTimerMs: 0,
@@ -120,12 +171,17 @@ function createContext(overrides?: Partial<AppContext>): AppContext {
       lastPlayCountedJobId: null,
       appConfig: null,
       tuningParams: null,
+      deletedEdgeIds: [],
       beatsPlayed: 0,
+<<<<<<< HEAD
       canonizerEnabled: false,
       canonizerBeatIndex: 0,
       canonizerTimerId: null,
       rawAnalysis: null,
     } as AppContext["state"],
+=======
+    } as unknown as AppContext["state"],
+>>>>>>> upstream/main
     ...overrides,
   };
 }
@@ -163,6 +219,57 @@ describe("playback tuning", () => {
       }),
     );
     expect(context.elements.thresholdInput.value).toBe("45");
+  });
+
+  it("applies deleted edges from url when analysis loads", () => {
+    setWindowUrl("http://localhost/listen/abc?d=1,3");
+    const graph = {
+      currentThreshold: 45,
+      allEdges: [
+        { id: 1, deleted: false },
+        { id: 2, deleted: false },
+        { id: 3, deleted: false },
+      ],
+      totalBeats: 0,
+    };
+    const context = createContext({
+      engine: {
+        getConfig: vi.fn(() => ({
+          currentThreshold: 0,
+          minRandomBranchChance: 0.18,
+          maxRandomBranchChance: 0.5,
+          randomBranchChanceDelta: 0.1,
+          addLastEdge: true,
+          justBackwards: false,
+          justLongBranches: false,
+          removeSequentialBranches: false,
+        })),
+        updateConfig: vi.fn(),
+        loadAnalysis: vi.fn(),
+        getGraphState: vi.fn(() => graph),
+        getVisualizationData: vi.fn(() => ({ beats: [], edges: [] })),
+        deleteEdge: vi.fn((edge: { deleted: boolean }) => {
+          edge.deleted = true;
+        }),
+        rebuildGraph: vi.fn(),
+      } as unknown as AppContext["engine"],
+    });
+
+    const response: AnalysisComplete = {
+      status: "complete",
+      id: "job123",
+      result: { beats: [], track: {} },
+    };
+
+    const applied = applyAnalysisResult(context, response);
+
+    expect(applied).toBe(true);
+    expect(
+      (context.engine.deleteEdge as ReturnType<typeof vi.fn>).mock.calls.length,
+    ).toBe(2);
+    expect(graph.allEdges[0].deleted).toBe(true);
+    expect(graph.allEdges[2].deleted).toBe(true);
+    expect(context.state.deletedEdgeIds).toEqual([1, 3]);
   });
 });
 

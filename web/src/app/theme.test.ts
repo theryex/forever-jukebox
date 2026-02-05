@@ -60,7 +60,7 @@ describe("theme", () => {
     } as unknown as HTMLButtonElement;
     const context = {
       elements: { themeLinks: [link] },
-      visualizations: [{ refresh: vi.fn() }],
+      jukebox: { refresh: vi.fn() } as unknown as AppContext["jukebox"],
     } as unknown as AppContext;
     applyTheme(context, "light");
     expect(document.body.classList.toggle).toHaveBeenCalledWith(
@@ -75,7 +75,7 @@ describe("theme", () => {
     localStorage.setItem("fj-theme", "light");
     const context = {
       elements: { themeLinks: [] },
-      visualizations: [],
+      jukebox: { refresh: vi.fn() } as unknown as AppContext["jukebox"],
     } as unknown as AppContext;
     applyStoredTheme(context);
     expect(document.body.classList.toggle).toHaveBeenCalledWith(

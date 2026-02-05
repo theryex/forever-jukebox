@@ -8,13 +8,6 @@ function isRecord(value: unknown): value is RecordValue {
   return typeof value === "object" && value !== null;
 }
 
-export type AnalysisStatus =
-  | "downloading"
-  | "queued"
-  | "processing"
-  | "complete"
-  | "failed";
-
 type AnalysisBase = {
   youtube_id?: string;
   created_at?: string;

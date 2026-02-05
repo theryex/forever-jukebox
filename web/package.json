@@ -11,6 +11,11 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "abortcontroller-polyfill": "^1.7.5",
+    "core-js": "^3.38.1",
+    "regenerator-runtime": "^0.14.1"
+  },
   "devDependencies": {
     "@types/node": "^25.0.3",
     "@vitejs/plugin-legacy": "^5.4.0",

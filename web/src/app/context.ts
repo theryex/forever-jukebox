@@ -8,6 +8,9 @@ import type { FavoriteTrack } from "./favorites";
 import type { AppConfig } from "./api";
 import type { CanonizerEngine } from "../engine/CanonizerEngine";
 import type { CanonizerPlayer } from "../audio/CanonizerPlayer";
+import type { AutocanonizerController } from "../autocanonizer/AutocanonizerController";
+import type { JukeboxController } from "../jukebox/JukeboxController";
+
 
 export type TabId = "top" | "search" | "play" | "faq";
 
@@ -16,6 +19,7 @@ export type Elements = ReturnType<typeof getElements>;
 export type AppState = {
   activeTabId: TabId;
   activeVizIndex: number;
+  playMode: "jukebox" | "autocanonizer";
   topSongsTab: "top" | "favorites";
   searchTab: "search" | "upload";
   favorites: FavoriteTrack[];
@@ -52,6 +56,7 @@ export type AppState = {
   canonizerTimerId: number | null;
   rawAnalysis: unknown; // Store full analysis for canonizer
   tuningParams: string | null;
+  deletedEdgeIds: number[];
 };
 
 export type AppContext = {
@@ -59,6 +64,8 @@ export type AppContext = {
   engine: JukeboxEngine;
   player: BufferedAudioPlayer;
   visualizations: CanvasViz[];
+  autocanonizer: AutocanonizerController;
+  jukebox: JukeboxController;
   defaultConfig: ReturnType<JukeboxEngine["getConfig"]>;
   state: AppState;
   // Canonizer instances

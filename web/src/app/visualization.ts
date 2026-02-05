@@ -111,7 +111,7 @@ export function createVisualizations(vizLayer: HTMLElement) {
 }
 
 export function attachVisualizationResize(
-  visualizations: CanvasViz[],
+  visualizations: Array<{ resizeNow: () => void }>,
   panel: HTMLElement
 ) {
   const handleResize = () => {

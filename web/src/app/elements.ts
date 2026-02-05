@@ -11,6 +11,14 @@ export function getElements() {
     document.querySelector<HTMLSpanElement>("#beats-played"),
     "#beats-played"
   );
+  const beatsLabel = requireElement(
+    document.querySelector<HTMLSpanElement>("#viz-beats-label"),
+    "#viz-beats-label"
+  );
+  const beatsDivider = requireElement(
+    document.querySelector<HTMLSpanElement>("#viz-beats-divider"),
+    "#viz-beats-divider"
+  );
   const vizNowPlayingEl = requireElement(
     document.querySelector<HTMLDivElement>("#viz-now-playing"),
     "#viz-now-playing"
@@ -23,9 +31,25 @@ export function getElements() {
     document.querySelector<HTMLDivElement>("#viz-layer"),
     "#viz-layer"
   );
+  const canonizerLayer = requireElement(
+    document.querySelector<HTMLDivElement>("#canonizer-layer"),
+    "#canonizer-layer"
+  );
+  const canonizerFinish = requireElement(
+    document.querySelector<HTMLInputElement>("#canonizer-finish"),
+    "#canonizer-finish"
+  );
+  const jukeboxViz = requireElement(
+    document.querySelector<HTMLDivElement>("#jukebox-viz"),
+    "#jukebox-viz"
+  );
   const vizButtons = requireNonEmpty(
     Array.from(document.querySelectorAll<HTMLButtonElement>("[data-viz]")),
     "[data-viz]"
+  );
+  const playModeButtons = requireNonEmpty(
+    Array.from(document.querySelectorAll<HTMLButtonElement>("[data-play-mode]")),
+    "[data-play-mode]"
   );
   const playStatusPanel = requireElement(
     document.querySelector<HTMLDivElement>("#play-status"),
@@ -134,6 +158,10 @@ export function getElements() {
   const infoBranchesEl = requireElement(
     document.querySelector<HTMLSpanElement>("#info-branches"),
     "#info-branches"
+  );
+  const infoDeletedBranchesEl = requireElement(
+    document.querySelector<HTMLSpanElement>("#info-deleted-branches"),
+    "#info-deleted-branches"
   );
   const favoritesSyncEnterModal = requireElement(
     document.querySelector<HTMLDivElement>("#favorites-sync-enter-modal"),
@@ -345,6 +373,10 @@ export function getElements() {
     document.querySelector<HTMLDivElement>("#toast"),
     "#toast"
   );
+  const cachedAudioClearButton = requireElement(
+    document.querySelector<HTMLButtonElement>("#cached-audio-clear"),
+    "#cached-audio-clear"
+  );
   const vizStats = document.querySelector<HTMLDivElement>("#viz-stats");
   const retroToggleButton = requireElement(
     document.querySelector<HTMLButtonElement>("#retro-toggle"),
@@ -358,10 +390,16 @@ export function getElements() {
   return {
     listenTimeEl,
     beatsPlayedEl,
+    beatsLabel,
+    beatsDivider,
     vizNowPlayingEl,
     vizPanel,
     vizLayer,
+    canonizerLayer,
+    canonizerFinish,
+    jukeboxViz,
     vizButtons,
+    playModeButtons,
     playStatusPanel,
     playMenu,
     tabButtons,
@@ -400,6 +438,7 @@ export function getElements() {
     infoDurationEl,
     infoBeatsEl,
     infoBranchesEl,
+    infoDeletedBranchesEl,
     thresholdInput,
     thresholdVal,
     computedThresholdEl,
@@ -440,6 +479,7 @@ export function getElements() {
     favoritesSyncMenu,
     favoritesSyncItems,
     toast,
+    cachedAudioClearButton,
     vizStats,
     retroToggleButton,
     canonizerToggle,

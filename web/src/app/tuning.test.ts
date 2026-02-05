@@ -1,9 +1,10 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import type { AppContext } from "./context";
 import type { JukeboxConfig } from "../engine/types";
 import {
   applyTuningParamsToEngine,
   clearTuningParamsFromUrl,
+  getDeletedEdgeIdsFromUrl,
   getTuningParamsFromEngine,
   syncTuningParamsState,
   writeTuningParamsToUrl,
@@ -38,9 +39,11 @@ function createContext(
     updateConfig: (partial: Partial<JukeboxConfig>) => {
       config = { ...config, ...partial };
     },
+    getGraphState: () => null,
   };
   return {
     defaultConfig,
+<<<<<<< HEAD
     engine: engine as AppContext["engine"],
     elements: {} as AppContext["elements"],
     player: {} as AppContext["player"],
@@ -49,6 +52,20 @@ function createContext(
     canonizerPlayer: {} as AppContext["canonizerPlayer"],
     canonizerViz: {} as AppContext["canonizerViz"],
     state: { tuningParams: null } as AppContext["state"],
+=======
+    engine: engine as unknown as AppContext["engine"],
+    elements: {
+      canonizerFinish: { checked: false, addEventListener: vi.fn() },
+    } as unknown as AppContext["elements"],
+    player: {} as unknown as AppContext["player"],
+    autocanonizer: {} as unknown as AppContext["autocanonizer"],
+    jukebox: { refresh: vi.fn() } as unknown as AppContext["jukebox"],
+    state: {
+      tuningParams: null,
+      playMode: "jukebox",
+      deletedEdgeIds: [],
+    } as unknown as AppContext["state"],
+>>>>>>> upstream/main
   };
 }
 
@@ -72,7 +89,7 @@ describe("tuning params", () => {
     expect(config.currentThreshold).toBe(25);
     expect(config.minRandomBranchChance).toBeCloseTo(0.18, 4);
     expect(config.maxRandomBranchChance).toBeCloseTo(0.5, 4);
-    expect(config.randomBranchChanceDelta).toBeCloseTo(0.02, 4);
+    expect(config.randomBranchChanceDelta).toBeCloseTo(0.1, 4);
   });
 
   it("serializes only non-default tuning params", () => {
@@ -87,6 +104,26 @@ describe("tuning params", () => {
     expect(params.get("bp")).toBeNull();
   });
 
+  it("serializes deleted edge ids when present", () => {
+    const context = createContext();
+    const graph = {
+      allEdges: [
+        { id: 1, deleted: true },
+        { id: 2, deleted: false },
+        { id: 5, deleted: true },
+      ],
+    };
+    (context.engine as { getGraphState: () => unknown }).getGraphState =
+      () => graph;
+    const params = getTuningParamsFromEngine(context);
+    expect(params.get("d")).toBe("1,5");
+  });
+
+  it("parses deleted edge ids from url", () => {
+    setWindowUrl("http://localhost/listen/abc?d=3,5,notanumber,7");
+    expect(getDeletedEdgeIdsFromUrl()).toEqual([3, 5, 7]);
+  });
+
   it("syncs tuning params state from engine config", () => {
     const context = createContext({ justBackwards: true });
     const result = syncTuningParamsState(context);
@@ -96,10 +133,11 @@ describe("tuning params", () => {
 
   it("writes and clears tuning params in the URL", () => {
     setWindowUrl("http://localhost/listen/abc?foo=bar&lb=0");
-    writeTuningParamsToUrl("jb=1&thresh=20", true);
+    writeTuningParamsToUrl("jb=1&thresh=20&bp=25,50,10", true);
     expect(window.location.search).toContain("foo=bar");
     expect(window.location.search).toContain("jb=1");
     expect(window.location.search).toContain("thresh=20");
+    expect(window.location.search).toContain("bp=25,50,10");
     expect(window.location.search).not.toContain("lb=0");
 
     clearTuningParamsFromUrl(true);
@@ -133,6 +171,6 @@ describe("tuning params", () => {
     const config = context.engine.getConfig();
     expect(config.minRandomBranchChance).toBeCloseTo(0.25, 4);
     expect(config.maxRandomBranchChance).toBeCloseTo(0.5, 4);
-    expect(config.randomBranchChanceDelta).toBeCloseTo(0.02, 4);
+    expect(config.randomBranchChanceDelta).toBeCloseTo(0.1, 4);
   });
 });
