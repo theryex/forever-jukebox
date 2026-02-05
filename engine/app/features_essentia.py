@@ -137,7 +137,16 @@ def _compute_features_gpu(audio: np.ndarray, config: FeatureConfig) -> Dict[str,
     sample_rate = config.sample_rate
     
     # Convert to tensor
-    y_tensor = torch.from_numpy(audio.astype(np.float32)).unsqueeze(0).to(device)
+    try:
+        y_tensor = torch.from_numpy(audio.astype(np.float32)).unsqueeze(0).to(device)
+    except RuntimeError as e:
+        if "Found no NVIDIA driver" in str(e):
+            print("WARNING: GPU mode is enabled (FOREVER_JUKEBOX_GPU=cuda), but no NVIDIA driver was found.")
+            print("         Falling back to CPU. To use GPU, make sure to run with: docker compose --profile nvidia up")
+            print("         For more info, see DEPLOYMENT.md.")
+            return _compute_features_essentia(audio, config)
+        raise e
+
     
     # GPU: Compute MFCCs
     mfcc_transform = torchaudio.transforms.MFCC(

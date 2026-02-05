@@ -23,6 +23,26 @@ docker run \
   forever-jukebox
 ```
 
+### GPU Acceleration
+
+GPU acceleration significantly speeds up analysis key detection.
+
+**NVIDIA GPU:**
+
+```bash
+# Run with NVIDIA profile
+docker compose --profile nvidia up -d --build
+```
+
+**AMD GPU:**
+
+```bash
+# Run with AMD profile
+docker compose --profile amd up -d --build
+```
+
+See [README.md](README.md) for more details on driver requirements.
+
 Notes:
 
 - The API serves the UI at `/` and JSON at `/api/*`.
