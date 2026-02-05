@@ -22,24 +22,17 @@ function createContext(): AppContext {
       searchInput: { value: "" },
       searchResults: { textContent: "" },
       searchHint: { textContent: "" },
-<<<<<<< HEAD
-    } as AppContext["elements"],
-    engine: {} as AppContext["engine"],
-    player: {} as AppContext["player"],
-    visualizations: [],
-    defaultConfig: {} as AppContext["defaultConfig"],
-    canonizerEngine: {} as AppContext["canonizerEngine"],
-    canonizerPlayer: {} as AppContext["canonizerPlayer"],
-    canonizerViz: {} as AppContext["canonizerViz"],
-=======
-      canonizerFinish: { checked: false, addEventListener: vi.fn() },
     } as unknown as AppContext["elements"],
     engine: {} as unknown as AppContext["engine"],
     player: {} as unknown as AppContext["player"],
+    visualizations: [],
     autocanonizer: {} as unknown as AppContext["autocanonizer"],
     jukebox: { refresh: vi.fn() } as unknown as AppContext["jukebox"],
     defaultConfig: {} as unknown as AppContext["defaultConfig"],
->>>>>>> upstream/main
+    canonizerEngine: {} as AppContext["canonizerEngine"],
+    canonizerPlayer: {} as AppContext["canonizerPlayer"],
+    canonizerViz: {} as AppContext["canonizerViz"],
+
     state: {
       playMode: "jukebox",
       lastYouTubeId: null,

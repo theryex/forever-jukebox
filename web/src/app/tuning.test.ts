@@ -43,29 +43,23 @@ function createContext(
   };
   return {
     defaultConfig,
-<<<<<<< HEAD
-    engine: engine as AppContext["engine"],
-    elements: {} as AppContext["elements"],
-    player: {} as AppContext["player"],
-    visualizations: [],
-    canonizerEngine: {} as AppContext["canonizerEngine"],
-    canonizerPlayer: {} as AppContext["canonizerPlayer"],
-    canonizerViz: {} as AppContext["canonizerViz"],
-    state: { tuningParams: null } as AppContext["state"],
-=======
     engine: engine as unknown as AppContext["engine"],
     elements: {
       canonizerFinish: { checked: false, addEventListener: vi.fn() },
     } as unknown as AppContext["elements"],
     player: {} as unknown as AppContext["player"],
+    visualizations: [],
     autocanonizer: {} as unknown as AppContext["autocanonizer"],
     jukebox: { refresh: vi.fn() } as unknown as AppContext["jukebox"],
+    canonizerEngine: {} as AppContext["canonizerEngine"],
+    canonizerPlayer: {} as AppContext["canonizerPlayer"],
+    canonizerViz: {} as AppContext["canonizerViz"],
     state: {
       tuningParams: null,
       playMode: "jukebox",
       deletedEdgeIds: [],
     } as unknown as AppContext["state"],
->>>>>>> upstream/main
+
   };
 }
 

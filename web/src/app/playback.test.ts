@@ -125,17 +125,13 @@ function createContext(overrides?: Partial<AppContext>): AppContext {
     elements: elements as unknown as AppContext["elements"],
     engine: engine as unknown as AppContext["engine"],
     player: player as unknown as AppContext["player"],
-<<<<<<< HEAD
     visualizations: [{ setData: vi.fn() }] as unknown as AppContext["visualizations"],
     defaultConfig: engineConfig as AppContext["defaultConfig"],
     canonizerEngine: { loadAnalysis: vi.fn(), getBeats: vi.fn(() => []) } as unknown as AppContext["canonizerEngine"],
     canonizerPlayer: { setAudioBuffer: vi.fn(), playBeat: vi.fn() } as unknown as AppContext["canonizerPlayer"],
     canonizerViz: { setData: vi.fn(), render: vi.fn() } as unknown as AppContext["canonizerViz"],
-=======
     autocanonizer: autocanonizer as unknown as AppContext["autocanonizer"],
     jukebox: jukebox as unknown as AppContext["jukebox"],
-    defaultConfig: engineConfig as unknown as AppContext["defaultConfig"],
->>>>>>> upstream/main
     state: {
       playMode: "jukebox",
       autoComputedThreshold: null,
@@ -173,15 +169,12 @@ function createContext(overrides?: Partial<AppContext>): AppContext {
       tuningParams: null,
       deletedEdgeIds: [],
       beatsPlayed: 0,
-<<<<<<< HEAD
       canonizerEnabled: false,
       canonizerBeatIndex: 0,
       canonizerTimerId: null,
       rawAnalysis: null,
     } as AppContext["state"],
-=======
-    } as unknown as AppContext["state"],
->>>>>>> upstream/main
+
     ...overrides,
   };
 }

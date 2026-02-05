@@ -574,12 +574,10 @@ export function applyAnalysisResult(
   applyTuningParamsFromUrl(context);
   const useAutoThreshold = engine.getConfig().currentThreshold === 0;
   engine.loadAnalysis(response.result);
-<<<<<<< HEAD
   state.rawAnalysis = response.result; // Store for canonizer
-=======
   applyDeletedEdgesFromUrl(context);
   autocanonizer.setAnalysis(response.result, response.result.track?.duration);
->>>>>>> upstream/main
+
   const graph = engine.getGraphState();
   state.autoComputedThreshold =
     useAutoThreshold && graph ? Math.round(graph.currentThreshold) : null;
