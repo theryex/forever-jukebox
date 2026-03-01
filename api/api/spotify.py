@@ -14,6 +14,7 @@ from .settings import ApiSettings
 
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_SEARCH_URL = "https://api.spotify.com/v1/search"
+SPOTIFY_MAX_LIMIT = 10  # Feb 2026 API change: max per request reduced from 50 to 10
 
 
 @dataclass
@@ -55,20 +56,20 @@ def _get_token(settings: ApiSettings, force_refresh: bool = False) -> str:
     return token
 
 
-def _search_request(query: str, token: str, limit: int) -> httpx.Response:
+def _search_request(query: str, token: str, limit: int, offset: int = 0) -> httpx.Response:
     headers = {"Authorization": f"Bearer {token}"}
-    params = {"q": query, "type": "track", "limit": limit}
+    params = {"q": query, "type": "track", "limit": limit, "offset": offset}
     return get_client().get(SPOTIFY_SEARCH_URL, params=params, headers=headers)
 
 
 def _retry_with_backoff(
-    settings: ApiSettings, query: str, limit: int, attempts: int = 3
+    settings: ApiSettings, query: str, limit: int, offset: int = 0, attempts: int = 3
 ) -> httpx.Response:
     delay = 0.5
     response: httpx.Response | None = None
     for attempt in range(attempts):
         token = _get_token(settings, force_refresh=False)
-        response = _search_request(query, token, limit)
+        response = _search_request(query, token, limit, offset)
         if response.status_code not in (400, 401):
             return response
         try:
@@ -88,12 +89,9 @@ def _retry_with_backoff(
     return response
 
 
-def search_spotify_tracks(query: str, settings: ApiSettings, limit: int) -> list[dict[str, object]]:
-    response = _retry_with_backoff(settings, query, limit)
-    if response.status_code != 200:
-        raise RuntimeError(response.text)
-    payload = response.json()
-    items = []
+def _parse_tracks(payload: dict) -> list[dict[str, object]]:
+    """Extract track dicts from a Spotify search response payload."""
+    items: list[dict[str, object]] = []
     for track in payload.get("tracks", {}).get("items", []):
         artist_list = track.get("artists") or []
         artist = artist_list[0].get("name") if artist_list else None
@@ -108,4 +106,33 @@ def search_spotify_tracks(query: str, settings: ApiSettings, limit: int) -> list
                 "duration": round(duration_ms / 1000),
             }
         )
+    return items
+
+
+def search_spotify_tracks(query: str, settings: ApiSettings, limit: int) -> list[dict[str, object]]:
+    """Search Spotify tracks, paginating automatically when limit > SPOTIFY_MAX_LIMIT."""
+    page_size = min(limit, SPOTIFY_MAX_LIMIT)
+    offset = 0
+    seen_ids: set[str | None] = set()
+    items: list[dict[str, object]] = []
+
+    while len(items) < limit:
+        response = _retry_with_backoff(settings, query, page_size, offset)
+        if response.status_code != 200:
+            raise RuntimeError(response.text)
+        payload = response.json()
+        page_tracks = _parse_tracks(payload)
+        if not page_tracks:
+            break
+        for track in page_tracks:
+            if track["id"] not in seen_ids:
+                seen_ids.add(track["id"])  # type: ignore[arg-type]
+                items.append(track)
+                if len(items) >= limit:
+                    break
+        total = payload.get("tracks", {}).get("total", 0)
+        offset += page_size
+        if offset >= total:
+            break
+
     return items
