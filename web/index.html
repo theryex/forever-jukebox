@@ -81,6 +81,15 @@
       </div>
     </header>
     <section class="panel tab-panel" data-tab-panel="top">
+      <div class="subtabs hidden" id="top-subtabs">
+        <button class="subtab-btn active" data-top-subtab="top">
+          Top 20
+        </button>
+        <span class="subtab-spacer" aria-hidden="true"></span>
+        <button class="subtab-btn" data-top-subtab="favorites">
+          Favorites
+        </button>
+      </div>
       <div class="panel-title panel-title-row">
         <span id="top-list-title">Top 20</span>
         <div class="favorites-sync">
@@ -160,6 +169,15 @@
         </div>
       </div>
       <div class="play-title" id="play-title"></div>
+      <div class="subtabs hidden" id="play-subtabs">
+        <button class="subtab-btn active" data-play-mode="jukebox">
+          Jukebox
+        </button>
+        <span class="subtab-spacer" aria-hidden="true"></span>
+        <button class="subtab-btn" data-play-mode="autocanonizer">
+          Autocanonizer
+        </button>
+      </div>
       <div class="menu-bar hidden" id="play-menu">
         <div class="menu-left">
           <button id="play" class="play-toggle hidden" aria-label="Play">
