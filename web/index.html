@@ -190,6 +190,7 @@
       <div id="viz-panel" class="hidden">
         <div id="jukebox-viz" class="viz">
           <div id="viz-layer" class="viz-layer"></div>
+          <div id="canonizer-layer" class="canonizer-layer"></div>
           <div class="viz-top">
             <div class="viz-actions"></div>
             <div class="viz-controls">
@@ -201,6 +202,10 @@
               <button class="viz-btn" data-viz="4">5</button>
               <button class="viz-btn" data-viz="5">6</button>
               <button class="viz-btn" data-viz="6">7</button>
+            </div>
+            <div class="canonizer-finish">
+              <input type="checkbox" id="canonizer-finish" />
+              <span>Finish out the song</span>
             </div>
           </div>
           <div class="viz-bottom" id="viz-stats">
@@ -307,6 +312,9 @@
           <a href="https://github.com/creightonlinza/forever-jukebox/issues/new" target="_blank" rel="noreferrer">Create
             an issue</a>.
         </p>
+
+        <h4>CACHED AUDIO</h4>
+        <button id="cached-audio-clear" type="button">Clear 0MB</button>
       </div>
     </section>
 
@@ -377,6 +385,23 @@
           <div class="info-row">
             <span class="info-label">Total branches:</span>
             <span id="info-branches">0</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Deleted branches:</span>
+            <span id="info-deleted-branches">0</span>
+          </div>
+          <h4>Keyboard commands</h4>
+          <div class="info-row">
+            <span class="info-label">Space:</span>
+            <span>Start/stop playback (Listen tab)</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Shift (hold):</span>
+            <span>Force branching while playing</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Delete:</span>
+            <span>Remove a selected branch</span>
           </div>
         </div>
       </div>
