@@ -232,9 +232,12 @@ export async function startYoutubeAnalysis(payload: {
   return parseAnalysisResponse(data);
 }
 
-export async function uploadAudio(file: File) {
+export async function uploadAudio(file: File, sha256?: string) {
   const body = new FormData();
   body.append("file", file);
+  if (sha256) {
+    body.append("sha256", sha256);
+  }
   const response = await fetch("/api/upload", { method: "POST", body });
   if (!response.ok) {
     const error = new Error(`Upload failed (${response.status})`);

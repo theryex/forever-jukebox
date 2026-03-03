@@ -46,7 +46,7 @@ export function createTabsHandlers(deps: TabsDeps) {
     elements.searchPanel.classList.toggle("hidden", tabId !== "search");
     elements.uploadPanel.classList.toggle("hidden", tabId !== "upload");
     elements.searchPanelTitle.textContent =
-      tabId === "search" ? "Search" : "Upload";
+      tabId === "search" ? "YouTube Search" : "Upload";
   }
 
   function handleTopSongsTabClick(event: Event) {

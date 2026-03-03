@@ -24,6 +24,7 @@ class Job:
     is_user_supplied: int
     created_at: str
     updated_at: str
+    file_hash: Optional[str] = None
 
 
 def _utc_now() -> str:
@@ -71,6 +72,8 @@ def init_db(db_path: Path) -> None:
             conn.execute(
                 "ALTER TABLE jobs ADD COLUMN is_user_supplied INTEGER NOT NULL DEFAULT 0"
             )
+        if "file_hash" not in columns:
+            conn.execute("ALTER TABLE jobs ADD COLUMN file_hash TEXT")
         conn.commit()
 
 
@@ -86,6 +89,7 @@ def create_job(
     progress: int = 0,
     play_count: int = 0,
     is_user_supplied: int = 0,
+    file_hash: Optional[str] = None,
 ) -> None:
     now = _utc_now()
     with sqlite3.connect(db_path) as conn:
@@ -93,9 +97,9 @@ def create_job(
             """
             INSERT INTO jobs (
                 id, status, input_path, output_path, error,
-                track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at
+                track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at, file_hash
             )
-            VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 job_id,
@@ -110,6 +114,7 @@ def create_job(
                 is_user_supplied,
                 now,
                 now,
+                file_hash,
             ),
         )
         conn.commit()
@@ -119,7 +124,7 @@ def get_job(db_path: Path, job_id: str) -> Optional[Job]:
     with sqlite3.connect(db_path) as conn:
         row = conn.execute(
             "SELECT id, status, input_path, output_path, error, "
-            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at "
+            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at, file_hash "
             "FROM jobs WHERE id = ?",
             (job_id,),
         ).fetchone()
@@ -150,7 +155,7 @@ def claim_next_job(db_path: Path) -> Optional[Job]:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
             "SELECT id, status, input_path, output_path, error, "
-            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at "
+            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at, file_hash "
             "FROM jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1"
         ).fetchone()
         if not row:
@@ -168,7 +173,7 @@ def get_job_by_youtube_id(db_path: Path, youtube_id: str) -> Optional[Job]:
     with sqlite3.connect(db_path) as conn:
         row = conn.execute(
             "SELECT id, status, input_path, output_path, error, "
-            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at "
+            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at, file_hash "
             "FROM jobs WHERE youtube_id = ? ORDER BY created_at DESC LIMIT 1",
             (youtube_id,),
         ).fetchone()
@@ -181,7 +186,7 @@ def get_job_by_track(db_path: Path, title: str, artist: str) -> Optional[Job]:
     with sqlite3.connect(db_path) as conn:
         row = conn.execute(
             "SELECT id, status, input_path, output_path, error, "
-            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at "
+            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at, file_hash "
             "FROM jobs WHERE track_title = ? AND track_artist = ? ORDER BY created_at DESC LIMIT 1",
             (title, artist),
         ).fetchone()
@@ -289,3 +294,16 @@ def get_top_tracks(db_path: Path, limit: int = 10) -> list[dict]:
         }
         for row in rows
     ]
+
+
+def get_job_by_file_hash(db_path: Path, file_hash: str) -> Optional[Job]:
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT id, status, input_path, output_path, error, "
+            "track_title, track_artist, youtube_id, progress, play_count, is_user_supplied, created_at, updated_at, file_hash "
+            "FROM jobs WHERE file_hash = ? AND status != 'failed' ORDER BY created_at DESC LIMIT 1",
+            (file_hash,),
+        ).fetchone()
+    if not row:
+        return None
+    return Job(*row)

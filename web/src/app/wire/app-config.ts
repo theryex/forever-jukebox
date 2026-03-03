@@ -18,12 +18,11 @@ export function createAppConfigHandlers(deps: AppConfigDeps) {
 
   function applyAppConfig(config: AppConfig) {
     state.appConfig = config;
+    // Always show subtabs and upload sections — validation is server-side
+    elements.searchSubtabs.classList.remove("hidden");
+    elements.uploadFileSection.classList.remove("hidden");
+    elements.uploadYoutubeSection.classList.remove("hidden");
     const allowUpload = Boolean(config.allow_user_upload);
-    const allowYoutube = Boolean(config.allow_user_youtube);
-    const showUpload = allowUpload || allowYoutube;
-    elements.searchSubtabs.classList.toggle("hidden", !showUpload);
-    elements.uploadFileSection.classList.toggle("hidden", !allowUpload);
-    elements.uploadYoutubeSection.classList.toggle("hidden", !allowYoutube);
     if (allowUpload) {
       const extList = (config.allowed_upload_exts || []).join(", ");
       const maxSize = config.max_upload_size
@@ -33,9 +32,6 @@ export function createAppConfigHandlers(deps: AppConfigDeps) {
       elements.uploadFileInput.accept = (config.allowed_upload_exts || []).join(
         ",",
       );
-    }
-    if (!showUpload && state.searchTab === "upload") {
-      tabsHandlers.setSearchTab("search");
     }
     tabsHandlers.setSearchTab(state.searchTab);
     favoritesHandlers.updateFavoritesSyncControls();

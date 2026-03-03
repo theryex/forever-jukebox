@@ -10,13 +10,14 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Body, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Body, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
 
 from ..db import (
     create_job,
     delete_job,
     get_job,
+    get_job_by_file_hash,
     get_job_by_track,
     get_job_by_youtube_id,
     get_top_tracks,
@@ -466,7 +467,10 @@ def create_analysis_youtube(
 
 
 @router.post("/api/upload")
-async def upload_audio(file: UploadFile = File(...)) -> JSONResponse:
+async def upload_audio(
+    file: UploadFile = File(...),
+    sha256: str | None = Form(None),
+) -> JSONResponse:
     if not _is_enabled("ALLOW_USER_UPLOAD"):
         raise HTTPException(status_code=403, detail="User uploads are disabled")
     if not file.filename:
@@ -474,6 +478,12 @@ async def upload_audio(file: UploadFile = File(...)) -> JSONResponse:
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_UPLOAD_EXTS:
         raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    # Check for duplicate by file hash
+    if sha256 and isinstance(sha256, str) and len(sha256) == 64:
+        existing = get_job_by_file_hash(DB_PATH, sha256)
+        if existing:
+            return _job_response(existing)
 
     job_id = uuid.uuid4().hex
     audio_dir = STORAGE_ROOT / "audio"
@@ -501,6 +511,7 @@ async def upload_audio(file: UploadFile = File(...)) -> JSONResponse:
 
     title = _sanitize_title(file.filename)
     output_path = Path("analysis") / f"{job_id}.json"
+    file_hash = sha256 if (sha256 and isinstance(sha256, str) and len(sha256) == 64) else None
     create_job(
         DB_PATH,
         job_id,
@@ -512,6 +523,7 @@ async def upload_audio(file: UploadFile = File(...)) -> JSONResponse:
         youtube_id=None,
         progress=0,
         is_user_supplied=1,
+        file_hash=file_hash,
     )
     payload = AnalysisStartResponse(
         id=job_id,

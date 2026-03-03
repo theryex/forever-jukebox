@@ -47,26 +47,6 @@
           <h1 class="hero-title-neon">THE <a href="https://www.ryex.xyz" target="_blank" rel="noreferrer"
               class="title-link">FLOPPA</a> JUKEBOX</h1>
         </div>
-        <div class="panel-title panel-title-row">
-          <span id="top-list-title">Top Songs</span>
-          <div class="favorites-sync">
-            <button id="favorites-sync-button" class="favorites-sync-button hidden" type="button"
-              aria-label="Favorites sync" aria-haspopup="menu" aria-expanded="false">
-              <span class="material-symbols-outlined favorites-sync-icon" aria-hidden="true">cloud_upload</span>
-            </button>
-            <div class="favorites-sync-menu hidden" id="favorites-sync-menu" role="menu">
-              <button type="button" class="favorites-sync-item hidden" data-favorites-sync="refresh">
-                Refresh favorites
-              </button>
-              <button type="button" class="favorites-sync-item" data-favorites-sync="create">
-                Create sync code
-              </button>
-              <button type="button" class="favorites-sync-item" data-favorites-sync="enter">
-                Enter sync code
-              </button>
-            </div>
-          </div>
-        </div>
         <nav class="tabs" aria-label="Primary">
           <button class="tab-btn active" data-tab-button="top">
             Top Songs
@@ -118,20 +98,20 @@
       </ol>
     </section>
     <section class="panel tab-panel hidden" data-tab-panel="search">
-      <div class="subtabs hidden" id="search-subtabs">
+      <div class="subtabs" id="search-subtabs">
         <button class="subtab-btn active" data-search-subtab="search">
-          Search
+          YouTube
         </button>
         <span class="subtab-spacer" aria-hidden="true"></span>
         <button class="subtab-btn" data-search-subtab="upload">Upload</button>
       </div>
-      <div class="panel-title" id="search-panel-title">Search</div>
+      <div class="panel-title" id="search-panel-title">YouTube Search</div>
       <div class="search-panel" id="search-panel">
         <div class="search-hint" id="search-hint">
-          Step 1: Find a Spotify track.
+          Search YouTube by artist or track name.
         </div>
         <div class="search-bar">
-          <input id="search-input" class="search-input" type="search" placeholder="Search by artist or track"
+          <input id="search-input" class="search-input" type="search" placeholder="Search YouTube by artist or track"
             autocomplete="off" />
           <button id="search-button">Search</button>
         </div>
@@ -140,15 +120,15 @@
         </div>
       </div>
       <div class="upload-panel hidden" id="upload-panel">
-        <div class="upload-section hidden" id="upload-file-section">
+        <div class="upload-section" id="upload-file-section">
           <div class="upload-title">Upload by File</div>
-          <div class="upload-hint" id="upload-file-hint"></div>
+          <div class="upload-hint" id="upload-file-hint">Upload an audio file to analyze.</div>
           <div class="search-bar">
             <input id="upload-file-input" class="search-input" type="file" />
             <button id="upload-file-button">Load</button>
           </div>
         </div>
-        <div class="upload-section hidden" id="upload-youtube-section">
+        <div class="upload-section" id="upload-youtube-section">
           <div class="upload-title">Upload by YouTube URL</div>
           <div class="search-bar">
             <input id="upload-youtube-input" class="search-input" type="url"

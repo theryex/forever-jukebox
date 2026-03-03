@@ -9,7 +9,7 @@ type SearchHandlersDeps = {
   searchDeps: SearchDeps;
   runSearch: (context: AppContext, deps: SearchDeps) => Promise<void>;
   showToast: (context: AppContext, message: string, options?: { icon?: string }) => void;
-  uploadAudio: (file: File) => Promise<{ id?: string } | null>;
+  uploadAudio: (file: File, sha256?: string) => Promise<{ id?: string } | null>;
   startYoutubeAnalysis: (payload: {
     youtube_id: string;
     is_user_supplied?: boolean;
@@ -108,9 +108,19 @@ export function createSearchHandlers(deps: SearchHandlersDeps) {
     }
     const originalLabel = elements.uploadFileButton.textContent ?? "Load";
     elements.uploadFileButton.disabled = true;
-    elements.uploadFileButton.textContent = "Loading";
+    elements.uploadFileButton.textContent = "Hashing...";
+    let sha256: string | undefined;
     try {
-      const response = await uploadAudio(file);
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      sha256 = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    } catch {
+      // If hashing fails, continue without it
+    }
+    elements.uploadFileButton.textContent = "Uploading...";
+    try {
+      const response = await uploadAudio(file, sha256);
       if (!response || !response.id) {
         throw new Error("Upload failed");
       }

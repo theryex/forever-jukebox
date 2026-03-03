@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppContext } from "./context";
 import type { SearchDeps } from "./search";
-import { startYoutubeAnalysisFlow, tryLoadExistingTrackByName } from "./search";
+import { startYoutubeAnalysisFlow, tryLoadExistingTrackByYoutube } from "./search";
 import { setWindowUrl } from "./__tests__/test-utils";
 
 vi.mock("./api", () => ({
-  fetchJobByTrack: vi.fn(),
+  fetchJobByYoutube: vi.fn(),
   startYoutubeAnalysis: vi.fn(),
 }));
 
@@ -68,20 +68,20 @@ describe("search flows", () => {
     (playback.tryLoadCachedAudio as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   });
 
-  it("loads existing track and applies analysis", async () => {
+  it("loads existing track by youtube id and applies analysis", async () => {
     const context = createContext();
     const deps = createDeps();
-    (api.fetchJobByTrack as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (api.fetchJobByYoutube as ReturnType<typeof vi.fn>).mockResolvedValue({
       status: "complete",
       id: "job1",
       youtube_id: "yt1",
       result: {},
     });
-    const result = await tryLoadExistingTrackByName(
+    const result = await tryLoadExistingTrackByYoutube(
       context,
       deps,
-      "Song",
-      "Artist",
+      "yt1",
+      "Song Title",
     );
     expect(result).toBe(true);
     expect(deps.updateTrackUrl).toHaveBeenCalledWith("yt1");
