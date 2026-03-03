@@ -3,7 +3,6 @@ import { SEARCH_RESULTS_LIMIT } from "./constants";
 import { formatTrackDuration } from "./format";
 import {
   fetchJobByTrack,
-  fetchJobByYoutube,
   searchSpotify,
   searchYoutube,
   startYoutubeAnalysis,
@@ -81,52 +80,75 @@ export async function startYoutubeAnalysisFlow(
   await deps.pollAnalysis(response.id);
 }
 
-export async function tryLoadExistingTrackByYoutube(
+export async function showYoutubeMatches(
   context: AppContext,
   deps: SearchDeps,
-  youtubeId: string,
-  _title: string,
+  name: string,
+  artist: string,
+  duration: number
 ) {
-  const { state } = context;
+  const { elements } = context;
+  const query = artist ? `${artist} - ${name}` : name;
+  deps.navigateToTab("search", { replace: true });
+  elements.searchResults.textContent = "Searching YouTube for matches...";
+  elements.searchHint.textContent = "Step 2: Choose the closest YouTube match.";
   try {
-    const response = await fetchJobByYoutube(youtubeId);
-    if (!response || !response.id) {
-      return false;
+    const ytItems = (await searchYoutube(query, duration)).slice(
+      0,
+      SEARCH_RESULTS_LIMIT
+    );
+    if (ytItems.length === 0) {
+      elements.searchResults.textContent = "No YouTube matches found.";
+      elements.searchHint.textContent = "Step 1: Find a Spotify track.";
+      return;
     }
-    const jobId = response.id;
-    deps.resetForNewTrack({ clearTuning: true });
-    resetSearchUI(context);
-    state.audioLoaded = false;
-    state.analysisLoaded = false;
-    deps.updateVizVisibility();
-    deps.setActiveTab("play");
-    deps.setLoadingProgress(null, "Fetching audio");
-    state.lastYouTubeId = youtubeId;
-    deps.onTrackChange?.(youtubeId);
-    deps.updateTrackUrl(youtubeId);
-    state.lastJobId = jobId;
-    if (isAnalysisInProgress(response)) {
-      await deps.pollAnalysis(jobId);
-      return true;
-    }
-    if (isAnalysisFailed(response)) {
-      return false;
-    }
-    if (isAnalysisComplete(response)) {
-      if (!state.audioLoaded) {
-        const audioLoaded = await deps.loadAudioFromJob(jobId);
-        if (!audioLoaded) {
-          await deps.pollAnalysis(jobId);
-          return true;
-        }
+    elements.searchResults.innerHTML = "";
+    const list = document.createElement("ol");
+    list.className = "search-list";
+    for (const item of ytItems) {
+      const title = typeof item.title === "string" ? item.title : "Untitled";
+      const ytDuration =
+        typeof item.duration === "number" ? item.duration : null;
+      const li = document.createElement("li");
+      li.className = "search-item";
+      li.dataset.youtubeId = item.id ? String(item.id) : "";
+      li.dataset.trackName = name;
+      li.dataset.trackArtist = artist;
+      const titleSpan = document.createElement("strong");
+      titleSpan.textContent = title;
+      const durationSpan = document.createElement("span");
+      durationSpan.textContent = formatTrackDuration(ytDuration);
+      const metaWrap = document.createElement("span");
+      metaWrap.className = "search-meta";
+      metaWrap.append(durationSpan);
+      if (item.id) {
+        const openLink = document.createElement("a");
+        openLink.className = "search-open";
+        openLink.href = `https://www.youtube.com/watch?v=${encodeURIComponent(String(item.id))}`;
+        openLink.target = "_blank";
+        openLink.rel = "noreferrer";
+        openLink.title = "Open on YouTube";
+        openLink.addEventListener("click", (event) => {
+          event.stopPropagation();
+        });
+        const openIcon = document.createElement("span");
+        openIcon.className = "material-symbols-outlined search-open-icon";
+        openIcon.setAttribute("aria-hidden", "true");
+        openIcon.textContent = "open_in_new";
+        openLink.append(openIcon);
+        metaWrap.append(openLink);
       }
-      deps.applyAnalysisResult(response);
-      return true;
+      li.append(titleSpan, metaWrap);
+      function handleClick(event: Event) {
+        handleYoutubeMatchClick(context, deps, event);
+      }
+      li.addEventListener("click", handleClick);
+      list.append(li);
     }
-    await deps.pollAnalysis(jobId);
-    return true;
-  } catch {
-    return false;
+    elements.searchResults.append(list);
+  } catch (err) {
+    elements.searchResults.textContent = `YouTube search failed: ${String(err)}`;
+    elements.searchHint.textContent = "Step 1: Find a Spotify track.";
   }
 }
 
@@ -189,145 +211,7 @@ export async function tryLoadExistingTrackByName(
   }
 }
 
-export async function showYoutubeMatches(
-  context: AppContext,
-  deps: SearchDeps,
-  name: string,
-  artist: string,
-  duration: number
-) {
-  const { elements } = context;
-  const query = artist ? `${artist} - ${name}` : name;
-  deps.navigateToTab("search", { replace: true });
-  elements.searchResults.textContent = "Searching YouTube for matches...";
-  elements.searchHint.textContent = "Step 2: Choose the closest YouTube match.";
-  try {
-    const ytItems = (await searchYoutube(query, duration)).slice(
-      0,
-      SEARCH_RESULTS_LIMIT
-    );
-    if (ytItems.length === 0) {
-      elements.searchResults.textContent = "No YouTube matches found.";
-      elements.searchHint.textContent = "Step 1: Find a Spotify track.";
-      return;
-    }
-    elements.searchResults.innerHTML = "";
-    const list = document.createElement("ol");
-    list.className = "search-list";
-    for (const item of ytItems) {
-      const title = typeof item.title === "string" ? item.title : "Untitled";
-      const ytDuration =
-        typeof item.duration === "number" ? item.duration : null;
-      const li = document.createElement("li");
-      li.className = "search-item";
-      li.dataset.youtubeId = item.id ? String(item.id) : "";
-      li.dataset.trackName = name;
-      li.dataset.trackArtist = artist;
-      const titleSpan = document.createElement("strong");
-      titleSpan.textContent = title;
-      const durationSpan = document.createElement("span");
-      durationSpan.textContent = formatTrackDuration(ytDuration);
-      const metaWrap = document.createElement("span");
-      metaWrap.className = "search-meta";
-      metaWrap.append(durationSpan);
-      if (item.id) {
-        const openLink = document.createElement("a");
-        openLink.className = "search-open";
-        openLink.href = `https://www.youtube.com/watch?v=${encodeURIComponent(String(item.id))}`;
-        openLink.target = "_blank";
-        openLink.rel = "noreferrer";
-        openLink.title = "Open on YouTube";
-        openLink.addEventListener("click", (event) => {
-          event.stopPropagation();
-        });
-        const openIcon = document.createElement("span");
-        openIcon.className = "material-symbols-outlined search-open-icon";
-        openIcon.setAttribute("aria-hidden", "true");
-        openIcon.textContent = "open_in_new";
-        openLink.append(openIcon);
-        metaWrap.append(openLink);
-      }
-      li.append(titleSpan, metaWrap);
-      function handleClick(event: Event) {
-        handleYoutubeMatchClick(context, deps, event); // Use old click handler logic for step 2
-      }
-      li.addEventListener("click", handleClick);
-      list.append(li);
-    }
-    elements.searchResults.append(list);
-  } catch (err) {
-    elements.searchResults.textContent = `YouTube search failed: ${String(err)}`;
-    elements.searchHint.textContent = "Step 1: Find a Spotify track.";
-  }
-}
-
-async function runYoutubeSearch(context: AppContext, deps: SearchDeps) {
-  const { elements } = context;
-  const query = elements.searchInput.value.trim();
-  if (!query) {
-    elements.searchResults.textContent = "Enter a search query.";
-    return;
-  }
-  elements.searchButton.disabled = true;
-  elements.searchResults.textContent = "Searching YouTube...";
-  elements.searchHint.textContent = "Search YouTube by artist or track name.";
-  try {
-    const items = (await searchYoutube(query, 0)).slice(0, SEARCH_RESULTS_LIMIT);
-    if (items.length === 0) {
-      elements.searchResults.textContent = "No YouTube results found.";
-      return;
-    }
-    elements.searchResults.innerHTML = "";
-    const list = document.createElement("ol");
-    list.className = "search-list";
-    for (const item of items) {
-      const title = typeof item.title === "string" ? item.title : "Untitled";
-      const ytDuration =
-        typeof item.duration === "number" ? item.duration : null;
-      const li = document.createElement("li");
-      li.className = "search-item";
-      li.dataset.youtubeId = item.id ? String(item.id) : "";
-      li.dataset.trackName = title;
-      const titleSpan = document.createElement("strong");
-      titleSpan.textContent = title;
-      const durationSpan = document.createElement("span");
-      durationSpan.textContent = formatTrackDuration(ytDuration);
-      const metaWrap = document.createElement("span");
-      metaWrap.className = "search-meta";
-      metaWrap.append(durationSpan);
-      if (item.id) {
-        const openLink = document.createElement("a");
-        openLink.className = "search-open";
-        openLink.href = `https://www.youtube.com/watch?v=${encodeURIComponent(String(item.id))}`;
-        openLink.target = "_blank";
-        openLink.rel = "noreferrer";
-        openLink.title = "Open on YouTube";
-        openLink.addEventListener("click", (event) => {
-          event.stopPropagation();
-        });
-        const openIcon = document.createElement("span");
-        openIcon.className = "material-symbols-outlined search-open-icon";
-        openIcon.setAttribute("aria-hidden", "true");
-        openIcon.textContent = "open_in_new";
-        openLink.append(openIcon);
-        metaWrap.append(openLink);
-      }
-      li.append(titleSpan, metaWrap);
-      function handleClick(event: Event) {
-        handleYoutubeResultClick(context, deps, event);
-      }
-      li.addEventListener("click", handleClick);
-      list.append(li);
-    }
-    elements.searchResults.append(list);
-  } catch (err) {
-    elements.searchResults.textContent = `YouTube search failed: ${String(err)}`;
-  } finally {
-    elements.searchButton.disabled = false;
-  }
-}
-
-async function runSpotifySearch(context: AppContext, deps: SearchDeps) {
+export async function runSearch(context: AppContext, deps: SearchDeps) {
   const { elements } = context;
   const query = elements.searchInput.value.trim();
   if (!query) {
@@ -375,44 +259,11 @@ async function runSpotifySearch(context: AppContext, deps: SearchDeps) {
   }
 }
 
-export async function runSearch(context: AppContext, deps: SearchDeps) {
-  if (context.state.searchTab === "youtube") {
-    return runYoutubeSearch(context, deps);
-  }
-  return runSpotifySearch(context, deps);
-}
-
 export function resetSearchUI(context: AppContext) {
-  const { elements, state } = context;
+  const { elements } = context;
   elements.searchInput.value = "";
   elements.searchResults.textContent = "Search results will appear here.";
-  if (state.searchTab === "youtube") {
-    elements.searchHint.textContent = "Search YouTube by artist or track name.";
-  } else {
-    elements.searchHint.textContent = "Step 1: Find a Spotify track.";
-  }
-}
-
-function handleYoutubeResultClick(
-  context: AppContext,
-  deps: SearchDeps,
-  event: Event
-) {
-  const target = event.currentTarget as HTMLLIElement | null;
-  const youtubeId = target?.dataset.youtubeId;
-  const name = target?.dataset.trackName ?? "";
-  if (!youtubeId) {
-    deps.setAnalysisStatus("No YouTube id available.", false);
-    return;
-  }
-  tryLoadExistingTrackByYoutube(context, deps, youtubeId, name).then((loaded) => {
-    if (loaded) {
-      return;
-    }
-    startYoutubeAnalysisFlow(context, deps, youtubeId, name, "").catch((err) => {
-      deps.setAnalysisStatus(`YouTube analysis failed: ${String(err)}`, false);
-    });
-  });
+  elements.searchHint.textContent = "Step 1: Find a Spotify track.";
 }
 
 function handleYoutubeMatchClick(

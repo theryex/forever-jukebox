@@ -160,7 +160,7 @@ function createContext(overrides?: Partial<AppContext>): AppContext {
       favorites: [],
       favoritesSyncCode: null,
       topSongsTab: "top",
-      searchTab: "search",
+      searchTab: "spotify",
       topSongsRefreshTimer: null,
       toastTimer: null,
       pendingAutoFavoriteId: null,

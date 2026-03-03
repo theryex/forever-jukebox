@@ -144,7 +144,7 @@ export function bootstrap() {
     toastTimer: null,
     deleteEligible: false,
     deleteEligibilityJobId: null,
-    searchTab: "search",
+    searchTab: "spotify",
     appConfig: null,
     pollController: null,
     listenTimerId: null,

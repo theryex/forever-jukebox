@@ -21,7 +21,7 @@ export type AppState = {
   activeVizIndex: number;
   playMode: "jukebox" | "autocanonizer";
   topSongsTab: "top" | "favorites";
-  searchTab: "search" | "upload";
+  searchTab: "spotify" | "youtube" | "upload";
   favorites: FavoriteTrack[];
   favoritesSyncCode: string | null;
   playTimerMs: number;

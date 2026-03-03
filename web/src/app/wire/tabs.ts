@@ -38,15 +38,27 @@ export function createTabsHandlers(deps: TabsDeps) {
     favoritesHandlers.updateFavoritesSyncControls();
   }
 
-  function setSearchTab(tabId: "search" | "upload") {
+  function setSearchTab(tabId: "spotify" | "youtube" | "upload") {
     state.searchTab = tabId;
     elements.searchSubtabButtons.forEach((button) => {
       button.classList.toggle("active", button.dataset.searchSubtab === tabId);
     });
-    elements.searchPanel.classList.toggle("hidden", tabId !== "search");
+
+    const isSearch = tabId === "spotify" || tabId === "youtube";
+    elements.searchPanel.classList.toggle("hidden", !isSearch);
     elements.uploadPanel.classList.toggle("hidden", tabId !== "upload");
-    elements.searchPanelTitle.textContent =
-      tabId === "search" ? "YouTube Search" : "Upload";
+
+    if (tabId === "spotify") {
+      elements.searchPanelTitle.textContent = "Spotify Search";
+      elements.searchHint.textContent = "Step 1: Find a Spotify track.";
+      elements.searchInput.placeholder = "Search Spotify by artist or track";
+    } else if (tabId === "youtube") {
+      elements.searchPanelTitle.textContent = "YouTube Search";
+      elements.searchHint.textContent = "Search YouTube by artist or track name.";
+      elements.searchInput.placeholder = "Search YouTube by artist or track";
+    } else {
+      elements.searchPanelTitle.textContent = "Upload";
+    }
   }
 
   function handleTopSongsTabClick(event: Event) {
@@ -61,7 +73,8 @@ export function createTabsHandlers(deps: TabsDeps) {
   function handleSearchSubtabClick(event: Event) {
     const button = event.currentTarget as HTMLButtonElement | null;
     const tabId = button?.dataset.searchSubtab as
-      | "search"
+      | "spotify"
+      | "youtube"
       | "upload"
       | undefined;
     if (!tabId) {
@@ -80,7 +93,7 @@ export function createTabsHandlers(deps: TabsDeps) {
       setTopSongsTab("top");
     }
     if (tabId === "search") {
-      setSearchTab("search");
+      setSearchTab("spotify");
     }
     if (tabId === "play" && !state.lastYouTubeId && !state.lastJobId) {
       return;

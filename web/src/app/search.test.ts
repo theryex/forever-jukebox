@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppContext } from "./context";
 import type { SearchDeps } from "./search";
-import { startYoutubeAnalysisFlow, tryLoadExistingTrackByYoutube } from "./search";
+import { startYoutubeAnalysisFlow, tryLoadExistingTrackByYoutube, tryLoadExistingTrackByName, showYoutubeMatches } from "./search";
 import { setWindowUrl } from "./__tests__/test-utils";
 
 vi.mock("./api", () => ({
   fetchJobByYoutube: vi.fn(),
+  fetchJobByTrack: vi.fn(),
+  searchSpotify: vi.fn(),
+  searchYoutube: vi.fn(),
   startYoutubeAnalysis: vi.fn(),
 }));
 
@@ -20,7 +23,7 @@ function createContext(): AppContext {
   return {
     elements: {
       searchInput: { value: "" },
-      searchResults: { textContent: "" },
+      searchResults: { textContent: "", append: vi.fn(), innerHTML: "" },
       searchHint: { textContent: "" },
     } as unknown as AppContext["elements"],
     engine: {} as unknown as AppContext["engine"],
@@ -35,6 +38,7 @@ function createContext(): AppContext {
 
     state: {
       playMode: "jukebox",
+      searchTab: "spotify",
       lastYouTubeId: null,
       lastJobId: null,
       audioLoaded: false,
@@ -86,6 +90,46 @@ describe("search flows", () => {
     expect(result).toBe(true);
     expect(deps.updateTrackUrl).toHaveBeenCalledWith("yt1");
     expect(deps.applyAnalysisResult).toHaveBeenCalled();
+  });
+
+  it("loads existing track by track name (Spotify flow) and applies analysis", async () => {
+    const context = createContext();
+    const deps = createDeps();
+    (api.fetchJobByTrack as ReturnType<typeof vi.fn>).mockResolvedValue({
+      status: "complete",
+      id: "job3",
+      youtube_id: "yt3",
+      result: {},
+    });
+    const result = await tryLoadExistingTrackByName(
+      context,
+      deps,
+      "Song Title",
+      "Artist Name"
+    );
+    expect(result).toBe(true);
+    expect(deps.updateTrackUrl).toHaveBeenCalledWith("yt3");
+    expect(deps.applyAnalysisResult).toHaveBeenCalled();
+  });
+
+  it("shows youtube matches if load by name fails", async () => {
+    const context = createContext();
+    const deps = createDeps();
+    (api.searchYoutube as ReturnType<typeof vi.fn>).mockResolvedValue([{
+      status: "complete",
+      id: "yt4",
+      title: "Song",
+      duration: 100
+    }]);
+    await showYoutubeMatches(
+      context,
+      deps,
+      "Song Title",
+      "Artist Name",
+      100
+    );
+    expect(deps.navigateToTab).toHaveBeenCalledWith("search", { replace: true });
+    expect(api.searchYoutube).toHaveBeenCalled();
   });
 
   it("starts youtube analysis flow", async () => {

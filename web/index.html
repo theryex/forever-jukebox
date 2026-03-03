@@ -99,19 +99,23 @@
     </section>
     <section class="panel tab-panel hidden" data-tab-panel="search">
       <div class="subtabs" id="search-subtabs">
-        <button class="subtab-btn active" data-search-subtab="search">
+        <button class="subtab-btn active" data-search-subtab="spotify">
+          Spotify
+        </button>
+        <span class="subtab-spacer" aria-hidden="true"></span>
+        <button class="subtab-btn" data-search-subtab="youtube">
           YouTube
         </button>
         <span class="subtab-spacer" aria-hidden="true"></span>
         <button class="subtab-btn" data-search-subtab="upload">Upload</button>
       </div>
-      <div class="panel-title" id="search-panel-title">YouTube Search</div>
+      <div class="panel-title" id="search-panel-title">Search</div>
       <div class="search-panel" id="search-panel">
         <div class="search-hint" id="search-hint">
-          Search YouTube by artist or track name.
+          Search for a track.
         </div>
         <div class="search-bar">
-          <input id="search-input" class="search-input" type="search" placeholder="Search YouTube by artist or track"
+          <input id="search-input" class="search-input" type="search" placeholder="Search by artist or track"
             autocomplete="off" />
           <button id="search-button">Search</button>
         </div>
