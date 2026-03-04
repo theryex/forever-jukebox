@@ -85,7 +85,9 @@ RUN if [ "$GPU_MODE" = "cuda" ]; then \
     fi
 
 # Force downgrade numpy to 1.26.4 to guarantee scipy compatibility
-RUN pip install --no-cache-dir --force-reinstall "numpy==1.26.4"
+# Also ensure setuptools is present (madmom needs pkg_resources at runtime)
+RUN pip install --no-cache-dir --force-reinstall "numpy==1.26.4" && \
+    pip install --no-cache-dir setuptools
 
 # =============================================================================
 # Stage 3: Final Runtime (Minimal environment)
