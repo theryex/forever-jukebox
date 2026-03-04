@@ -62,7 +62,7 @@ COPY api/requirements.txt ./api/
 COPY engine/requirements.txt ./engine/
 
 # Install base python packages
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+RUN pip install --no-cache-dir --upgrade pip "setuptools<78" wheel && \
     pip install --no-cache-dir Cython "numpy==1.26.4" && \
     pip install --no-cache-dir -r ./api/requirements.txt && \
     # Ensure latest yt-dlp at build time even if cached requirements layer
@@ -87,7 +87,7 @@ RUN if [ "$GPU_MODE" = "cuda" ]; then \
 # Force downgrade numpy to 1.26.4 to guarantee scipy compatibility
 # Also ensure setuptools is present (madmom needs pkg_resources at runtime)
 RUN pip install --no-cache-dir --force-reinstall "numpy==1.26.4" && \
-    pip install --no-cache-dir setuptools
+    pip install --no-cache-dir "setuptools<78"
 
 # =============================================================================
 # Stage 3: Final Runtime (Minimal environment)
@@ -136,6 +136,11 @@ WORKDIR /app
 
 # Copy ONLY the virtual environment from the builder (no compilers!)
 COPY --from=builder /opt/venv /opt/venv
+
+# Ensure setuptools is present in the venv (madmom needs pkg_resources at runtime).
+# This MUST be in the runtime stage because builder-stage installs can be lost
+# to Docker layer caching or pip resolver conflicts during GPU package installs.
+RUN /opt/venv/bin/pip install --no-cache-dir "setuptools<78"
 
 
 # Copy source code
